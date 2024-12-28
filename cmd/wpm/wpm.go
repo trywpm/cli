@@ -2,20 +2,28 @@ package main
 
 import (
 	"fmt"
+	"wpm/cli/command"
 	pmInit "wpm/cli/command/init"
 
 	"github.com/spf13/cobra"
 )
 
 func main() {
-	cmd := newWpmCommand()
+	wpmCli, err := command.NewWpmCli()
+
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	cmd := newWpmCommand(wpmCli)
 
 	if err := cmd.Execute(); err != nil {
 		fmt.Println(err)
 	}
 }
 
-func newWpmCommand() *cobra.Command {
+func newWpmCommand(wpmCli command.Cli) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:              "wpm [OPTIONS] COMMAND [ARG...]",
 		Short:            "WordPress Package Manager",
@@ -36,11 +44,11 @@ func newWpmCommand() *cobra.Command {
 		},
 	}
 
-	addCommands(cmd)
+	addCommands(cmd, wpmCli)
 
 	return cmd
 }
 
-func addCommands(cmd *cobra.Command) {
-	cmd.AddCommand(pmInit.NewInitCommand())
+func addCommands(cmd *cobra.Command, wpmCli command.Cli) {
+	cmd.AddCommand(pmInit.NewInitCommand(wpmCli))
 }
