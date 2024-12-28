@@ -129,14 +129,14 @@ func runInit(ctx context.Context, wpmCli command.Cli, opts initOptions) error {
 		}
 	}
 
-	if err := writeWpmJson(wpmJsonPath, wpmJsonInitData); err != nil {
+	if err := writeWpmJson(wpmCli, wpmJsonPath, wpmJsonInitData); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func writeWpmJson(path string, data PackageInfo) error {
+func writeWpmJson(wpmCli command.Cli, path string, data PackageInfo) error {
 	file, err := os.Create(path)
 	if err != nil {
 		return err
@@ -150,6 +150,8 @@ func writeWpmJson(path string, data PackageInfo) error {
 	if err := encoder.Encode(data); err != nil {
 		return err
 	}
+
+	fmt.Fprint(wpmCli.Out(), "config created at ", path, "\n")
 
 	return nil
 }
