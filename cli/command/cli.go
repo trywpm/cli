@@ -2,12 +2,14 @@ package command
 
 import (
 	"io"
+	"runtime"
 
 	"wpm/cli/config"
 	"wpm/cli/config/configfile"
 	"wpm/cli/debug"
 	cliflags "wpm/cli/flags"
 	"wpm/cli/streams"
+	"wpm/cli/version"
 
 	"github.com/spf13/cobra"
 )
@@ -22,6 +24,7 @@ type Streams interface {
 // Cli represents the wpm command line client.
 type Cli interface {
 	Streams
+	Registry() string
 	SetIn(in *streams.In)
 	Apply(ops ...CLIOption) error
 }
@@ -29,6 +32,7 @@ type Cli interface {
 // WpmCli is an instance the wpm command line client.
 // Instances of the client can be returned from NewWpmCli.
 type WpmCli struct {
+	registry   string
 	in         *streams.In
 	out        *streams.Out
 	err        *streams.Out
@@ -44,11 +48,18 @@ func NewWpmCli(ops ...CLIOption) (*WpmCli, error) {
 	}
 	ops = append(defaultOps, ops...)
 
-	cli := &WpmCli{}
+	cli := &WpmCli{
+		registry: "https://dev-registry.wpm.so",
+	}
 	if err := cli.Apply(ops...); err != nil {
 		return nil, err
 	}
 	return cli, nil
+}
+
+// Registry returns the registry URL
+func (cli *WpmCli) Registry() string {
+	return cli.registry
 }
 
 // Out returns the writer used for stdout
@@ -121,4 +132,9 @@ func (cli *WpmCli) Initialize(opts *cliflags.ClientOptions, ops ...CLIOption) er
 	cli.configFile = config.LoadDefaultConfigFile(cli.err)
 
 	return nil
+}
+
+// UserAgent returns the user agent string used for making API requests
+func UserAgent() string {
+	return "wpm-cli/" + version.Version + " (" + runtime.GOOS + "/" + runtime.GOARCH + ")"
 }
