@@ -135,7 +135,6 @@ func setupHelpCommand(helpCmd *cobra.Command) {
 	}
 }
 
-//nolint:gocyclo
 func runWpm(ctx context.Context, wpmCli *command.WpmCli) error {
 	tcmd := newWpmCommand(wpmCli)
 
