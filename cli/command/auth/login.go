@@ -82,5 +82,16 @@ func runLogin(ctx context.Context, wpmCli command.Cli, opts loginOptions) error 
 		}
 	}
 
+	// TODO(thelovekesh): verify the token with the registry
+
+	cfg := wpmCli.ConfigFile()
+
+	// TODO(thelovekesh: add the username associated with the token to the config file
+	cfg.AuthToken = opts.token
+
+	if err := cfg.Save(); err != nil {
+		return err
+	}
+
 	return nil
 }
