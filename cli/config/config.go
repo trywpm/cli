@@ -17,7 +17,7 @@ import (
 
 const (
 	// EnvOverrideConfigDir is the name of the environment variable that can be
-	// used to override the location of the client configuration files (~/.docker).
+	// used to override the location of the client configuration files (~/.wpm).
 	//
 	// It takes priority over the default, but can be overridden by the "--config"
 	// command line option.
@@ -52,11 +52,6 @@ func resetConfigDir() {
 // osusergo build tag is used.
 //
 // If needing to do nss lookups, do not disable cgo or set osusergo.
-//
-// getHomeDir is a copy of [pkg/homedir.Get] to prevent adding docker/docker
-// as dependency for consumers that only need to read the config-file.
-//
-// [pkg/homedir.Get]: https://pkg.go.dev/github.com/docker/docker@v26.1.4+incompatible/pkg/homedir#Get
 func getHomeDir() string {
 	home, _ := os.UserHomeDir()
 	if home == "" && runtime.GOOS != "windows" {
@@ -157,7 +152,6 @@ func load(configDir string) (*configfile.ConfigFile, error) {
 func LoadDefaultConfigFile(stderr io.Writer) *configfile.ConfigFile {
 	configFile, err := load(Dir())
 	if err != nil {
-		// FIXME(thaJeztah): we should not proceed here to prevent overwriting existing (but malformed) config files; see https://github.com/docker/cli/issues/5075
 		_, _ = fmt.Fprintln(stderr, "WARNING: Error", err)
 	}
 

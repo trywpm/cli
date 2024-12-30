@@ -99,7 +99,7 @@ func (cli *WpmCli) ConfigFile() *configfile.ConfigFile {
 	return cli.configFile
 }
 
-// Initialize the dockerCli runs initialization that must happen after command
+// Initialize the wpmCli runs initialization that must happen after command
 // line flags are parsed.
 func (cli *WpmCli) Initialize(opts *cliflags.ClientOptions, ops ...CLIOption) error {
 	for _, o := range ops {
