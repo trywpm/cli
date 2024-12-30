@@ -1,12 +1,17 @@
 package cli
 
 import (
+	"fmt"
 	"os"
+	"sort"
 	"strings"
 
 	"wpm/cli/command"
 	cliflags "wpm/cli/flags"
 
+	"github.com/fvbommel/sortorder"
+	"github.com/moby/term"
+	"github.com/morikuni/aec"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -18,13 +23,68 @@ func setupCommonRootCommand(rootCmd *cobra.Command) (*cliflags.ClientOptions, *c
 	opts := cliflags.NewClientOptions()
 	opts.InstallFlags(rootCmd.Flags())
 
-	cobra.AddTemplateFunc("add", func(a, b int) int { return a + b })
+	// cobra.AddTemplateFunc("add", func(a, b int) int { return a + b })
+	cobra.AddTemplateFunc("hasAliases", hasAliases)
+	cobra.AddTemplateFunc("hasSubCommands", hasSubCommands)
+	cobra.AddTemplateFunc("hasTopCommands", hasTopCommands)
+	cobra.AddTemplateFunc("topCommands", topCommands)
+	cobra.AddTemplateFunc("commandAliases", commandAliases)
+	cobra.AddTemplateFunc("operationSubCommands", operationSubCommands)
+	cobra.AddTemplateFunc("hasAdditionalHelp", hasAdditionalHelp)
+	cobra.AddTemplateFunc("wrappedFlagUsages", wrappedFlagUsages)
+	cobra.AddTemplateFunc("additionalHelp", additionalHelp)
+	cobra.AddTemplateFunc("decoratedName", decoratedName)
+
+	rootCmd.SetUsageTemplate(usageTemplate)
+	rootCmd.SetHelpTemplate(helpTemplate)
+	rootCmd.SetFlagErrorFunc(FlagErrorFunc)
+	rootCmd.SetHelpCommand(helpCommand)
 
 	rootCmd.PersistentFlags().BoolP("help", "h", false, "Print usage")
 	rootCmd.PersistentFlags().MarkShorthandDeprecated("help", "use --help")
 	rootCmd.PersistentFlags().Lookup("help").Hidden = true
 
+	rootCmd.Annotations = map[string]string{
+		"additionalHelp": "For more help on how to use wpm, see https://docs.wpm.so",
+	}
+
 	return opts, helpCommand
+}
+
+// SetupRootCommand sets default usage, help, and error handling for the
+// root command.
+func SetupRootCommand(rootCmd *cobra.Command) (opts *cliflags.ClientOptions, helpCmd *cobra.Command) {
+	rootCmd.SetVersionTemplate("wpm version {{.Version}}\n")
+	return setupCommonRootCommand(rootCmd)
+}
+
+// FlagErrorFunc prints an error message which matches the format of the
+// wpm/cli/cli error messages
+func FlagErrorFunc(cmd *cobra.Command, err error) error {
+	if err == nil {
+		return nil
+	}
+
+	return StatusError{
+		Status:     fmt.Sprintf("%s\n\nUsage:  %s\n\nRun '%s --help' for more information", err, cmd.UseLine(), cmd.CommandPath()),
+		StatusCode: 125,
+	}
+}
+
+func operationSubCommands(cmd *cobra.Command) []*cobra.Command {
+	cmds := []*cobra.Command{}
+	for _, sub := range cmd.Commands() {
+		if _, ok := sub.Annotations["category-top"]; ok {
+			if cmd.Parent() == nil {
+				// for now, only use top-commands for the root-command
+				continue
+			}
+		}
+		if sub.IsAvailableCommand() && !sub.HasSubCommands() {
+			cmds = append(cmds, sub)
+		}
+	}
+	return cmds
 }
 
 var helpCommand = &cobra.Command{
@@ -41,6 +101,82 @@ var helpCommand = &cobra.Command{
 		helpFunc(cmd, args)
 		return nil
 	},
+}
+
+func hasAliases(cmd *cobra.Command) bool {
+	return len(cmd.Aliases) > 0 || cmd.Annotations["aliases"] != ""
+}
+
+func hasSubCommands(cmd *cobra.Command) bool {
+	return len(operationSubCommands(cmd)) > 0
+}
+
+func hasTopCommands(cmd *cobra.Command) bool {
+	return len(topCommands(cmd)) > 0
+}
+
+func topCommands(cmd *cobra.Command) []*cobra.Command {
+	cmds := []*cobra.Command{}
+	if cmd.Parent() != nil {
+		// for now, only use top-commands for the root-command, and skip
+		// for sub-commands
+		return cmds
+	}
+	for _, sub := range cmd.Commands() {
+		if _, ok := sub.Annotations["category-top"]; ok {
+			cmds = append(cmds, sub)
+		}
+	}
+	sort.SliceStable(cmds, func(i, j int) bool {
+		return sortorder.NaturalLess(cmds[i].Annotations["category-top"], cmds[j].Annotations["category-top"])
+	})
+	return cmds
+}
+
+// commandAliases is a templating function to return aliases for the command,
+// formatted as the full command as they're called (contrary to the default
+// Aliases function, which only returns the subcommand).
+func commandAliases(cmd *cobra.Command) string {
+	if cmd.Annotations["aliases"] != "" {
+		return cmd.Annotations["aliases"]
+	}
+	var parentPath string
+	if cmd.HasParent() {
+		parentPath = cmd.Parent().CommandPath() + " "
+	}
+	aliases := cmd.CommandPath()
+	for _, alias := range cmd.Aliases {
+		aliases += ", " + parentPath + alias
+	}
+	return aliases
+}
+
+func wrappedFlagUsages(cmd *cobra.Command) string {
+	width := 80
+	if ws, err := term.GetWinsize(0); err == nil {
+		width = int(ws.Width)
+	}
+	return cmd.Flags().FlagUsagesWrapped(width - 1)
+}
+
+func additionalHelp(cmd *cobra.Command) string {
+	if msg, ok := cmd.Annotations["additionalHelp"]; ok {
+		out := cmd.OutOrStderr()
+		if _, isTerminal := term.GetFdInfo(out); !isTerminal {
+			return msg
+		}
+		style := aec.EmptyBuilder.Bold().ANSI
+		return style.Apply(msg)
+	}
+	return ""
+}
+
+func hasAdditionalHelp(cmd *cobra.Command) bool {
+	return additionalHelp(cmd) != ""
+}
+
+func decoratedName(cmd *cobra.Command) string {
+	return cmd.Name() + " "
 }
 
 // TopLevelCommand encapsulates a top-level cobra command (either
@@ -63,13 +199,6 @@ func NewTopLevelCommand(cmd *cobra.Command, wpmCli *command.WpmCli, opts *clifla
 		flags:  flags,
 		args:   os.Args[1:],
 	}
-}
-
-// SetupRootCommand sets default usage, help, and error handling for the
-// root command.
-func SetupRootCommand(rootCmd *cobra.Command) (opts *cliflags.ClientOptions, helpCmd *cobra.Command) {
-	rootCmd.SetVersionTemplate("wpm version {{.Version}}\n")
-	return setupCommonRootCommand(rootCmd)
 }
 
 // VisitAll will traverse all commands from the root.
@@ -136,3 +265,63 @@ func (tcmd *TopLevelCommand) Initialize(ops ...command.CLIOption) error {
 	tcmd.opts.SetDefaultOptions(tcmd.flags)
 	return tcmd.wpmCli.Initialize(tcmd.opts, ops...)
 }
+
+const usageTemplate = `Usage:
+{{- if not .HasSubCommands}}  {{.UseLine}}{{end}}
+{{- if .HasSubCommands}}  {{ .CommandPath}}{{- if .HasAvailableFlags}} [OPTIONS]{{end}} COMMAND{{end}}
+
+{{if ne .Long ""}}{{ .Long | trim }}{{ else }}{{ .Short | trim }}{{end}}
+{{- if hasAliases . }}
+
+Aliases:
+  {{ commandAliases . }}
+
+{{- end}}
+
+{{- if .HasExample}}
+
+Examples:
+{{ .Example }}
+
+{{- end}}
+
+{{- if .HasParent}}
+{{- if .HasAvailableFlags}}
+
+Options:
+{{ wrappedFlagUsages . | trimRightSpace}}
+
+{{- end}}
+{{- end}}
+
+{{- if hasSubCommands .}}
+
+Commands:
+
+{{- range operationSubCommands . }}
+  {{rpad .Name .NamePadding }} {{.Short}}
+{{- end}}
+{{- end}}
+
+{{- if not .HasParent}}
+{{- if .HasAvailableFlags}}
+
+Global Options:
+{{ wrappedFlagUsages . | trimRightSpace}}
+
+{{- end}}
+{{- end}}
+
+{{- if .HasSubCommands }}
+
+Run '{{.CommandPath}} COMMAND --help' for more information on a command.
+{{- end}}
+
+{{- if hasAdditionalHelp .}}
+
+{{ additionalHelp . }}
+
+{{- end}}
+`
+const helpTemplate = `
+{{if or .Runnable .HasSubCommands}}{{.UsageString}}{{end}}`
