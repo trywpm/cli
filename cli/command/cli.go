@@ -27,6 +27,7 @@ type Cli interface {
 	Registry() string
 	SetIn(in *streams.In)
 	Apply(ops ...CLIOption) error
+	ConfigFile() *configfile.ConfigFile
 }
 
 // WpmCli is an instance the wpm command line client.
@@ -36,6 +37,7 @@ type WpmCli struct {
 	in         *streams.In
 	out        *streams.Out
 	err        *streams.Out
+	options    *cliflags.ClientOptions
 	configFile *configfile.ConfigFile
 }
 
@@ -128,7 +130,7 @@ func (cli *WpmCli) Initialize(opts *cliflags.ClientOptions, ops ...CLIOption) er
 		debug.Enable()
 	}
 
-	// cli.options = opts
+	cli.options = opts
 	cli.configFile = config.LoadDefaultConfigFile(cli.err)
 
 	return nil
