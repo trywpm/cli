@@ -23,6 +23,7 @@ func setupCommonRootCommand(rootCmd *cobra.Command) (*cliflags.ClientOptions, *c
 	opts := cliflags.NewClientOptions()
 	opts.InstallFlags(rootCmd.Flags())
 
+	cobra.AddTemplateFunc("add", func(a, b int) int { return a + b })
 	cobra.AddTemplateFunc("hasAliases", hasAliases)
 	cobra.AddTemplateFunc("hasSubCommands", hasSubCommands)
 	cobra.AddTemplateFunc("hasTopCommands", hasTopCommands)
@@ -288,6 +289,14 @@ Examples:
 Options:
 {{ wrappedFlagUsages . | trimRightSpace}}
 
+{{- end}}
+{{- end}}
+
+{{- if hasTopCommands .}}
+
+Common Commands:
+{{- range topCommands .}}
+  {{rpad (decoratedName .) (add .NamePadding 1)}}{{.Short}}
 {{- end}}
 {{- end}}
 
