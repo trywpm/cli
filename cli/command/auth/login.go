@@ -67,10 +67,6 @@ func tokenStdinPrompt(ctx context.Context, wpmCli command.Cli, opts *loginOption
 	return nil
 }
 
-func verifyUser(token string) (string, error) {
-	return "", nil
-}
-
 func runLogin(ctx context.Context, wpmCli command.Cli, opts loginOptions) error {
 	if err := verifyLoginOptions(wpmCli, opts); err != nil {
 		return err
