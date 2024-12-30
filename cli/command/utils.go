@@ -11,10 +11,11 @@ import (
 	"strings"
 	"wpm/cli/streams"
 
+	"github.com/docker/docker/errdefs"
 	"github.com/moby/term"
 )
 
-var ErrPromptTerminated = errors.New("prompt terminated")
+var ErrPromptTerminated = errdefs.Cancelled(errors.New("prompt terminated"))
 
 // DisableInputEcho disables input echo on the provided streams.In.
 // This is useful when the user provides sensitive information like passwords.
