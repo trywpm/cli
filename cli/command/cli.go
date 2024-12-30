@@ -3,6 +3,10 @@ package command
 import (
 	"io"
 
+	"wpm/cli/config"
+	"wpm/cli/config/configfile"
+	"wpm/cli/debug"
+	cliflags "wpm/cli/flags"
 	"wpm/cli/streams"
 
 	"github.com/spf13/cobra"
@@ -25,9 +29,10 @@ type Cli interface {
 // WpmCli is an instance the wpm command line client.
 // Instances of the client can be returned from NewWpmCli.
 type WpmCli struct {
-	in  *streams.In
-	out *streams.Out
-	err *streams.Out
+	in         *streams.In
+	out        *streams.Out
+	err        *streams.Out
+	configFile *configfile.ConfigFile
 }
 
 // NewWpmCli returns a WpmCli instance with all operators applied on it.
@@ -82,5 +87,38 @@ func (cli *WpmCli) Apply(ops ...CLIOption) error {
 			return err
 		}
 	}
+	return nil
+}
+
+// ConfigFile returns the ConfigFile
+func (cli *WpmCli) ConfigFile() *configfile.ConfigFile {
+	// TODO(thelovekesh): when would this happen? Is this only in tests (where cli.Initialize() is not called first?)
+	if cli.configFile == nil {
+		cli.configFile = config.LoadDefaultConfigFile(cli.err)
+	}
+	return cli.configFile
+}
+
+// Initialize the dockerCli runs initialization that must happen after command
+// line flags are parsed.
+func (cli *WpmCli) Initialize(opts *cliflags.ClientOptions, ops ...CLIOption) error {
+	for _, o := range ops {
+		if err := o(cli); err != nil {
+			return err
+		}
+	}
+	cliflags.SetLogLevel(opts.LogLevel)
+
+	if opts.ConfigDir != "" {
+		config.SetDir(opts.ConfigDir)
+	}
+
+	if opts.Debug {
+		debug.Enable()
+	}
+
+	// cli.options = opts
+	cli.configFile = config.LoadDefaultConfigFile(cli.err)
+
 	return nil
 }
