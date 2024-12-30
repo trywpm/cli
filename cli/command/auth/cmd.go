@@ -10,12 +10,15 @@ import (
 func NewAuthCommand(wpmCli command.Cli) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "auth",
-		Short: "Manage authentication with the wpm registry",
+		Short: "Authenticate with the wpm registry",
 		Args:  cli.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cmd.SetOut(wpmCli.Out())
 			cmd.HelpFunc()(cmd, args)
 			return nil
+		},
+		Annotations: map[string]string{
+			"category-top": "1",
 		},
 	}
 
