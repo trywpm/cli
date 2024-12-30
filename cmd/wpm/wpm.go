@@ -73,7 +73,27 @@ func newWpmCommand(wpmCli *command.WpmCli) *cli.TopLevelCommand {
 			if len(args) == 0 {
 				return command.ShowHelp(wpmCli.Err())(cmd, args)
 			}
-			return fmt.Errorf("wpm: unknown command: wpm %s\n\nRun 'wpm --help' for more information", args[0])
+
+			fmt.Fprintf(wpmCli.Err(), "wpm: unknown command: wpm %s\n", args[0])
+
+			var candidates []string
+			if args[0] == "help" {
+				candidates = []string{"--help"}
+			} else {
+				if cmd.SuggestionsMinimumDistance <= 0 {
+					cmd.SuggestionsMinimumDistance = 2
+				}
+				candidates = cmd.SuggestionsFor(args[0])
+			}
+
+			if len(candidates) > 0 {
+				fmt.Fprint(wpmCli.Err(), "\nDid you mean this?\n")
+				for _, c := range candidates {
+					fmt.Fprintf(wpmCli.Err(), "\t%s\n", c)
+				}
+			}
+
+			return fmt.Errorf("\nRun 'wpm --help' for more information")
 		},
 		Version:               fmt.Sprintf("%s, build %s", version.Version, version.GitCommit),
 		DisableFlagsInUseLine: true,
