@@ -23,6 +23,7 @@ type PluginsAuthConfig struct {
 type ConfigFile struct {
 	Filename         string                       `json:"-"` // Note: for internal use only
 	AuthToken        string                       `json:"authToken,omitempty"`
+	DefaultUser      string                       `json:"defaultUser,omitempty"`
 	UsersAuthTokens  map[string]UsersAuthConfig   `json:"usersAuthTokens,omitempty"`
 	PluginsAuthToken map[string]PluginsAuthConfig `json:"pluginsAuthToken,omitempty"`
 }
@@ -31,6 +32,7 @@ type ConfigFile struct {
 func New(fn string) *ConfigFile {
 	return &ConfigFile{
 		AuthToken:        "",
+		DefaultUser:      "",
 		Filename:         fn,
 		UsersAuthTokens:  make(map[string]UsersAuthConfig),
 		PluginsAuthToken: make(map[string]PluginsAuthConfig),
