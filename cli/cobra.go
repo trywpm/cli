@@ -23,7 +23,6 @@ func setupCommonRootCommand(rootCmd *cobra.Command) (*cliflags.ClientOptions, *c
 	opts := cliflags.NewClientOptions()
 	opts.InstallFlags(rootCmd.Flags())
 
-	// cobra.AddTemplateFunc("add", func(a, b int) int { return a + b })
 	cobra.AddTemplateFunc("hasAliases", hasAliases)
 	cobra.AddTemplateFunc("hasSubCommands", hasSubCommands)
 	cobra.AddTemplateFunc("hasTopCommands", hasTopCommands)
@@ -40,8 +39,7 @@ func setupCommonRootCommand(rootCmd *cobra.Command) (*cliflags.ClientOptions, *c
 	rootCmd.SetFlagErrorFunc(FlagErrorFunc)
 	rootCmd.SetHelpCommand(helpCommand)
 
-	rootCmd.PersistentFlags().BoolP("help", "h", false, "Print usage")
-	rootCmd.PersistentFlags().MarkShorthandDeprecated("help", "use --help")
+	rootCmd.PersistentFlags().BoolP("help", "h", false, "Show help for command")
 	rootCmd.PersistentFlags().Lookup("help").Hidden = true
 
 	rootCmd.Annotations = map[string]string{
@@ -179,8 +177,7 @@ func decoratedName(cmd *cobra.Command) string {
 	return cmd.Name() + " "
 }
 
-// TopLevelCommand encapsulates a top-level cobra command (either
-// docker CLI or a plugin) and global flag handling logic necessary
+// TopLevelCommand encapsulates a top-level cobra command and global flag handling logic necessary
 // for plugins.
 type TopLevelCommand struct {
 	cmd    *cobra.Command
@@ -260,15 +257,15 @@ func (tcmd *TopLevelCommand) HandleGlobalFlags() (*cobra.Command, []string, erro
 	return cmd, flags.Args(), nil
 }
 
-// Initialize finalises global option parsing and initializes the docker client.
+// Initialize finalises global option parsing and initializes the wpm client.
 func (tcmd *TopLevelCommand) Initialize(ops ...command.CLIOption) error {
 	tcmd.opts.SetDefaultOptions(tcmd.flags)
 	return tcmd.wpmCli.Initialize(tcmd.opts, ops...)
 }
 
 const usageTemplate = `Usage:
-{{- if not .HasSubCommands}}  {{.UseLine}}{{end}}
-{{- if .HasSubCommands}}  {{ .CommandPath}}{{- if .HasAvailableFlags}} [OPTIONS]{{end}} COMMAND{{end}}
+{{- if not .HasSubCommands}} {{.UseLine}}{{end}}
+{{- if .HasSubCommands}} {{ .CommandPath}}{{- if .HasAvailableFlags}} [OPTIONS]{{end}} COMMAND{{end}}
 
 {{if ne .Long ""}}{{ .Long | trim }}{{ else }}{{ .Short | trim }}{{end}}
 {{- if hasAliases . }}
