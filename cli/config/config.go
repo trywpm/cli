@@ -157,3 +157,7 @@ func LoadDefaultConfigFile(stderr io.Writer) *configfile.ConfigFile {
 
 	return configFile
 }
+
+func CacheDir() string {
+	return filepath.Join(Dir(), "cache")
+}
