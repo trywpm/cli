@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"bytes"
 	"crypto/sha256"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -13,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/pkg/errors"
 )
 
 type cache struct {
@@ -38,10 +39,6 @@ type readCloser struct {
 
 func isCacheableRequest(req *http.Request) bool {
 	if strings.EqualFold(req.Method, "GET") || strings.EqualFold(req.Method, "HEAD") {
-		return true
-	}
-
-	if strings.EqualFold(req.Method, "POST") && (req.URL.Path == "/graphql" || req.URL.Path == "/api/graphql") {
 		return true
 	}
 
@@ -123,8 +120,8 @@ func (crt cacheRoundTripper) RoundTrip(req *http.Request) (*http.Response, error
 // Allow an individual request to override cache options.
 func requestCacheOptions(req *http.Request) (string, time.Duration) {
 	var dur time.Duration
-	dir := req.Header.Get("X-GH-CACHE-DIR")
-	ttl := req.Header.Get("X-GH-CACHE-TTL")
+	dir := req.Header.Get("X-WPM-CACHE-DIR")
+	ttl := req.Header.Get("X-WPM-CACHE-TTL")
 	if ttl != "" {
 		dur, _ = time.ParseDuration(ttl)
 	}

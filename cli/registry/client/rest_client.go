@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+
 	"wpm/cli/command"
 )
 
