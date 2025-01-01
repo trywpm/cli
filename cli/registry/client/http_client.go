@@ -138,7 +138,7 @@ func resolveHeaders(headers map[string]string) {
 
 func newHeaderRoundTripper(host string, authToken string, headers map[string]string, rt http.RoundTripper) http.RoundTripper {
 	if _, ok := headers[authorization]; !ok && authToken != "" {
-		headers[authorization] = fmt.Sprintf("token %s", authToken)
+		headers[authorization] = fmt.Sprintf("Bearer %s", authToken)
 	}
 	if len(headers) == 0 {
 		return rt

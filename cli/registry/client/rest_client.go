@@ -22,7 +22,7 @@ func DefaultRESTClient(wpmCli command.Cli) (*RESTClient, error) {
 	return NewRESTClient(wpmCli, ClientOptions{})
 }
 
-// RESTClient builds a client to send requests to GitHub REST API endpoints.
+// RESTClient builds a client to send requests to wpm REST API endpoints.
 // As part of the configuration a hostname, auth token, default set of headers,
 // and unix domain socket are resolved from the gh environment configuration.
 // These behaviors can be overridden using the opts argument.

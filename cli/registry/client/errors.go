@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-// HTTPError represents an error response from the GitHub API.
+// HTTPError represents an error response from the wpm API.
 type HTTPError struct {
 	Errors     []HTTPErrorItem
 	Headers    http.Header
@@ -19,12 +19,10 @@ type HTTPError struct {
 }
 
 // HTTPErrorItem stores additional information about an error response
-// returned from the GitHub API.
+// returned from the wpm API.
 type HTTPErrorItem struct {
-	Code     string
-	Field    string
-	Message  string
-	Resource string
+	Code    string
+	Message string
 }
 
 // Allow HTTPError to satisfy error interface.
@@ -35,59 +33,6 @@ func (err *HTTPError) Error() string {
 		return fmt.Sprintf("HTTP %d: %s (%s)", err.StatusCode, err.Message, err.RequestURL)
 	}
 	return fmt.Sprintf("HTTP %d (%s)", err.StatusCode, err.RequestURL)
-}
-
-// GraphQLError represents an error response from GitHub GraphQL API.
-type GraphQLError struct {
-	Errors []GraphQLErrorItem
-}
-
-// GraphQLErrorItem stores additional information about an error response
-// returned from the GitHub GraphQL API.
-type GraphQLErrorItem struct {
-	Message   string
-	Locations []struct {
-		Line   int
-		Column int
-	}
-	Path       []interface{}
-	Extensions map[string]interface{}
-	Type       string
-}
-
-// Allow GraphQLError to satisfy error interface.
-func (gr *GraphQLError) Error() string {
-	errorMessages := make([]string, 0, len(gr.Errors))
-	for _, e := range gr.Errors {
-		msg := e.Message
-		if p := e.pathString(); p != "" {
-			msg = fmt.Sprintf("%s (%s)", msg, p)
-		}
-		errorMessages = append(errorMessages, msg)
-	}
-	return fmt.Sprintf("GraphQL: %s", strings.Join(errorMessages, ", "))
-}
-
-// Match determines if the GraphQLError is about a specific type on a specific path.
-// If the path argument ends with a ".", it will match all its subpaths.
-func (gr *GraphQLError) Match(expectType, expectPath string) bool {
-	for _, e := range gr.Errors {
-		if e.Type != expectType || !matchPath(e.pathString(), expectPath) {
-			return false
-		}
-	}
-	return true
-}
-
-func (ge GraphQLErrorItem) pathString() string {
-	var res strings.Builder
-	for i, v := range ge.Path {
-		if i > 0 {
-			res.WriteRune('.')
-		}
-		fmt.Fprintf(&res, "%v", v)
-	}
-	return res.String()
 }
 
 func matchPath(p, expect string) bool {
@@ -139,9 +84,6 @@ func HandleHTTPError(resp *http.Response) error {
 			var errInfo HTTPErrorItem
 			_ = json.Unmarshal(raw, &errInfo)
 			msg := errInfo.Message
-			if errInfo.Code != "" && errInfo.Code != "custom" {
-				msg = fmt.Sprintf("%s.%s %s", errInfo.Resource, errInfo.Field, errorCodeToMessage(errInfo.Code))
-			}
 			if msg != "" {
 				messages = append(messages, msg)
 			}
@@ -151,19 +93,4 @@ func HandleHTTPError(resp *http.Response) error {
 	httpError.Message = strings.Join(messages, "\n")
 
 	return httpError
-}
-
-// Convert common error codes to human readable messages
-// See https://docs.github.com/en/rest/overview/resources-in-the-rest-api#client-errors for more details.
-func errorCodeToMessage(code string) string {
-	switch code {
-	case "missing", "missing_field":
-		return "is missing"
-	case "invalid", "unprocessable":
-		return "is invalid"
-	case "already_exists":
-		return "already exists"
-	default:
-		return code
-	}
 }
