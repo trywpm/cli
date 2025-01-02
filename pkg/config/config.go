@@ -10,7 +10,7 @@ import (
 	"strings"
 	"sync"
 
-	"wpm/cli/config/configfile"
+	"wpm/pkg/config/configfile"
 
 	"github.com/pkg/errors"
 )
@@ -156,4 +156,8 @@ func LoadDefaultConfigFile(stderr io.Writer) *configfile.ConfigFile {
 	}
 
 	return configFile
+}
+
+func CacheDir() string {
+	return filepath.Join(Dir(), "cache")
 }
