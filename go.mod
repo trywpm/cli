@@ -13,7 +13,7 @@ require (
 	github.com/spf13/cobra v1.8.1
 	github.com/spf13/pflag v1.0.5
 	github.com/thlib/go-timezone-local v0.0.6
-	golang.org/x/sys v0.1.0
+	golang.org/x/sys v0.28.0
 	golang.org/x/text v0.21.0
 )
 
