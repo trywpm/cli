@@ -22,10 +22,7 @@ type RegistryClient interface {
 	PutPackage(ctx context.Context, data PackageData) (NewPackageData, error)
 }
 
-type PackageData struct {
-	name    string
-	version string
-}
+type PackageData struct{}
 
 type NewPackageData struct {
 	PackageData

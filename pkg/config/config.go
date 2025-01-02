@@ -34,13 +34,6 @@ var (
 	configDir     string
 )
 
-// resetConfigDir is used in testing to reset the "configDir" package variable
-// and its sync.Once to force re-lookup between tests.
-func resetConfigDir() {
-	configDir = ""
-	initConfigDir = new(sync.Once)
-}
-
 // getHomeDir returns the home directory of the current user with the help of
 // environment variables depending on the target operating system.
 // Returned path should be used with "path/filepath" to form new paths.
