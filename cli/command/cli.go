@@ -8,6 +8,7 @@ import (
 	"wpm/cli/config/configfile"
 	"wpm/cli/debug"
 	cliflags "wpm/cli/flags"
+	"wpm/cli/registry/client"
 	"wpm/cli/streams"
 	"wpm/cli/version"
 
@@ -28,6 +29,7 @@ type Cli interface {
 	SetIn(in *streams.In)
 	Apply(ops ...CLIOption) error
 	ConfigFile() *configfile.ConfigFile
+	RegistryClient() (client.RegistryClient, error)
 }
 
 // WpmCli is an instance the wpm command line client.
@@ -134,6 +136,16 @@ func (cli *WpmCli) Initialize(opts *cliflags.ClientOptions, ops ...CLIOption) er
 	cli.configFile = config.LoadDefaultConfigFile(cli.err)
 
 	return nil
+}
+
+// RegistryClient returns a client for communicating with wpm registry
+func (cli *WpmCli) RegistryClient() (client.RegistryClient, error) {
+	_client, err := client.NewRegistryClient(cli.configFile.AuthToken, UserAgent(), cli.out)
+	if err != nil {
+		return nil, err
+	}
+
+	return _client, nil
 }
 
 // UserAgent returns the user agent string used for making API requests
