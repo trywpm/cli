@@ -4,13 +4,13 @@ import (
 	"io"
 	"runtime"
 
-	"wpm/cli/config"
-	"wpm/cli/config/configfile"
 	"wpm/cli/debug"
 	cliflags "wpm/cli/flags"
 	"wpm/cli/registry/client"
 	"wpm/cli/streams"
 	"wpm/cli/version"
+	"wpm/pkg/config"
+	"wpm/pkg/config/configfile"
 
 	"github.com/spf13/cobra"
 )
