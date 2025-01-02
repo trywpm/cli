@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"io"
 	"time"
-
-	"wpm/cli/command"
 )
 
 // ClientOptions holds available options to configure API clients.
@@ -70,18 +68,13 @@ func optionsNeedResolution(opts ClientOptions) bool {
 	return false
 }
 
-func resolveOptions(wpmCli command.Cli, opts ClientOptions) (ClientOptions, error) {
-	cfg := wpmCli.ConfigFile()
-
+func resolveOptions(opts ClientOptions) (ClientOptions, error) {
 	if opts.Host == "" {
-		opts.Host = wpmCli.Registry()
+		return ClientOptions{}, fmt.Errorf("host not found")
 	}
 
 	if opts.AuthToken == "" {
-		opts.AuthToken = cfg.AuthToken
-		if opts.AuthToken == "" {
-			return ClientOptions{}, fmt.Errorf("bearer authentication token not found for host %s", opts.Host)
-		}
+		return ClientOptions{}, fmt.Errorf("authentication token not found for host %s", opts.Host)
 	}
 
 	return opts, nil

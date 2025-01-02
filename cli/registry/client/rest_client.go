@@ -7,8 +7,6 @@ import (
 	"io"
 	"net/http"
 	"strings"
-
-	"wpm/cli/command"
 )
 
 // RESTClient wraps methods for the different types of
@@ -18,24 +16,24 @@ type RESTClient struct {
 	host   string
 }
 
-func DefaultRESTClient(wpmCli command.Cli) (*RESTClient, error) {
-	return NewRESTClient(wpmCli, ClientOptions{})
+func DefaultRESTClient() (*RESTClient, error) {
+	return NewRESTClient(ClientOptions{})
 }
 
 // RESTClient builds a client to send requests to wpm REST API endpoints.
 // As part of the configuration a hostname, auth token, default set of headers,
 // and unix domain socket are resolved from the gh environment configuration.
 // These behaviors can be overridden using the opts argument.
-func NewRESTClient(wpmCli command.Cli, opts ClientOptions) (*RESTClient, error) {
+func NewRESTClient(opts ClientOptions) (*RESTClient, error) {
 	if optionsNeedResolution(opts) {
 		var err error
-		opts, err = resolveOptions(wpmCli, opts)
+		opts, err = resolveOptions(opts)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	client, err := NewHTTPClient(wpmCli, opts)
+	client, err := NewHTTPClient(opts)
 	if err != nil {
 		return nil, err
 	}

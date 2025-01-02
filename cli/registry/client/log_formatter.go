@@ -2,17 +2,10 @@ package client
 
 import (
 	"bytes"
-	"encoding/json"
 	"io"
 
 	"wpm/pkg/jsonpretty"
 )
-
-type graphqlBody struct {
-	Query         string          `json:"query"`
-	OperationName string          `json:"operationName"`
-	Variables     json.RawMessage `json:"variables"`
-}
 
 // jsonFormatter is a httpretty.Formatter that prettifies JSON payloads and GraphQL queries.
 type jsonFormatter struct {

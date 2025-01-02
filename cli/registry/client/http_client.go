@@ -8,13 +8,11 @@ import (
 	"strings"
 	"time"
 
-	"wpm/cli"
 	"wpm/cli/command"
 	"wpm/cli/config"
 	"wpm/pkg/asciisanitizer"
 
 	"github.com/henvic/httpretty"
-	"github.com/moby/term"
 	"github.com/sirupsen/logrus"
 	"github.com/thlib/go-timezone-local/tzlocal"
 	"golang.org/x/text/transform"
@@ -33,15 +31,15 @@ const (
 
 var jsonTypeRE = regexp.MustCompile(`[/+]json($|;)`)
 
-func DefaultHTTPClient(wpmCli command.Cli) (*http.Client, error) {
-	return NewHTTPClient(wpmCli, ClientOptions{})
+func DefaultHTTPClient() (*http.Client, error) {
+	return NewHTTPClient(ClientOptions{})
 }
 
 // NewHTTPClient creates a new HTTP client with the provided options.
-func NewHTTPClient(wpmCli command.Cli, opts ClientOptions) (*http.Client, error) {
+func NewHTTPClient(opts ClientOptions) (*http.Client, error) {
 	if optionsNeedResolution(opts) {
 		var err error
-		opts, err = resolveOptions(wpmCli, opts)
+		opts, err = resolveOptions(opts)
 		if err != nil {
 			return nil, err
 		}
@@ -61,12 +59,8 @@ func NewHTTPClient(wpmCli command.Cli, opts ClientOptions) (*http.Client, error)
 	c := cache{dir: opts.CacheDir, ttl: opts.CacheTTL}
 	transport = c.RoundTripper(transport)
 
-	if opts.Log == nil && !opts.LogIgnoreEnv {
-		if logrus.GetLevel() == logrus.DebugLevel {
-			opts.Log = wpmCli.Err()
-			opts.LogColorize = !cli.IsColorDisabled() && term.IsTerminal(wpmCli.Err().FD())
-			opts.LogVerboseHTTP = true
-		}
+	if opts.Log != nil && logrus.GetLevel() == logrus.DebugLevel {
+		opts.LogVerboseHTTP = true
 	}
 
 	if opts.Log != nil {

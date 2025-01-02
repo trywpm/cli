@@ -35,13 +35,6 @@ func (err *HTTPError) Error() string {
 	return fmt.Sprintf("HTTP %d (%s)", err.StatusCode, err.RequestURL)
 }
 
-func matchPath(p, expect string) bool {
-	if strings.HasSuffix(expect, ".") {
-		return strings.HasPrefix(p, expect) || p == strings.TrimSuffix(expect, ".")
-	}
-	return p == expect
-}
-
 // HandleHTTPError parses a http.Response into a HTTPError.
 func HandleHTTPError(resp *http.Response) error {
 	httpError := &HTTPError{
