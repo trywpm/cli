@@ -10,7 +10,7 @@ import (
 	"strings"
 	"sync"
 
-	"wpm/cli/config/configfile"
+	"wpm/pkg/config/configfile"
 
 	"github.com/pkg/errors"
 )

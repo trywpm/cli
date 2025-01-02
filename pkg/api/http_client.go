@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"wpm/cli/config"
 	"wpm/pkg/asciisanitizer"
+	"wpm/pkg/config"
 
 	"github.com/henvic/httpretty"
 	"github.com/sirupsen/logrus"
