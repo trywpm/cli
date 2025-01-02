@@ -1,4 +1,4 @@
-package client
+package api
 
 import (
 	"fmt"
@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"wpm/cli/command"
 	"wpm/cli/config"
 	"wpm/pkg/asciisanitizer"
 
@@ -115,7 +114,7 @@ func resolveHeaders(headers map[string]string) {
 	}
 
 	if _, ok := headers[userAgent]; !ok {
-		headers[userAgent] = command.UserAgent()
+		headers[userAgent] = "wpm-cli"
 	}
 
 	if _, ok := headers[timeZone]; !ok {
