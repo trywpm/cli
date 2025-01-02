@@ -32,13 +32,8 @@ type ClientOptions struct {
 	// Host is the default host that API requests will be sent to.
 	Host string
 
-	// Log specifies a writer to write API request logs to. Default is to respect the GH_DEBUG environment
-	// variable, and no logging otherwise.
+	// Log specifies a writer to write API request logs to.
 	Log io.Writer
-
-	// LogIgnoreEnv disables respecting the GH_DEBUG environment variable. This can be useful in test mode
-	// or when the extension already offers its own controls for logging to the user.
-	LogIgnoreEnv bool
 
 	// LogColorize enables colorized logging to Log for display in a terminal.
 	// Default is no coloring.
@@ -46,6 +41,7 @@ type ClientOptions struct {
 
 	// LogVerboseHTTP enables logging HTTP headers and bodies to Log.
 	// Default is only logging request URLs and response statuses.
+	// By default fallback to logrus log level.
 	LogVerboseHTTP bool
 
 	// SkipDefaultHeaders disables setting of the default headers.
