@@ -19,7 +19,7 @@ type Platform struct {
 
 // Package struct to define the wpm.json schema
 type Package struct {
-	Name            string            `json:"name" validate:"required,regex=^[a-zA-Z0-9-_]+$,min=3,max=164"`
+	Name            string            `json:"name" validate:"required,min=3,max=164"`
 	Description     string            `json:"description,omitempty"`
 	Type            string            `json:"type" validate:"required,oneof=plugin theme mu-plugin drop-in"`
 	Version         string            `json:"version" validate:"required,semver,max=64"`
