@@ -1,18 +1,13 @@
 package validator
 
 import (
-	"github.com/go-playground/validator/v10"
+	"regexp"
+
+	goValidator "github.com/go-playground/validator/v10"
 )
 
-// Dist struct to define the dist field
-type Dist struct {
-	Size      int    `json:"size" validate:"gte=0"`
-	FileCount int    `json:"fileCount" validate:"gte=0"`
-	Digest    string `json:"digest" validate:"required,sha256"`
-}
-
 // Platform struct to define the platform field
-type Platform struct {
+type PackagePlatform struct {
 	WP  string `json:"wp" validate:"required"`
 	PHP string `json:"php" validate:"required"`
 }
@@ -28,17 +23,60 @@ type Package struct {
 	Tags            []string          `json:"tags,omitempty" validate:"dive,max=5"`
 	Team            []string          `json:"team,omitempty"`
 	Bin             map[string]string `json:"bin,omitempty"`
-	Platform        Platform          `json:"platform" validate:"required"`
+	Platform        PackagePlatform   `json:"platform" validate:"required"`
 	Dependencies    map[string]string `json:"dependencies,omitempty"`
 	DevDependencies map[string]string `json:"dev_dependencies,omitempty"`
 	Scripts         map[string]string `json:"scripts,omitempty"`
 }
 
-func NewValidator() *validator.Validate {
-	validator := validator.New()
+// Description of package fields.
+var PackageFieldDescriptions = map[string]string{
+	"Name":            "must contain only lowercase letters, numbers, and hyphens, and be between 3 and 164 characters. (required)",
+	"Description":     "should be a string. (optional)",
+	"Type":            "must be one of: 'plugin', 'theme', 'mu-plugin', or 'drop-in'. (required)",
+	"Version":         "must be a valid semantic version (semver) and less than 64 characters. (required)",
+	"License":         "must be a string. (optional)",
+	"Homepage":        "must be a valid url. (optional)",
+	"Tags":            "must be an array of strings with a maximum of 5 tags. (optional)",
+	"Team":            "must be an array of strings. (optional)",
+	"Bin":             "must be an object with string values. (optional)",
+	"Platform":        "must contain wp and php versions. (required)",
+	"Dependencies":    "must be an object with string values. (optional)",
+	"DevDependencies": "must be an object with string values. (optional)",
+	"Scripts":         "must be an object with string values. (optional)",
+}
+
+// Dist struct to define the dist field
+type PackageDist struct {
+	Size      int    `json:"size" validate:"gte=0"`
+	FileCount int    `json:"fileCount" validate:"gte=0"`
+	Digest    string `json:"digest" validate:"required,sha256"`
+}
+
+// NewValidator creates a new validator instance.
+func NewValidator() *goValidator.Validate {
+	validator := goValidator.New()
+	validator.RegisterValidation("package_name_regex", packageNameRegex)
 	return validator
 }
 
-func ValidatePackage(pkg Package, v *validator.Validate) error {
-	return v.Struct(pkg)
+// ValidatePackage validates the package struct.
+func ValidatePackage(pkg Package, v *goValidator.Validate) error {
+	errs := v.Struct(pkg)
+	if errs != nil {
+		return HandleValidatorError(errs)
+	}
+
+	return nil
+}
+
+// packageNameRegex validates the package name field with a regex.
+// Only lowercase letters, numbers, and hyphens are allowed.
+func packageNameRegex(fl goValidator.FieldLevel) bool {
+	value := fl.Field().String()
+	if value == "" {
+		return false
+	}
+
+	return regexp.MustCompile(`^[a-z0-9-]+$`).MatchString(value)
 }
