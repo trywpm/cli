@@ -1,7 +1,11 @@
 package validator
 
 import (
+	"fmt"
+	"strings"
+
 	goValidator "github.com/go-playground/validator/v10"
+	"github.com/morikuni/aec"
 )
 
 // ValidatorError represents an error response from the wpm schema validator.
@@ -17,13 +21,20 @@ type ValidatorErrorItem struct {
 // Allow ValidatorError to satisfy error interface.
 func (err *ValidatorError) Error() string {
 	// Add all error messages to a string.
-	var messages string
+	message := fmt.Sprintf("\n%s\n", aec.RedF.Apply("config validation failed"))
 
 	for _, e := range err.Errors {
-		messages += e.FailedField + "\n"
+		if e.FailedField == "DevDependencies" {
+			e.FailedField = "dev_dependencies"
+		}
+
+		message += fmt.Sprintf("  - %s %s", aec.Bold.Apply(strings.ToLower(e.FailedField)), e.Message)
+		if e != err.Errors[len(err.Errors)-1] {
+			message += "\n"
+		}
 	}
 
-	return messages
+	return message
 }
 
 // HandleValidatorError parses validation error into a ValidatorError.
@@ -33,8 +44,8 @@ func HandleValidatorError(errs error) error {
 	for _, err := range errs.(goValidator.ValidationErrors) {
 		ve := &ValidatorErrorItem{}
 
-		ve.Message = err.Error()
 		ve.FailedField = err.Field()
+		ve.Message = PackageFieldDescriptions[err.Field()]
 
 		validationErrors.Errors = append(validationErrors.Errors, *ve)
 	}
