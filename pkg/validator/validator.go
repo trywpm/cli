@@ -30,7 +30,7 @@ type Package struct {
 	Bin             map[string]string `json:"bin,omitempty"`
 	Platform        Platform          `json:"platform" validate:"required"`
 	Dependencies    map[string]string `json:"dependencies,omitempty"`
-	DevDependencies map[string]string `json:"devDependencies,omitempty"`
+	DevDependencies map[string]string `json:"dev_dependencies,omitempty"`
 	Scripts         map[string]string `json:"scripts,omitempty"`
 }
 
