@@ -31,8 +31,8 @@ type Cli interface {
 	SetIn(in *streams.In)
 	Apply(ops ...CLIOption) error
 	ConfigFile() *configfile.ConfigFile
+	PackageValidator() *goValidator.Validate
 	RegistryClient() (client.RegistryClient, error)
-	PackageValidator(validator.Package, *goValidator.Validate) error
 }
 
 // WpmCli is an instance the wpm command line client.
@@ -152,8 +152,8 @@ func (cli *WpmCli) RegistryClient() (client.RegistryClient, error) {
 }
 
 // PackageValidator returns a new instance of the package validator
-func (cli *WpmCli) PackageValidator(pkg validator.Package, v *goValidator.Validate) error {
-	return validator.ValidatePackage(pkg, v)
+func (cli *WpmCli) PackageValidator() *goValidator.Validate {
+	return validator.NewValidator()
 }
 
 // UserAgent returns the user agent string used for making API requests
