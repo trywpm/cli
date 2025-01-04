@@ -11,7 +11,9 @@ import (
 	"wpm/cli/version"
 	"wpm/pkg/config"
 	"wpm/pkg/config/configfile"
+	"wpm/pkg/validator"
 
+	goValidator "github.com/go-playground/validator/v10"
 	"github.com/spf13/cobra"
 )
 
@@ -30,6 +32,7 @@ type Cli interface {
 	Apply(ops ...CLIOption) error
 	ConfigFile() *configfile.ConfigFile
 	RegistryClient() (client.RegistryClient, error)
+	PackageValidator() (*goValidator.Validate, error)
 }
 
 // WpmCli is an instance the wpm command line client.
@@ -146,6 +149,11 @@ func (cli *WpmCli) RegistryClient() (client.RegistryClient, error) {
 	}
 
 	return _client, nil
+}
+
+// PackageValidator returns a new instance of the package validator
+func (cli *WpmCli) PackageValidator() (*goValidator.Validate, error) {
+	return validator.NewValidator()
 }
 
 // UserAgent returns the user agent string used for making API requests

@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"wpm/cli/command"
+	"wpm/pkg/validator"
 
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
@@ -23,18 +24,6 @@ const (
 
 type initOptions struct {
 	yes bool
-}
-
-type PackageInfo struct {
-	Name     string   `json:"name"`
-	Version  string   `json:"version"`
-	License  string   `json:"license"`
-	Type     string   `json:"type"`
-	Tags     []string `json:"tags"`
-	Platform struct {
-		PHP string `json:"php"`
-		WP  string `json:"wp"`
-	} `json:"platform"`
 }
 
 type prompt struct {
@@ -77,16 +66,13 @@ func runInit(ctx context.Context, wpmCli command.Cli, opts initOptions) error {
 	}
 
 	basecwd := filepath.Base(cwd)
-	wpmJsonInitData := PackageInfo{
+	wpmJsonInitData := validator.Package{
 		Name:    basecwd,
 		Version: defaultVersion,
 		License: defaultLicense,
 		Type:    defaultType,
 		Tags:    []string{},
-		Platform: struct {
-			PHP string `json:"php"`
-			WP  string `json:"wp"`
-		}{
+		Platform: validator.PackagePlatform{
 			PHP: defaultPHP,
 			WP:  defaultWP,
 		},
@@ -129,6 +115,15 @@ func runInit(ctx context.Context, wpmCli command.Cli, opts initOptions) error {
 		}
 	}
 
+	ve, err := wpmCli.PackageValidator()
+	if err != nil {
+		return err
+	}
+
+	if err := validator.ValidatePackage(wpmJsonInitData, ve); err != nil {
+		return err
+	}
+
 	if err := writeWpmJson(wpmCli, wpmJsonPath, wpmJsonInitData); err != nil {
 		return err
 	}
@@ -136,7 +131,7 @@ func runInit(ctx context.Context, wpmCli command.Cli, opts initOptions) error {
 	return nil
 }
 
-func writeWpmJson(wpmCli command.Cli, path string, data PackageInfo) error {
+func writeWpmJson(wpmCli command.Cli, path string, data validator.Package) error {
 	file, err := os.Create(path)
 	if err != nil {
 		return err
