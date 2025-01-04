@@ -14,16 +14,18 @@ type PackagePlatform struct {
 
 // Package struct to define the wpm.json schema
 type Package struct {
-	Name            string            `json:"name" validate:"required,min=3,max=164"`
+	Name            string            `json:"name,omitempty" validate:"required,min=3,max=164"`
 	Description     string            `json:"description,omitempty"`
-	Type            string            `json:"type" validate:"required,oneof=plugin theme mu-plugin drop-in"`
-	Version         string            `json:"version" validate:"required,semver,max=64"`
-	License         string            `json:"license" validate:"omitempty"`
-	Homepage        string            `json:"homepage,omitempty" validate:"omitempty,url"`
+	Private         bool              `json:"private,omitempty"`
+	Type            string            `json:"type,omitempty" validate:"required,oneof=plugin theme mu-plugin drop-in"`
+	Version         string            `json:"version,omitempty" validate:"required,semver,max=64"`
+	License         string            `json:"license,omitempty"`
+	Homepage        string            `json:"homepage,omitempty" validate:"url"`
 	Tags            []string          `json:"tags,omitempty" validate:"dive,max=5"`
 	Team            []string          `json:"team,omitempty"`
 	Bin             map[string]string `json:"bin,omitempty"`
-	Platform        PackagePlatform   `json:"platform" validate:"required"`
+	Platform        PackagePlatform   `json:"platform,omitempty" validate:"required"`
+	Config          map[string]string `json:"config,omitempty"`
 	Dependencies    map[string]string `json:"dependencies,omitempty"`
 	DevDependencies map[string]string `json:"dev_dependencies,omitempty"`
 	Scripts         map[string]string `json:"scripts,omitempty"`
