@@ -6,9 +6,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"wpm/cli/command"
-	"wpm/pkg/validator"
 
+	"github.com/morikuni/aec"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 )
@@ -22,13 +23,26 @@ const (
 	defaultWP      = "6.7"
 )
 
+type packageInit struct {
+	Name     string   `json:"name"`
+	Version  string   `json:"version"`
+	License  string   `json:"license"`
+	Type     string   `json:"type"`
+	Tags     []string `json:"tags"`
+	Platform struct {
+		PHP string `json:"php"`
+		WP  string `json:"wp"`
+	} `json:"platform"`
+}
+
 type initOptions struct {
 	yes bool
 }
 
 type prompt struct {
-	Msg     string
-	Default string
+	Msg      string
+	Default  string
+	Validate func(string) error
 }
 
 type promptField struct {
@@ -66,62 +80,183 @@ func runInit(ctx context.Context, wpmCli command.Cli, opts initOptions) error {
 	}
 
 	basecwd := filepath.Base(cwd)
-	wpmJsonInitData := validator.Package{
+	wpmJsonInitData := packageInit{
 		Name:    basecwd,
 		Version: defaultVersion,
 		License: defaultLicense,
 		Type:    defaultType,
 		Tags:    []string{},
-		Platform: validator.PackagePlatform{
+		Platform: struct {
+			PHP string `json:"php"`
+			WP  string `json:"wp"`
+		}{
 			PHP: defaultPHP,
 			WP:  defaultWP,
 		},
 	}
-
-	// If not auto-confirmed, prompt the user for values
-	if !opts.yes {
-		prompts := []promptField{
-			{"name", prompt{"package name", basecwd}},
-			{"version", prompt{"version", defaultVersion}},
-			{"license", prompt{"license", defaultLicense}},
-			{"type", prompt{"type", defaultType}},
-			{"php", prompt{"requires php", defaultPHP}},
-			{"wp", prompt{"requires wp", defaultWP}},
-		}
-
-		for _, pf := range prompts {
-			val, err := command.PromptForInput(ctx, wpmCli.In(), wpmCli.Out(), fmt.Sprintf("%s (%s): ", pf.Prompt.Msg, pf.Prompt.Default))
-			if err != nil {
-				return err
-			}
-			if val == "" {
-				val = pf.Prompt.Default
-			}
-
-			switch pf.Key {
-			case "name":
-				wpmJsonInitData.Name = val
-			case "version":
-				wpmJsonInitData.Version = val
-			case "license":
-				wpmJsonInitData.License = val
-			case "type":
-				wpmJsonInitData.Type = val
-			case "php":
-				wpmJsonInitData.Platform.PHP = val
-			case "wp":
-				wpmJsonInitData.Platform.WP = val
-			}
-		}
-	}
-
 	ve, err := wpmCli.PackageValidator()
 	if err != nil {
 		return err
 	}
 
-	if err := validator.ValidatePackage(wpmJsonInitData, ve); err != nil {
-		return err
+	// If not auto-confirmed, prompt the user for values
+	if !opts.yes {
+		prompts := []promptField{
+			{
+				"name",
+				prompt{
+					"package name",
+					basecwd,
+					func(val string) error {
+						if val == "" {
+							val = basecwd
+						}
+
+						errs := ve.Var(val, "required,min=3,max=164,package_name_regex")
+						if errs != nil {
+							return errors.Errorf("invalid package name: \"%s\"", aec.Bold.Apply(val))
+						}
+
+						wpmJsonInitData.Name = val
+
+						return nil
+					},
+				},
+			},
+			{
+				"version",
+				prompt{
+					"version",
+					defaultVersion,
+					func(val string) error {
+						if val == "" {
+							val = defaultVersion
+						}
+
+						errs := ve.Var(val, "required,semver,max=64")
+						if errs != nil {
+							return errors.Errorf("invalid version: \"%s\"", aec.Bold.Apply(val))
+						}
+
+						wpmJsonInitData.Version = val
+
+						return nil
+					},
+				},
+			},
+			{
+				"license",
+				prompt{
+					"license",
+					defaultLicense,
+					func(val string) error {
+						if val == "" {
+							val = defaultLicense
+						}
+
+						wpmJsonInitData.License = val
+
+						return nil
+					},
+				},
+			},
+			{
+				"type",
+				prompt{
+					"type",
+					defaultType,
+					func(val string) error {
+						if val == "" {
+							val = defaultType
+						}
+
+						errs := ve.Var(val, "required,oneof=plugin theme mu-plugin drop-in")
+						if errs != nil {
+							return errors.Errorf("invalid type: \"%s\"", aec.Bold.Apply(val))
+						}
+
+						wpmJsonInitData.Type = val
+
+						return nil
+					},
+				},
+			},
+			{
+				"php",
+				prompt{
+					"requires php",
+					defaultPHP,
+					func(val string) error {
+						if val == "" {
+							val = defaultPHP
+						}
+
+						var semverVal string
+
+						semverVal, err = formatSemver(val)
+						if err != nil {
+							return errors.Errorf("invalid php version: \"%s\"", aec.Bold.Apply(val))
+						}
+
+						errs := ve.Var(semverVal, "required,semver")
+						if errs != nil {
+							return errors.Errorf("invalid php version: \"%s\"", aec.Bold.Apply(semverVal))
+						}
+
+						wpmJsonInitData.Platform.PHP = val
+
+						return nil
+					},
+				},
+			},
+			{
+				"wp",
+				prompt{
+					"requires wp",
+					defaultWP,
+					func(val string) error {
+						if val == "" {
+							val = defaultWP
+						}
+
+						var semverVal string
+
+						semverVal, err = formatSemver(val)
+						if err != nil {
+							return errors.Errorf("invalid wp version: \"%s\"", aec.Bold.Apply(val))
+						}
+
+						errs := ve.Var(semverVal, "required,semver")
+						if errs != nil {
+							return errors.Errorf("invalid wp version: \"%s\"", aec.Bold.Apply(semverVal))
+						}
+
+						wpmJsonInitData.Platform.WP = val
+
+						return nil
+					},
+				},
+			},
+		}
+
+		for _, pf := range prompts {
+			var val string
+			var err error
+
+			for {
+				val, err = command.PromptForInput(ctx, wpmCli.In(), wpmCli.Out(), fmt.Sprintf("%s (%s): ", pf.Prompt.Msg, pf.Prompt.Default))
+				if err != nil {
+					return err
+				}
+
+				if err := pf.Prompt.Validate(val); err != nil {
+					fmt.Fprintf(wpmCli.Err(), "%s\n", err)
+					continue
+				}
+
+				break
+			}
+		}
 	}
 
 	if err := writeWpmJson(wpmCli, wpmJsonPath, wpmJsonInitData); err != nil {
@@ -131,7 +266,7 @@ func runInit(ctx context.Context, wpmCli command.Cli, opts initOptions) error {
 	return nil
 }
 
-func writeWpmJson(wpmCli command.Cli, path string, data validator.Package) error {
+func writeWpmJson(wpmCli command.Cli, path string, data packageInit) error {
 	file, err := os.Create(path)
 	if err != nil {
 		return err
@@ -149,4 +284,24 @@ func writeWpmJson(wpmCli command.Cli, path string, data validator.Package) error
 	fmt.Fprint(wpmCli.Out(), "config created at ", path, "\n")
 
 	return nil
+}
+
+func formatSemver(version string) (string, error) {
+	parts := strings.Split(version, ".")
+
+	for _, part := range parts {
+		if part == "" {
+			return "", errors.New("empty part")
+		}
+
+		if _, err := fmt.Sscanf(part, "%d", new(int)); err != nil {
+			return "", err
+		}
+	}
+
+	for len(parts) < 3 {
+		parts = append(parts, "0")
+	}
+
+	return strings.Join(parts, "."), nil
 }
