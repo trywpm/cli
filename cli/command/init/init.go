@@ -1,12 +1,11 @@
 package init
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
-	"strings"
 	"wpm/cli/command"
 	"wpm/pkg/validator"
 
@@ -23,10 +22,18 @@ const (
 	defaultWP      = "6.7"
 )
 
-var packageType = []string{"plugin", "theme", "mu-plugin", "drop-in", "private"}
-
 type initOptions struct {
-	Type string
+	yes bool
+}
+
+type prompt struct {
+	Msg     string
+	Default string
+}
+
+type promptField struct {
+	Key    string
+	Prompt prompt
 }
 
 func NewInitCommand(wpmCli command.Cli) *cobra.Command {
@@ -37,16 +44,17 @@ func NewInitCommand(wpmCli command.Cli) *cobra.Command {
 		Short: "Initialize a new WordPress package",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runInit(wpmCli, opts)
+			return runInit(cmd.Context(), wpmCli, opts)
 		},
 	}
 
-	cmd.Flags().StringVarP(&opts.Type, "type", "t", defaultType, "Type of package (plugin, theme, mu-plugin, drop-in or private)")
+	flags := cmd.Flags()
+	flags.BoolVarP(&opts.yes, "yes", "y", false, "Skip prompts and use default values")
 
 	return cmd
 }
 
-func runInit(wpmCli command.Cli, opts initOptions) error {
+func runInit(ctx context.Context, wpmCli command.Cli, opts initOptions) error {
 	cwd, err := os.Getwd()
 	if err != nil {
 		return err
@@ -57,36 +65,63 @@ func runInit(wpmCli command.Cli, opts initOptions) error {
 		return errors.Errorf("wpm.json already exists in %s", cwd)
 	}
 
-	if !slices.Contains(packageType, opts.Type) {
-		return errors.Errorf("Invalid package type: %s.\nValid package types are: %s", opts.Type, strings.Join(packageType, ", "))
-	}
-
 	basecwd := filepath.Base(cwd)
 	wpmJsonInitData := validator.Package{
-		Name:        basecwd,
-		Description: "",
-		Type:        defaultType,
-		Private:     false,
-		Version:     defaultVersion,
-		License:     defaultLicense,
-		Homepage:    "https://wpm.so/packages/" + basecwd,
-		Tags:        []string{},
-		Team:        []string{},
-		Bin:         map[string]string{},
+		Name:    basecwd,
+		Version: defaultVersion,
+		License: defaultLicense,
+		Type:    defaultType,
+		Tags:    []string{},
 		Platform: validator.PackagePlatform{
 			PHP: defaultPHP,
 			WP:  defaultWP,
 		},
-		Dependencies:    map[string]string{},
-		DevDependencies: map[string]string{},
-		Scripts:         map[string]string{},
 	}
 
-	if opts.Type == "private" {
-		wpmJsonInitData.Type = ""
-		wpmJsonInitData.Private = true
-	} else if opts.Type != defaultType {
-		wpmJsonInitData.Type = opts.Type
+	// If not auto-confirmed, prompt the user for values
+	if !opts.yes {
+		prompts := []promptField{
+			{"name", prompt{"package name", basecwd}},
+			{"version", prompt{"version", defaultVersion}},
+			{"license", prompt{"license", defaultLicense}},
+			{"type", prompt{"type", defaultType}},
+			{"php", prompt{"requires php", defaultPHP}},
+			{"wp", prompt{"requires wp", defaultWP}},
+		}
+
+		for _, pf := range prompts {
+			val, err := command.PromptForInput(ctx, wpmCli.In(), wpmCli.Out(), fmt.Sprintf("%s (%s): ", pf.Prompt.Msg, pf.Prompt.Default))
+			if err != nil {
+				return err
+			}
+			if val == "" {
+				val = pf.Prompt.Default
+			}
+
+			switch pf.Key {
+			case "name":
+				wpmJsonInitData.Name = val
+			case "version":
+				wpmJsonInitData.Version = val
+			case "license":
+				wpmJsonInitData.License = val
+			case "type":
+				wpmJsonInitData.Type = val
+			case "php":
+				wpmJsonInitData.Platform.PHP = val
+			case "wp":
+				wpmJsonInitData.Platform.WP = val
+			}
+		}
+	}
+
+	ve, err := wpmCli.PackageValidator()
+	if err != nil {
+		return err
+	}
+
+	if err := validator.ValidatePackage(wpmJsonInitData, ve); err != nil {
+		return err
 	}
 
 	if err := writeWpmJson(wpmCli, wpmJsonPath, wpmJsonInitData); err != nil {
@@ -105,13 +140,13 @@ func writeWpmJson(wpmCli command.Cli, path string, data validator.Package) error
 
 	encoder := json.NewEncoder(file)
 	encoder.SetEscapeHTML(false)
-	encoder.SetIndent("", "\t")
+	encoder.SetIndent("", "  ")
 
 	if err := encoder.Encode(data); err != nil {
 		return err
 	}
 
-	fmt.Fprint(wpmCli.Err(), "config created at ", path, "\n")
+	fmt.Fprint(wpmCli.Out(), "config created at ", path, "\n")
 
 	return nil
 }
