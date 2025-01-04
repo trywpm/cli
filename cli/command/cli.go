@@ -56,7 +56,7 @@ func NewWpmCli(ops ...CLIOption) (*WpmCli, error) {
 	ops = append(defaultOps, ops...)
 
 	cli := &WpmCli{
-		registry: "https://dev-registry.wpm.so",
+		registry: "dev-registry.wpm.so",
 	}
 	if err := cli.Apply(ops...); err != nil {
 		return nil, err
@@ -143,7 +143,7 @@ func (cli *WpmCli) Initialize(opts *cliflags.ClientOptions, ops ...CLIOption) er
 
 // RegistryClient returns a client for communicating with wpm registry
 func (cli *WpmCli) RegistryClient() (client.RegistryClient, error) {
-	_client, err := client.NewRegistryClient(cli.configFile.AuthToken, UserAgent(), cli.out)
+	_client, err := client.NewRegistryClient(cli.Registry(), cli.configFile.AuthToken, UserAgent(), cli.out)
 	if err != nil {
 		return nil, err
 	}
