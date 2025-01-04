@@ -122,5 +122,7 @@ func runLogin(ctx context.Context, wpmCli command.Cli, opts loginOptions) error 
 		return err
 	}
 
+	_, _ = fmt.Fprintf(wpmCli.Out(), "welcome %s!\n", username)
+
 	return nil
 }
