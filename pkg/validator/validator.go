@@ -54,10 +54,14 @@ type PackageDist struct {
 }
 
 // NewValidator creates a new validator instance.
-func NewValidator() *goValidator.Validate {
+func NewValidator() (*goValidator.Validate, error) {
 	validator := goValidator.New()
-	validator.RegisterValidation("package_name_regex", packageNameRegex)
-	return validator
+	err := validator.RegisterValidation("package_name_regex", packageNameRegex)
+	if err != nil {
+		return nil, err
+	}
+
+	return validator, nil
 }
 
 // ValidatePackage validates the package struct.

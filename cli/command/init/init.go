@@ -115,7 +115,12 @@ func runInit(ctx context.Context, wpmCli command.Cli, opts initOptions) error {
 		}
 	}
 
-	if err := validator.ValidatePackage(wpmJsonInitData, wpmCli.PackageValidator()); err != nil {
+	ve, err := wpmCli.PackageValidator()
+	if err != nil {
+		return err
+	}
+
+	if err := validator.ValidatePackage(wpmJsonInitData, ve); err != nil {
 		return err
 	}
 
