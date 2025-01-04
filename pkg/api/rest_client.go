@@ -44,36 +44,6 @@ func NewRESTClient(opts ClientOptions) (*RESTClient, error) {
 	}, nil
 }
 
-// RequestWithContext issues a request with type specified by method to the
-// specified path with the specified body.
-// The response is returned rather than being populated
-// into a response argument.
-func (c *RESTClient) RequestWithContext(ctx context.Context, method string, path string, body io.Reader) (*http.Response, error) {
-	url := restURL(c.host, path)
-	req, err := http.NewRequestWithContext(ctx, method, url, body)
-	if err != nil {
-		return nil, err
-	}
-
-	resp, err := c.client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-
-	success := resp.StatusCode >= 200 && resp.StatusCode < 300
-	if !success {
-		defer resp.Body.Close()
-		return nil, HandleHTTPError(resp)
-	}
-
-	return resp, err
-}
-
-// Request wraps RequestWithContext with context.Background.
-func (c *RESTClient) Request(method string, path string, body io.Reader) (*http.Response, error) {
-	return c.RequestWithContext(context.Background(), method, path, body)
-}
-
 // DoWithContext issues a request with type specified by method to the
 // specified path with the specified body.
 // The response is populated into the response argument.
