@@ -28,6 +28,7 @@ func runLogout(wpmCli command.Cli) error {
 	}
 
 	cfg.AuthToken = ""
+	cfg.DefaultUser = ""
 
 	if err := cfg.Save(); err != nil {
 		return err
