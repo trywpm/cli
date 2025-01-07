@@ -3,8 +3,8 @@ package client
 import (
 	"context"
 
-	"wpm/cli/streams"
 	"wpm/pkg/api"
+	"wpm/pkg/streams"
 	wpmTerm "wpm/pkg/term"
 
 	"github.com/moby/term"

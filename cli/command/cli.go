@@ -7,10 +7,10 @@ import (
 	"wpm/cli/debug"
 	cliflags "wpm/cli/flags"
 	"wpm/cli/registry/client"
-	"wpm/cli/streams"
 	"wpm/cli/version"
 	"wpm/pkg/config"
 	"wpm/pkg/config/configfile"
+	"wpm/pkg/streams"
 	"wpm/pkg/validator"
 
 	goValidator "github.com/go-playground/validator/v10"

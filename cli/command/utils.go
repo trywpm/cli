@@ -9,7 +9,7 @@ import (
 	"os"
 	"runtime"
 	"strings"
-	"wpm/cli/streams"
+	"wpm/pkg/streams"
 
 	"github.com/docker/docker/errdefs"
 	"github.com/moby/term"

@@ -3,7 +3,7 @@ package command
 import (
 	"io"
 
-	"wpm/cli/streams"
+	"wpm/pkg/streams"
 
 	"github.com/moby/term"
 )
