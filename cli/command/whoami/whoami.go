@@ -68,7 +68,13 @@ func runWhoami(wpmCli command.Cli) error {
 		return errors.New("user must be logged in to perform this action")
 	}
 
-	username, err := validateToken(wpmCli, cfg.AuthToken)
+	var username string
+	err := wpmCli.Progress().RunWithProgress("", func() error {
+		var err error
+		username, err = validateToken(wpmCli, cfg.AuthToken)
+		return err
+	}, wpmCli.Out())
+
 	if err != nil {
 		return err
 	}
