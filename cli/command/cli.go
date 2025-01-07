@@ -10,6 +10,7 @@ import (
 	"wpm/cli/version"
 	"wpm/pkg/config"
 	"wpm/pkg/config/configfile"
+	"wpm/pkg/progress"
 	"wpm/pkg/streams"
 	"wpm/pkg/validator"
 
@@ -30,6 +31,7 @@ type Cli interface {
 	Registry() string
 	SetIn(in *streams.In)
 	Apply(ops ...CLIOption) error
+	Progress() *progress.Progress
 	ConfigFile() *configfile.ConfigFile
 	RegistryClient() (client.RegistryClient, error)
 	PackageValidator() (*goValidator.Validate, error)
@@ -159,4 +161,11 @@ func (cli *WpmCli) PackageValidator() (*goValidator.Validate, error) {
 // UserAgent returns the user agent string used for making API requests
 func UserAgent() string {
 	return "wpm-cli/" + version.Version + " (" + runtime.GOOS + "/" + runtime.GOARCH + ")"
+}
+
+// Progress returns the progress indicator
+func (cli *WpmCli) Progress() *progress.Progress {
+	return &progress.Progress{
+		ProgressIndicatorEnabled: cli.Out().IsTerminal() && cli.in.IsTerminal(),
+	}
 }
