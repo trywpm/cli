@@ -154,3 +154,7 @@ func LoadDefaultConfigFile(stderr io.Writer) *configfile.ConfigFile {
 func CacheDir() string {
 	return filepath.Join(Dir(), "cache")
 }
+
+func UserAuthCacheDir() string {
+	return filepath.Join(Dir(), "cache", "auth")
+}
