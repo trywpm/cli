@@ -181,10 +181,7 @@ func encodeToken(token string) string {
 		return ""
 	}
 
-	msg := []byte(token)
-	encoded := make([]byte, base64.StdEncoding.EncodedLen(len(msg)))
-	base64.StdEncoding.Encode(encoded, msg)
-	return string(encoded)
+	return base64.StdEncoding.EncodeToString([]byte(token))
 }
 
 // decodeAuth decodes the base64 encoded string to get the auth token
@@ -193,17 +190,12 @@ func decodeToken(token string) (string, error) {
 		return "", nil
 	}
 
-	decLen := base64.StdEncoding.DecodedLen(len(token))
-	decoded := make([]byte, decLen)
-	tokenByte := []byte(token)
-	n, err := base64.StdEncoding.Decode(decoded, tokenByte)
+	data, err := base64.StdEncoding.DecodeString(token)
 	if err != nil {
 		return "", err
 	}
-	if n > decLen {
-		return "", errors.Errorf("Something went wrong decoding token")
-	}
-	return string(decoded), nil
+
+	return string(data), nil
 }
 
 // GetFilename returns the file name that this config file is based on.
