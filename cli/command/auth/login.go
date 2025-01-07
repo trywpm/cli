@@ -87,7 +87,7 @@ func validateToken(wpmCli command.Cli, token string) (string, error) {
 		Username string `json:"username"`
 	}{}
 
-	err = client.Get("/-/whoami", &response)
+	err = wpmCli.Progress().RunWithProgress("validating token", func() error { return client.Get("/-/whoami", &response) }, wpmCli.Err())
 	if err != nil {
 		return "", err
 	}
