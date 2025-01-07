@@ -6,7 +6,11 @@ import (
 	"os"
 	"wpm/cli"
 	"wpm/cli/command"
+	"wpm/pkg/api"
+	wpmTerm "wpm/pkg/term"
 
+	"github.com/moby/term"
+	"github.com/morikuni/aec"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 )
@@ -67,6 +71,30 @@ func tokenStdinPrompt(ctx context.Context, wpmCli command.Cli, opts *loginOption
 	return nil
 }
 
+func validateToken(wpmCli command.Cli, token string) (string, error) {
+	client, err := api.NewRESTClient(api.ClientOptions{
+		Log:         wpmCli.Err(),
+		AuthToken:   token,
+		Host:        wpmCli.Registry(),
+		Headers:     map[string]string{"User-Agent": command.UserAgent()},
+		LogColorize: !wpmTerm.IsColorDisabled() && term.IsTerminal(wpmCli.Err().FD()),
+	})
+	if err != nil {
+		return "", err
+	}
+
+	response := struct {
+		Username string `json:"username"`
+	}{}
+
+	err = wpmCli.Progress().RunWithProgress("validating token", func() error { return client.Get("/-/whoami", &response) }, wpmCli.Err())
+	if err != nil {
+		return "", err
+	}
+
+	return response.Username, nil
+}
+
 func runLogin(ctx context.Context, wpmCli command.Cli, opts loginOptions) error {
 	if err := verifyLoginOptions(wpmCli, opts); err != nil {
 		return err
@@ -78,16 +106,23 @@ func runLogin(ctx context.Context, wpmCli command.Cli, opts loginOptions) error 
 		}
 	}
 
-	// TODO(thelovekesh): verify the token with the registry
+	username, err := validateToken(wpmCli, opts.token)
+	if err != nil {
+		return err
+	}
+	if username == "" {
+		return errors.New(aec.RedF.Apply("unable to resolve identity from token"))
+	}
 
 	cfg := wpmCli.ConfigFile()
-
-	// TODO(thelovekesh: add the username associated with the token to the config file
 	cfg.AuthToken = opts.token
+	cfg.DefaultUser = username
 
 	if err := cfg.Save(); err != nil {
 		return err
 	}
+
+	_, _ = fmt.Fprintf(wpmCli.Out(), "welcome %s!\n", username)
 
 	return nil
 }

@@ -7,10 +7,11 @@ import (
 	"wpm/cli/debug"
 	cliflags "wpm/cli/flags"
 	"wpm/cli/registry/client"
-	"wpm/cli/streams"
 	"wpm/cli/version"
 	"wpm/pkg/config"
 	"wpm/pkg/config/configfile"
+	"wpm/pkg/progress"
+	"wpm/pkg/streams"
 	"wpm/pkg/validator"
 
 	goValidator "github.com/go-playground/validator/v10"
@@ -30,6 +31,7 @@ type Cli interface {
 	Registry() string
 	SetIn(in *streams.In)
 	Apply(ops ...CLIOption) error
+	Progress() *progress.Progress
 	ConfigFile() *configfile.ConfigFile
 	RegistryClient() (client.RegistryClient, error)
 	PackageValidator() (*goValidator.Validate, error)
@@ -56,7 +58,7 @@ func NewWpmCli(ops ...CLIOption) (*WpmCli, error) {
 	ops = append(defaultOps, ops...)
 
 	cli := &WpmCli{
-		registry: "https://dev-registry.wpm.so",
+		registry: "dev-registry.wpm.so",
 	}
 	if err := cli.Apply(ops...); err != nil {
 		return nil, err
@@ -143,7 +145,7 @@ func (cli *WpmCli) Initialize(opts *cliflags.ClientOptions, ops ...CLIOption) er
 
 // RegistryClient returns a client for communicating with wpm registry
 func (cli *WpmCli) RegistryClient() (client.RegistryClient, error) {
-	_client, err := client.NewRegistryClient(cli.configFile.AuthToken, UserAgent(), cli.out)
+	_client, err := client.NewRegistryClient(cli.Registry(), cli.configFile.AuthToken, UserAgent(), cli.out)
 	if err != nil {
 		return nil, err
 	}
@@ -159,4 +161,11 @@ func (cli *WpmCli) PackageValidator() (*goValidator.Validate, error) {
 // UserAgent returns the user agent string used for making API requests
 func UserAgent() string {
 	return "wpm-cli/" + version.Version + " (" + runtime.GOOS + "/" + runtime.GOARCH + ")"
+}
+
+// Progress returns the progress indicator
+func (cli *WpmCli) Progress() *progress.Progress {
+	return &progress.Progress{
+		ProgressIndicatorEnabled: cli.Out().IsTerminal() && cli.in.IsTerminal(),
+	}
 }

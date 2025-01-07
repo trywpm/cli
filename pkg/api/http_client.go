@@ -60,9 +60,7 @@ func NewHTTPClient(opts ClientOptions) (*http.Client, error) {
 
 	if opts.Log != nil && logrus.GetLevel() == logrus.DebugLevel {
 		opts.LogVerboseHTTP = true
-	}
 
-	if opts.Log != nil {
 		logger := &httpretty.Logger{
 			Time:            true,
 			TLS:             false,
@@ -84,9 +82,11 @@ func NewHTTPClient(opts ClientOptions) (*http.Client, error) {
 	if opts.Headers == nil {
 		opts.Headers = map[string]string{}
 	}
+
 	if !opts.SkipDefaultHeaders {
 		resolveHeaders(opts.Headers)
 	}
+
 	transport = newHeaderRoundTripper(opts.Host, opts.AuthToken, opts.Headers, transport)
 
 	return &http.Client{Transport: transport, Timeout: opts.Timeout}, nil

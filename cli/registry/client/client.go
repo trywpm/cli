@@ -3,8 +3,8 @@ package client
 import (
 	"context"
 
-	"wpm/cli/streams"
 	"wpm/pkg/api"
+	"wpm/pkg/streams"
 	wpmTerm "wpm/pkg/term"
 
 	"github.com/moby/term"
@@ -31,9 +31,10 @@ type NewPackageData struct {
 var _ RegistryClient = &client{}
 
 // NewRegistryClient returns a new REST client for the wpm registry
-func NewRegistryClient(authToken string, userAgent string, out *streams.Out) (RegistryClient, error) {
+func NewRegistryClient(host string, authToken string, userAgent string, out *streams.Out) (RegistryClient, error) {
 	opts := api.ClientOptions{
 		Log:         out,
+		Host:        host,
 		AuthToken:   authToken,
 		Headers:     map[string]string{"User-Agent": userAgent},
 		LogColorize: !wpmTerm.IsColorDisabled() && term.IsTerminal(out.FD()),
