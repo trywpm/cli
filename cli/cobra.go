@@ -329,5 +329,6 @@ Run '{{.CommandPath}} COMMAND --help' for more information on a command.
 
 {{- end}}
 `
+
 const helpTemplate = `
-{{if or .Runnable .HasSubCommands}}{{.UsageString}}{{end}}`
+{{- if or .Runnable .HasSubCommands}}{{.UsageString}}{{end}}`
