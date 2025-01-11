@@ -74,7 +74,11 @@ func (w *Wpm) WpmJson() *validator.Package {
 }
 
 func (w *Wpm) Validate() error {
-	return w.validator.Struct(w.config)
+	if w.config == nil {
+		return errors.New("config must be initialized before validating it")
+	}
+
+	return validator.ValidatePackage(w.config, w.validator)
 }
 
 func (w *Wpm) Validator() *goValidator.Validate {

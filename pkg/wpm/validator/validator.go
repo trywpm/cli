@@ -65,7 +65,7 @@ func NewValidator() (*goValidator.Validate, error) {
 }
 
 // ValidatePackage validates the package struct.
-func ValidatePackage(pkg Package, v *goValidator.Validate) error {
+func ValidatePackage(pkg *Package, v *goValidator.Validate) error {
 	errs := v.Struct(pkg)
 	if errs != nil {
 		return HandleValidatorError(errs)
