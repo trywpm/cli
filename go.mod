@@ -4,10 +4,13 @@ go 1.23.4
 
 require (
 	github.com/briandowns/spinner v1.23.1
+	github.com/cli/safeexec v1.0.1
 	github.com/docker/docker v27.4.1+incompatible
 	github.com/fvbommel/sortorder v1.1.0
 	github.com/go-playground/validator/v10 v10.23.0
 	github.com/henvic/httpretty v0.1.4
+	github.com/moby/patternmatcher v0.6.0
+	github.com/moby/sys/sequential v0.6.0
 	github.com/moby/term v0.5.2
 	github.com/morikuni/aec v1.0.0
 	github.com/pkg/errors v0.9.1
@@ -29,6 +32,7 @@ require (
 	github.com/leodido/go-urn v1.4.0 // indirect
 	github.com/mattn/go-colorable v0.1.2 // indirect
 	github.com/mattn/go-isatty v0.0.8 // indirect
+	github.com/stretchr/testify v1.9.0 // indirect
 	golang.org/x/crypto v0.19.0 // indirect
 	golang.org/x/net v0.21.0 // indirect
 	golang.org/x/term v0.17.0 // indirect
