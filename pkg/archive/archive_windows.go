@@ -34,7 +34,7 @@ func getWalkRoot(srcPath string, include string) string {
 // on the platform the archival is done.
 func chmodTarEntry(perm os.FileMode) os.FileMode {
 	// Remove group- and world-writable bits.
-	perm &= 0o755
+	perm &= 0o775
 
 	// Add the x bit: make everything +x on Windows
 	return perm | 0o111
