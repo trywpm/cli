@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"wpm/cli/command"
+	"wpm/pkg/wpm"
 
 	"github.com/morikuni/aec"
 	"github.com/pkg/errors"
@@ -94,10 +95,12 @@ func runInit(ctx context.Context, wpmCli command.Cli, opts initOptions) error {
 			WP:  defaultWP,
 		},
 	}
-	ve, err := wpmCli.PackageValidator()
+	wpm, err := wpm.NewWpm(false)
 	if err != nil {
 		return err
 	}
+
+	ve := wpm.Validator()
 
 	// If not auto-confirmed, prompt the user for values
 	if !opts.yes {
