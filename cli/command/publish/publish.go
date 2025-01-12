@@ -1,6 +1,7 @@
 package publish
 
 import (
+	"fmt"
 	"wpm/cli"
 	"wpm/cli/command"
 	"wpm/pkg/wpm"
@@ -43,7 +44,9 @@ func runPublish(wpmCli command.Cli) error {
 		return err
 	}
 
-	if err := wpm.Validate(); err != nil {
+	err = wpm.Validate()
+	if err != nil {
+		_, _ = fmt.Fprintf(wpmCli.Err(), "error validating wpm.json\n")
 		return err
 	}
 
