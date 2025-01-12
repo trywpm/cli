@@ -40,7 +40,12 @@ func readWpmJson(path string) (*validator.Package, error) {
 	var pkg validator.Package
 	err = json.Unmarshal(file, &pkg)
 	if err != nil {
-		return nil, err
+		var typeError *json.UnmarshalTypeError
+		if errors.As(err, &typeError) {
+			return nil, errors.Errorf("error occurred while validating wpm.json\n\ninvalid value for field %s, expected %s but got %s", typeError.Field, typeError.Type.Name(), typeError.Value)
+		}
+
+		return nil, errors.New("wpm.json file is not valid")
 	}
 
 	return &pkg, nil
