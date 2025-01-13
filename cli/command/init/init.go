@@ -9,7 +9,6 @@ import (
 
 	"wpm/cli/command"
 	"wpm/pkg/wpm"
-	"wpm/pkg/wpm/validator"
 
 	"github.com/morikuni/aec"
 	"github.com/pkg/errors"
@@ -63,30 +62,29 @@ func runInit(ctx context.Context, wpmCli command.Cli, opts initOptions) error {
 		return err
 	}
 
-	if wpm.ConfigExists(cwd) {
+	wpmJson, _ := wpm.ReadWpmJson(cwd)
+	if wpmJson != nil {
 		return errors.Errorf("wpm.json already exists in %s", cwd)
 	}
 
 	basecwd := filepath.Base(cwd)
-	wpmJsonInitData := &validator.Package{
+	wpmJsonInitData := &wpm.Json{
 		Name:    basecwd,
 		Version: defaultVersion,
 		License: defaultLicense,
 		Type:    defaultType,
 		Tags:    []string{},
-		Platform: validator.PackagePlatform{
+		Platform: wpm.Platform{
 			PHP: defaultPHP,
 			WP:  defaultWP,
 		},
 	}
-	wpmInstance, err := wpm.NewWpm(false)
+
+	ve, err := wpm.NewValidator()
 	if err != nil {
 		return err
 	}
 
-	ve := wpmInstance.Validator()
-
-	// If not auto-confirmed, prompt the user for values
 	if !opts.yes {
 		prompts := []promptField{
 			{
@@ -246,7 +244,7 @@ func runInit(ctx context.Context, wpmCli command.Cli, opts initOptions) error {
 		}
 	}
 
-	if err := wpm.WriteConfigFile(wpmJsonInitData, ""); err != nil {
+	if err := wpm.WriteWpmJson(wpmJsonInitData, ""); err != nil {
 		return err
 	}
 
