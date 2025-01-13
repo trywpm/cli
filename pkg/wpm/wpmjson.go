@@ -3,10 +3,12 @@ package wpm
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 
 	"github.com/go-playground/validator/v10"
+	"github.com/pkg/errors"
 )
 
 const Config = "wpm.json"
@@ -73,8 +75,13 @@ func ReadWpmJson(path string) (*Json, error) {
 	defer f.Close()
 
 	var j Json
-	if err := json.NewDecoder(f).Decode(&j); err != nil {
-		return nil, fmt.Errorf("wpm.json file is not valid")
+	if err := json.NewDecoder(f).Decode(&j); err != nil && !errors.Is(err, io.EOF) {
+		var typeError *json.UnmarshalTypeError
+		if errors.As(err, &typeError) {
+			return nil, errors.Errorf("wpm.json has an invalid value for field %s, expected %s but got %s", typeError.Field, typeError.Type.Name(), typeError.Value)
+		}
+
+		return nil, errors.New("error parsing wpm.json")
 	}
 
 	return &j, nil
