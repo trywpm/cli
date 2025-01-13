@@ -16,6 +16,7 @@ type PackagePlatform struct {
 type Package struct {
 	Name            string            `json:"name" validate:"required,min=3,max=164"`
 	Description     string            `json:"description,omitempty"`
+	Private         bool              `json:"private,omitempty"`
 	Type            string            `json:"type" validate:"required,oneof=plugin theme mu-plugin drop-in"`
 	Version         string            `json:"version" validate:"required,semver,max=64"`
 	License         string            `json:"license" validate:"omitempty"`
@@ -33,6 +34,7 @@ type Package struct {
 var PackageFieldDescriptions = map[string]string{
 	"Name":            "must contain only lowercase letters, numbers, and hyphens, and be between 3 and 164 characters. (required)",
 	"Description":     "should be a string. (optional)",
+	"Private":         "must be a boolean. (optional)",
 	"Type":            "must be one of: 'plugin', 'theme', 'mu-plugin', or 'drop-in'. (required)",
 	"Version":         "must be a valid semantic version (semver) and less than 64 characters. (required)",
 	"License":         "must be a string. (optional)",
