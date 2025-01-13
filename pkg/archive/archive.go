@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"os"
@@ -363,6 +364,20 @@ func Tar(srcPath string, options *TarOptions) (io.ReadCloser, error) {
 	}
 	go tb.Do()
 	return tb.Reader(), nil
+}
+
+// Convert a tarball to a byte slice
+func ToBytes(tarball io.Reader) ([]byte, error) {
+	return io.ReadAll(tarball)
+}
+
+// Convert to base64 encoded string
+func ToBase64(tarball io.Reader) (string, error) {
+	bytes, err := ToBytes(tarball)
+	if err != nil {
+		return "", err
+	}
+	return base64.StdEncoding.EncodeToString(bytes), nil
 }
 
 // Tarballer is a lower-level interface to TarWithOptions which gives the caller
