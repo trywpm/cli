@@ -21,7 +21,7 @@ type validatorErrorItem struct {
 // Allow ValidatorError to satisfy error interface.
 func (err *validatorError) Error() string {
 	// Add all error messages to a string.
-	message := fmt.Sprintf("\n%s\n", "config validation failed")
+	message := fmt.Sprintf("%s\n", "config validation failed")
 
 	for _, e := range err.Errors {
 		if e.FailedField == "DevDependencies" {
