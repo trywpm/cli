@@ -1,9 +1,10 @@
 package publish
 
 import (
-	"fmt"
+	"os"
 	"wpm/cli"
 	"wpm/cli/command"
+	"wpm/pkg/archive"
 	"wpm/pkg/wpm"
 
 	"github.com/pkg/errors"
@@ -33,26 +34,64 @@ func NewPublishCommand(wpmCli command.Cli) *cobra.Command {
 	return cmd
 }
 
+func readAndValidateWpmJson(cwd string) (*wpm.Json, error) {
+	wpmJson, err := wpm.ReadWpmJson(cwd)
+	if err != nil {
+		return nil, err
+	}
+
+	ve, err := wpm.NewValidator()
+	if err != nil {
+		return nil, err
+	}
+
+	if err = wpm.ValidateWpmJson(ve, wpmJson); err != nil {
+		return nil, err
+	}
+
+	return wpmJson, nil
+}
+
+func tarballPackage(path string) (string, error) {
+	ignorePatterns, err := wpm.ReadWpmIgnore(path)
+	if err != nil {
+		return "", err
+	}
+
+	tarball, err := archive.Tar(path, &archive.TarOptions{
+		ExcludePatterns: ignorePatterns,
+	})
+	if err != nil {
+		return "", err
+	}
+
+	return archive.ToBase64(tarball)
+}
+
 func runPublish(wpmCli command.Cli) error {
 	cfg := wpmCli.ConfigFile()
 	if cfg.AuthToken == "" {
 		return errors.New("user must be logged in to perform this action")
 	}
 
-	wpm, err := wpm.NewWpm(true)
+	cwd, err := os.Getwd()
 	if err != nil {
 		return err
 	}
 
-	err = wpm.Validate()
+	_, err = readAndValidateWpmJson(cwd)
 	if err != nil {
-		_, _ = fmt.Fprintf(wpmCli.Err(), "error validating wpm.json\n")
 		return err
 	}
 
-	// TODO: Bail if package is private
-	// update validator.Package to have Private field in it with type bool
-	// do something about the empty line before the config validation error messages. It's weird.
+	_, err = tarballPackage(cwd)
+	if err != nil {
+		return err
+	}
+
+	// TODO: Generate dist from tarball
+	// - Extend archive package to report number of files in the tar with their sizes
+	// - Use the tarball to generate the dist
 
 	return nil
 }
