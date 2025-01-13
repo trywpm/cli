@@ -62,9 +62,12 @@ func runInit(ctx context.Context, wpmCli command.Cli, opts initOptions) error {
 		return err
 	}
 
-	wpmJson, _ := wpm.ReadWpmJson(cwd)
-	if wpmJson != nil {
-		return errors.Errorf("wpm.json already exists in %s", cwd)
+	if _, err = os.Stat(filepath.Join(cwd, wpm.Config)); err == nil {
+		return errors.New("wpm.json already exists")
+	}
+
+	if err != nil && !os.IsNotExist(err) {
+		return err
 	}
 
 	basecwd := filepath.Base(cwd)
