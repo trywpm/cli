@@ -105,7 +105,7 @@ func WriteWpmJson(pkg *Json, path string) error {
 	return nil
 }
 
-func ValidateWpmJson(pkg *Json, validator *validator.Validate) error {
+func ValidateWpmJson(validator *validator.Validate, pkg *Json) error {
 	if err := validator.Struct(pkg); err != nil {
 		return handleValidatorError(err)
 	}
