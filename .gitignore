@@ -22,5 +22,6 @@ go.work.sum
 .env
 
 # wpm files
+wpm
 wpm.json
 .wpmignore
