@@ -28,6 +28,7 @@ import (
 )
 
 type TarOptions struct {
+	ShowInfo        bool
 	IncludeFiles    []string
 	ExcludePatterns []string
 }
@@ -439,11 +440,6 @@ func (t *Tarballer) Do() {
 		}
 	}()
 
-	// In general we log errors here but ignore them because
-	// during e.g. a diff operation the container can continue
-	// mutating the filesystem and we can see transient errors
-	// from this
-
 	stat, err := os.Lstat(t.srcPath)
 	if err != nil {
 		log.G(context.TODO()).Errorf("unable to read source path %s: %s", t.srcPath, err)
@@ -568,6 +564,17 @@ func (t *Tarballer) Do() {
 					return err
 				}
 			}
+
+			fileInfo, err := f.Info()
+			if err != nil {
+				log.G(context.TODO()).Errorf("can't get file info for %s: %s", filePath, err)
+				return nil
+			}
+
+			if !f.IsDir() && t.options.ShowInfo {
+				log.G(context.TODO()).Infof("%.2f kb - %s", float32(fileInfo.Size())/1024, relFilePath)
+			}
+
 			return nil
 		})
 		if err != nil {
