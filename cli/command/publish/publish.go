@@ -59,6 +59,7 @@ func tarballPackage(path string) (string, error) {
 	}
 
 	tarball, err := archive.Tar(path, &archive.TarOptions{
+		ShowInfo:        true,
 		ExcludePatterns: ignorePatterns,
 	})
 	if err != nil {
