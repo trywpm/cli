@@ -55,13 +55,6 @@ var PackageFieldDescriptions = map[string]string{
 	"Scripts":         "must be an object with string values. (optional)",
 }
 
-// Dist struct to define the dist field
-type Dist struct {
-	Size      int    `json:"size" validate:"gte=0"`
-	FileCount int    `json:"fileCount" validate:"gte=0"`
-	Digest    string `json:"digest" validate:"required,sha256"`
-}
-
 // ReadWpmJson reads the wpm.json file from the passed path and
 // returns the list of paths to exclude
 func ReadWpmJson(path string) (*Json, error) {
