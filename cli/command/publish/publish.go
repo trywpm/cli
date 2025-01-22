@@ -8,12 +8,15 @@ import (
 	"io"
 	"os"
 	"strings"
+
 	"wpm/cli"
 	"wpm/cli/command"
 	"wpm/cli/registry/client"
+	"wpm/cli/version"
 	"wpm/pkg/archive"
 	"wpm/pkg/wpm"
 
+	"github.com/morikuni/aec"
 	"github.com/opencontainers/go-digest"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
@@ -121,6 +124,8 @@ func runPublish(wpmCli command.Cli, opts publishOptions) error {
 		return err
 	}
 
+	fmt.Fprintf(wpmCli.Err(), aec.CyanF.Apply("📦 preparing %s@%s for publishing 📦\n\n"), wpmJson.Name, wpmJson.Version)
+
 	tarball, err := pack(cwd)
 	if err != nil {
 		return err
@@ -132,6 +137,8 @@ func runPublish(wpmCli command.Cli, opts publishOptions) error {
 		return err
 	}
 	tarball.Close()
+
+	fmt.Fprint(wpmCli.Err(), "\n") // add a newline after the tarball progress
 
 	if opts.dryRun {
 		fmt.Fprintf(wpmCli.Err(), "dry run complete, %s@%s is ready to be published\n", wpmJson.Name, wpmJson.Version)
@@ -148,7 +155,12 @@ func runPublish(wpmCli command.Cli, opts publishOptions) error {
 		return err
 	}
 
-	jobId, err := registryClient.PutPackage(context.TODO(), &client.NewPackageData{
+	ver := version.Version
+	if ver == "unknown-version" {
+		ver = "0.1.0-dev"
+	}
+
+	_, err = registryClient.PutPackage(context.TODO(), &client.NewPackageData{
 		Name:            wpmJson.Name,
 		Description:     wpmJson.Description,
 		Type:            wpmJson.Type,
@@ -162,7 +174,7 @@ func runPublish(wpmCli command.Cli, opts publishOptions) error {
 		Dependencies:    wpmJson.Dependencies,
 		DevDependencies: wpmJson.DevDependencies,
 		Scripts:         wpmJson.Scripts,
-		Wpm:             "1.0.0",
+		Wpm:             ver,
 		Digest:          (digest.FromBytes(buf.Bytes())).String(),
 		Access:          opts.access,
 		Attachment:      base64.StdEncoding.EncodeToString(buf.Bytes()),
@@ -172,7 +184,7 @@ func runPublish(wpmCli command.Cli, opts publishOptions) error {
 		return err
 	}
 
-	fmt.Fprintf(wpmCli.Out(), "publishing package %s to the registry\n", jobId)
+	fmt.Fprintf(wpmCli.Err(), "🚀 %s@%s is queued for publishing 🚀\n", wpmJson.Name, wpmJson.Version)
 
 	return nil
 }
