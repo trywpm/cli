@@ -160,7 +160,7 @@ func runPublish(wpmCli command.Cli, opts publishOptions) error {
 		ver = "0.1.0-dev"
 	}
 
-	_, err = registryClient.PutPackage(context.TODO(), &client.NewPackageData{
+	newPackageData := &client.NewPackageData{
 		Name:            wpmJson.Name,
 		Description:     wpmJson.Description,
 		Type:            wpmJson.Type,
@@ -179,7 +179,16 @@ func runPublish(wpmCli command.Cli, opts publishOptions) error {
 		Access:          opts.access,
 		Attachment:      base64.StdEncoding.EncodeToString(buf.Bytes()),
 		Readme:          readme,
-	})
+	}
+
+	err = wpmCli.Progress().RunWithProgress(
+		"adding package to publish queue",
+		func() error {
+			_, err = registryClient.PutPackage(context.TODO(), newPackageData)
+			return err
+		},
+		wpmCli.Err(),
+	)
 	if err != nil {
 		return err
 	}
