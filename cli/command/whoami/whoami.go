@@ -14,23 +14,13 @@ import (
 	"github.com/spf13/cobra"
 )
 
-type loginOptions struct {
-	token string
-}
-
 func NewWhoamiCommand(wpmCli command.Cli) *cobra.Command {
-	var opts loginOptions
-
 	cmd := &cobra.Command{
 		Use:   "whoami",
 		Short: "Display the current user",
 		Args:  cli.NoArgs,
 		RunE:  func(cmd *cobra.Command, args []string) error { return runWhoami(wpmCli) },
 	}
-
-	flags := cmd.Flags()
-
-	flags.StringVar(&opts.token, "token", "", "Token to use for authentication")
 
 	return cmd
 }
