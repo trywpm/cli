@@ -41,7 +41,7 @@ func NewPublishCommand(wpmCli command.Cli) *cobra.Command {
 	flags := cmd.Flags()
 
 	flags.BoolVar(&opts.verbose, "verbose", false, "Enable verbose output")
-	flags.StringVarP(&opts.access, "access", "a", "public", "Set the package access level to either public or private")
+	flags.StringVarP(&opts.access, "access", "a", "private", "Set the package access level to either public or private")
 	flags.BoolVar(&opts.dryRun, "dry-run", false, "Perform a publish operation without actually publishing the package")
 
 	return cmd
