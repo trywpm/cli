@@ -87,11 +87,11 @@ func (c *client) PutPackage(ctx context.Context, data *NewPackageData) (string, 
 		return "", err
 	}
 
-	response := struct{ ID string }{}
+	response := struct{ Message string }{}
 	err = c.restClient.Put("/", bytes.NewReader(bodyBytes), &response)
 	if err != nil {
 		return "", err
 	}
 
-	return response.ID, nil
+	return response.Message, nil
 }
