@@ -23,8 +23,9 @@ import (
 )
 
 type publishOptions struct {
-	dryRun bool
-	access string
+	dryRun  bool
+	verbose bool
+	access  string
 }
 
 func NewPublishCommand(wpmCli command.Cli) *cobra.Command {
@@ -39,8 +40,9 @@ func NewPublishCommand(wpmCli command.Cli) *cobra.Command {
 
 	flags := cmd.Flags()
 
-	flags.BoolVar(&opts.dryRun, "dry-run", false, "Perform a publish operation without actually publishing the package")
+	flags.BoolVar(&opts.verbose, "verbose", false, "Enable verbose output")
 	flags.StringVarP(&opts.access, "access", "a", "public", "Set the package access level to either public or private")
+	flags.BoolVar(&opts.dryRun, "dry-run", false, "Perform a publish operation without actually publishing the package")
 
 	return cmd
 }
@@ -63,14 +65,14 @@ func readAndValidateWpmJson(cwd string) (*wpm.Json, error) {
 	return wpmJson, nil
 }
 
-func pack(path string) (io.ReadCloser, error) {
+func pack(path string, opts publishOptions) (io.ReadCloser, error) {
 	ignorePatterns, err := wpm.ReadWpmIgnore(path)
 	if err != nil {
 		return nil, err
 	}
 
 	tar, err := archive.Tar(path, &archive.TarOptions{
-		ShowInfo:        true,
+		ShowInfo:        opts.verbose,
 		ExcludePatterns: ignorePatterns,
 	})
 	if err != nil {
@@ -126,7 +128,7 @@ func runPublish(wpmCli command.Cli, opts publishOptions) error {
 
 	fmt.Fprintf(wpmCli.Err(), aec.CyanF.Apply("📦 preparing %s@%s for publishing 📦\n\n"), wpmJson.Name, wpmJson.Version)
 
-	tarball, err := pack(cwd)
+	tarball, err := pack(cwd, opts)
 	if err != nil {
 		return err
 	}
@@ -138,7 +140,9 @@ func runPublish(wpmCli command.Cli, opts publishOptions) error {
 	}
 	tarball.Close()
 
-	fmt.Fprint(wpmCli.Err(), "\n") // add a newline after the tarball progress
+	if opts.verbose {
+		fmt.Fprint(wpmCli.Err(), "\n") // add a newline after the tarball progress
+	}
 
 	if opts.dryRun {
 		fmt.Fprintf(wpmCli.Err(), "dry run complete, %s@%s is ready to be published\n", wpmJson.Name, wpmJson.Version)
