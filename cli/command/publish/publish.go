@@ -16,6 +16,7 @@ import (
 	"wpm/pkg/archive"
 	"wpm/pkg/wpm"
 
+	"github.com/docker/go-units"
 	"github.com/morikuni/aec"
 	"github.com/opencontainers/go-digest"
 	"github.com/pkg/errors"
@@ -65,7 +66,7 @@ func readAndValidateWpmJson(cwd string) (*wpm.Json, error) {
 	return wpmJson, nil
 }
 
-func pack(path string, opts publishOptions) (io.ReadCloser, error) {
+func pack(dst io.Writer, path string, opts publishOptions) (*archive.Tarballer, error) {
 	ignorePatterns, err := wpm.ReadWpmIgnore(path)
 	if err != nil {
 		return nil, err
@@ -74,7 +75,7 @@ func pack(path string, opts publishOptions) (io.ReadCloser, error) {
 	tar, err := archive.Tar(path, &archive.TarOptions{
 		ShowInfo:        opts.verbose,
 		ExcludePatterns: ignorePatterns,
-	})
+	}, dst)
 	if err != nil {
 		return nil, err
 	}
@@ -132,21 +133,32 @@ func runPublish(wpmCli command.Cli, opts publishOptions) error {
 
 	fmt.Fprintf(wpmCli.Err(), aec.CyanF.Apply("📦 preparing %s@%s for publishing 📦\n\n"), wpmJson.Name, wpmJson.Version)
 
-	tarball, err := pack(cwd, opts)
+	tarball, err := pack(wpmCli.Err(), cwd, opts)
 	if err != nil {
 		return err
 	}
 
 	buf := new(bytes.Buffer)
-	_, err = io.Copy(buf, tarball)
+	tarReader := tarball.Reader()
+	_, err = io.Copy(buf, tarReader)
 	if err != nil {
 		return err
 	}
-	tarball.Close()
+	tarReader.Close()
+
+	digest := digest.FromBytes(buf.Bytes())
 
 	if opts.verbose {
 		fmt.Fprint(wpmCli.Err(), "\n") // add a newline after the tarball progress
 	}
+
+	fmt.Fprintf(wpmCli.Err(), "%s: %d\n", aec.LightBlueF.Apply("total files"), tarball.FileCount())
+	fmt.Fprintf(wpmCli.Err(), "%s: %s\n", aec.LightBlueF.Apply("digest"), digest.String())
+	fmt.Fprintf(wpmCli.Err(), "%s: %s\n", aec.LightBlueF.Apply("unpacked size"), units.HumanSize(float64(tarball.UnpackedSize())))
+	fmt.Fprintf(wpmCli.Err(), "%s: %s\n", aec.LightBlueF.Apply("packed size"), units.HumanSize(float64(buf.Len())))
+	fmt.Fprintf(wpmCli.Err(), "%s: %s\n", aec.LightBlueF.Apply("tag"), "latest") // TODO: add support for tags
+	fmt.Fprintf(wpmCli.Err(), "%s: %s\n", aec.LightBlueF.Apply("access"), opts.access)
+	fmt.Fprint(wpmCli.Err(), "\n")
 
 	if opts.dryRun {
 		fmt.Fprintf(wpmCli.Err(), "dry run complete, %s@%s is ready to be published\n", wpmJson.Name, wpmJson.Version)
@@ -183,7 +195,7 @@ func runPublish(wpmCli command.Cli, opts publishOptions) error {
 		DevDependencies: wpmJson.DevDependencies,
 		Scripts:         wpmJson.Scripts,
 		Wpm:             ver,
-		Digest:          (digest.FromBytes(buf.Bytes())).String(),
+		Digest:          digest.String(),
 		Access:          opts.access,
 		Attachment:      base64.StdEncoding.EncodeToString(buf.Bytes()),
 		Readme:          readme,
@@ -202,7 +214,7 @@ func runPublish(wpmCli command.Cli, opts publishOptions) error {
 		return err
 	}
 
-	fmt.Fprintf(wpmCli.Err(), "🚀 %s 🚀\n", message)
+	fmt.Fprintf(wpmCli.Err(), "🚀 %s 🚀\n", aec.GreenF.Apply(message))
 
 	return nil
 }
