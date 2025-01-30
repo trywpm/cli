@@ -126,6 +126,10 @@ func runPublish(wpmCli command.Cli, opts publishOptions) error {
 		return err
 	}
 
+	if wpmJson.Private {
+		return errors.New("package marked as private cannot be published")
+	}
+
 	fmt.Fprintf(wpmCli.Err(), aec.CyanF.Apply("📦 preparing %s@%s for publishing 📦\n\n"), wpmJson.Name, wpmJson.Version)
 
 	tarball, err := pack(cwd, opts)
