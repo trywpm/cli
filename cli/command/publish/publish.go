@@ -181,10 +181,11 @@ func runPublish(wpmCli command.Cli, opts publishOptions) error {
 		Readme:          readme,
 	}
 
+	var message string
 	err = wpmCli.Progress().RunWithProgress(
 		"adding package to publish queue",
 		func() error {
-			_, err = registryClient.PutPackage(context.TODO(), newPackageData)
+			message, err = registryClient.PutPackage(context.TODO(), newPackageData)
 			return err
 		},
 		wpmCli.Err(),
@@ -193,7 +194,7 @@ func runPublish(wpmCli command.Cli, opts publishOptions) error {
 		return err
 	}
 
-	fmt.Fprintf(wpmCli.Err(), "🚀 %s@%s is queued for publishing 🚀\n", wpmJson.Name, wpmJson.Version)
+	fmt.Fprintf(wpmCli.Err(), "🚀 %s 🚀\n", message)
 
 	return nil
 }
