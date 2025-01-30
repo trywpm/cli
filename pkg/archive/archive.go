@@ -7,24 +7,22 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
-	"encoding/base64"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime/debug"
 	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	"wpm/pkg/log"
-
 	"github.com/cli/safeexec"
+	"github.com/docker/go-units"
 	"github.com/moby/patternmatcher"
 	"github.com/moby/sys/sequential"
+	"github.com/morikuni/aec"
 )
 
 type TarOptions struct {
@@ -64,11 +62,6 @@ type readCloserWrapper struct {
 
 func (r *readCloserWrapper) Close() error {
 	if !r.closed.CompareAndSwap(false, true) {
-		log.G(context.TODO()).Error("subsequent attempt to close readCloserWrapper")
-		if log.GetLevel() >= log.DebugLevel {
-			log.G(context.TODO()).Errorf("stack trace: %s", string(debug.Stack()))
-		}
-
 		return nil
 	}
 	if r.closer != nil {
@@ -116,22 +109,15 @@ func (r *bufferedReader) Peek(n int) ([]byte, error) {
 func gzDecompress(ctx context.Context, buf io.Reader) (io.ReadCloser, error) {
 	if noPigzEnv := os.Getenv("WPM_NO_PIGZ"); noPigzEnv != "" {
 		noPigz, err := strconv.ParseBool(noPigzEnv)
-		if err != nil {
-			log.G(ctx).WithError(err).Warn("invalid value in WPM_NO_PIGZ env var")
-		}
-		if noPigz {
-			log.G(ctx).Debugf("use of pigz is disabled due to WPM_NO_PIGZ=%s", noPigzEnv)
+		if err != nil || noPigz {
 			return gzip.NewReader(buf)
 		}
 	}
 
 	unpigzPath, err := safeexec.LookPath("unpigz")
 	if err != nil {
-		log.G(ctx).Debugf("unpigz binary not found, falling back to go gzip library")
 		return gzip.NewReader(buf)
 	}
-
-	log.G(ctx).Debugf("Using %s to decompress", unpigzPath)
 
 	return cmdStream(exec.CommandContext(ctx, unpigzPath, "-d", "-c"), buf)
 }
@@ -327,7 +313,6 @@ func createTarFile(path, extractDir string, hdr *tar.Header, reader io.Reader) e
 		}
 
 	case tar.TypeXGlobalHeader:
-		log.G(context.TODO()).Debug("PAX Global Extended Headers found and ignored")
 		return nil
 
 	default:
@@ -358,27 +343,13 @@ func createTarFile(path, extractDir string, hdr *tar.Header, reader io.Reader) e
 
 // Tar creates an archive from the directory at `path`, only including files whose relative
 // paths are included in `options.IncludeFiles` (if non-nil) or not in `options.ExcludePatterns`.
-func Tar(srcPath string, options *TarOptions) (io.ReadCloser, error) {
-	tb, err := NewTarballer(srcPath, options)
+func Tar(srcPath string, options *TarOptions, dst io.Writer) (*Tarballer, error) {
+	tb, err := NewTarballer(srcPath, options, dst)
 	if err != nil {
 		return nil, err
 	}
 	go tb.Do()
-	return tb.Reader(), nil
-}
-
-// Convert a tarball to a byte slice
-func ToBytes(tarball io.Reader) ([]byte, error) {
-	return io.ReadAll(tarball)
-}
-
-// Convert to base64 encoded string
-func ToBase64(tarball io.Reader) (string, error) {
-	bytes, err := ToBytes(tarball)
-	if err != nil {
-		return "", err
-	}
-	return base64.StdEncoding.EncodeToString(bytes), nil
+	return tb, nil
 }
 
 // Tarballer is a lower-level interface to TarWithOptions which gives the caller
@@ -386,15 +357,18 @@ func ToBase64(tarball io.Reader) (string, error) {
 type Tarballer struct {
 	srcPath        string
 	options        *TarOptions
+	dst            io.Writer
 	pm             *patternmatcher.PatternMatcher
 	pipeReader     *io.PipeReader
 	pipeWriter     *io.PipeWriter
 	compressWriter io.WriteCloser
+	fileCount      atomic.Int64
+	unpackedSize   atomic.Int64
 }
 
 // NewTarballer constructs a new tarballer. The arguments are the same as for
 // TarWithOptions.
-func NewTarballer(srcPath string, options *TarOptions) (*Tarballer, error) {
+func NewTarballer(srcPath string, options *TarOptions, dst io.Writer) (*Tarballer, error) {
 	pm, err := patternmatcher.New(options.ExcludePatterns)
 	if err != nil {
 		return nil, err
@@ -407,6 +381,7 @@ func NewTarballer(srcPath string, options *TarOptions) (*Tarballer, error) {
 		// on platforms other than Windows.
 		srcPath:        addLongPathPrefix(srcPath),
 		options:        options,
+		dst:            dst,
 		pm:             pm,
 		pipeReader:     pipeReader,
 		pipeWriter:     pipeWriter,
@@ -419,6 +394,16 @@ func (t *Tarballer) Reader() io.ReadCloser {
 	return t.pipeReader
 }
 
+// FileCount returns the number of files added to the tarball.
+func (t *Tarballer) FileCount() int {
+	return int(t.fileCount.Load())
+}
+
+// UnpackedSize returns the total size of the files added to the tarball.
+func (t *Tarballer) UnpackedSize() int {
+	return int(t.unpackedSize.Load())
+}
+
 // Do performs the archiving operation in the background. The resulting archive
 // can be read from t.Reader(). Do should only be called once on each Tarballer
 // instance.
@@ -428,21 +413,14 @@ func (t *Tarballer) Do() {
 	)
 
 	defer func() {
-		// Make sure to check the error on Close.
-		if err := ta.TarWriter.Close(); err != nil {
-			log.G(context.TODO()).Errorf("some error occurred while closing tar writer: %s", err)
-		}
-		if err := t.compressWriter.Close(); err != nil {
-			log.G(context.TODO()).Errorf("some error occurred while closing compress writer: %s", err)
-		}
-		if err := t.pipeWriter.Close(); err != nil {
-			log.G(context.TODO()).Errorf("some error occurred while closing pipe writer: %s", err)
-		}
+		ta.TarWriter.Close()
+		t.compressWriter.Close()
+		t.pipeWriter.Close()
 	}()
 
 	stat, err := os.Lstat(t.srcPath)
 	if err != nil {
-		log.G(context.TODO()).Errorf("unable to read source path %s: %s", t.srcPath, err)
+		fmt.Fprintf(t.dst, "unable to read source path %s: %s", t.srcPath, err)
 		return
 	}
 
@@ -452,7 +430,7 @@ func (t *Tarballer) Do() {
 		// directory. So, we must split the source path and use the
 		// basename as the include.
 		if len(t.options.IncludeFiles) > 0 {
-			log.G(context.TODO()).Warn("source path is not a directory, include patterns will be ignored")
+			fmt.Fprint(t.dst, aec.YellowF.Apply("source path is not a directory, include patterns will be ignored"))
 		}
 
 		dir, base := SplitPathDirEntry(t.srcPath)
@@ -475,7 +453,7 @@ func (t *Tarballer) Do() {
 		walkRoot := getWalkRoot(t.srcPath, include)
 		err = filepath.WalkDir(walkRoot, func(filePath string, f os.DirEntry, err error) error {
 			if err != nil {
-				log.G(context.TODO()).Errorf("Tar: Can't stat file %s to tar: %s", t.srcPath, err)
+				fmt.Fprintf(t.dst, "unable to stat file %s: %s", t.srcPath, err)
 				return nil
 			}
 
@@ -510,7 +488,7 @@ func (t *Tarballer) Do() {
 					skip, matchInfo, err = t.pm.MatchesUsingParentResults(relFilePath, patternmatcher.MatchInfo{})
 				}
 				if err != nil {
-					log.G(context.TODO()).Errorf("Error matching %s: %v", relFilePath, err)
+					fmt.Fprintf(t.dst, "error matching %s: %v", relFilePath, err)
 					return err
 				}
 
@@ -558,27 +536,37 @@ func (t *Tarballer) Do() {
 			seen[relFilePath] = true
 
 			if err := ta.addTarFile(filePath, relFilePath); err != nil {
-				log.G(context.TODO()).Errorf("Can't add file %s to tar: %s", filePath, err)
+				message := fmt.Sprintf("unable to add file %s to tar: %s", filePath, err)
 				// if pipe is broken, stop writing tar stream to it
 				if err == io.ErrClosedPipe {
+					fmt.Fprint(t.dst, message)
 					return err
 				}
+
+				fmt.Fprintln(t.dst, message)
 			}
 
 			fileInfo, err := f.Info()
 			if err != nil {
-				log.G(context.TODO()).Errorf("can't get file info for %s: %s", filePath, err)
+				fmt.Fprintf(t.dst, "unable to get file info for %s: %s", filePath, err)
 				return nil
 			}
 
-			if !f.IsDir() && t.options.ShowInfo {
-				log.G(context.TODO()).Infof("%.2f kb - %s", float32(fileInfo.Size())/1024, relFilePath)
+			if !f.IsDir() {
+				t.fileCount.Add(1)
+				t.unpackedSize.Add(fileInfo.Size())
+
+				if t.options.ShowInfo {
+					sizeString := units.HumanSize(float64(fileInfo.Size()))
+					sizeString = fmt.Sprintf("%-7s", sizeString) // pad to 7 spaces since size string is capped to 4 numbers
+					fmt.Fprintf(t.dst, "%s %s %s\n", aec.CyanF.Apply("packed"), sizeString, relFilePath)
+				}
 			}
 
 			return nil
 		})
 		if err != nil {
-			log.G(context.TODO()).Errorf("unable to traverse path %s: %s", t.srcPath, err)
+			fmt.Fprintf(t.dst, "unable to traverse path %s: %s", t.srcPath, err)
 			return
 		}
 	}
@@ -604,7 +592,6 @@ loop:
 
 		// ignore XGlobalHeader early to avoid creating parent directories for them
 		if hdr.Typeflag == tar.TypeXGlobalHeader {
-			log.G(context.TODO()).Debugf("PAX Global Extended Headers found for %s and ignored", hdr.Name)
 			continue
 		}
 
