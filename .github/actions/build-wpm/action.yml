@@ -24,8 +24,8 @@ runs:
       with:
         go-version: ${{ inputs.go-version }}
 
-    - name: build
-      run: ./.github/actions/scripts/binary
+    - name: build wpm
+      run: ./.github/actions/build-wpm/scripts/binary
       env:
         GOOS: ${{ inputs.go-os }}
         GOARM: ${{ inputs.go-arm }}
