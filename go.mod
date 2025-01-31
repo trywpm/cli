@@ -3,7 +3,7 @@ module wpm
 go 1.23.4
 
 require (
-	github.com/briandowns/spinner v1.23.1
+	github.com/briandowns/spinner v1.23.2
 	github.com/cli/safeexec v1.0.1
 	github.com/docker/docker v27.5.1+incompatible
 	github.com/fvbommel/sortorder v1.1.0
