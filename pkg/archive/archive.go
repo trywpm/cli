@@ -468,9 +468,7 @@ func (t *Tarballer) Do() {
 
 			// If "include" is an exact match for the current file
 			// then even if there's an "excludePatterns" pattern that
-			// matches it, don't skip it. IOW, assume an explicit 'include'
-			// is asking for that file no matter what - which is true
-			// for some files, like .dockerignore and Dockerfile (sometimes)
+			// matches it, don't skip it.
 			if include != relFilePath {
 				for len(parentDirs) != 0 {
 					lastParentDir := parentDirs[len(parentDirs)-1]
