@@ -4,6 +4,7 @@ set -eu
 : "${GO_STRIP=}"
 
 TARGET=${TARGET:-"build"}
+RUNNER_TEMP=${RUNNER_TEMP:-"/tmp"}
 
 PLATFORM=${PLATFORM:-}
 VERSION=${VERSION:-$(git describe --match 'v[0-9]*' --dirty='.m' --always --tags | sed 's/^v//' 2>/dev/null || echo "unknown-version" )}
