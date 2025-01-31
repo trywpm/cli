@@ -2,12 +2,13 @@ package init
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+
 	"wpm/cli/command"
+	"wpm/pkg/wpm"
 
 	"github.com/morikuni/aec"
 	"github.com/pkg/errors"
@@ -15,25 +16,12 @@ import (
 )
 
 const (
-	wpmJsonFile    = "wpm.json"
 	defaultVersion = "1.0.0"
 	defaultLicense = "GPL-2.0-or-later"
 	defaultType    = "plugin"
 	defaultPHP     = "7.2"
 	defaultWP      = "6.7"
 )
-
-type packageInit struct {
-	Name     string   `json:"name"`
-	Version  string   `json:"version"`
-	License  string   `json:"license"`
-	Type     string   `json:"type"`
-	Tags     []string `json:"tags"`
-	Platform struct {
-		PHP string `json:"php"`
-		WP  string `json:"wp"`
-	} `json:"platform"`
-}
 
 type initOptions struct {
 	yes bool
@@ -74,32 +62,32 @@ func runInit(ctx context.Context, wpmCli command.Cli, opts initOptions) error {
 		return err
 	}
 
-	wpmJsonPath := filepath.Join(cwd, wpmJsonFile)
-	if _, err := os.Stat(wpmJsonPath); err == nil {
-		return errors.Errorf("wpm.json already exists in %s", cwd)
+	if _, err = os.Stat(filepath.Join(cwd, wpm.Config)); err == nil {
+		return errors.New("wpm.json already exists")
+	}
+
+	if err != nil && !os.IsNotExist(err) {
+		return err
 	}
 
 	basecwd := filepath.Base(cwd)
-	wpmJsonInitData := packageInit{
+	wpmJsonInitData := &wpm.Json{
 		Name:    basecwd,
 		Version: defaultVersion,
 		License: defaultLicense,
 		Type:    defaultType,
 		Tags:    []string{},
-		Platform: struct {
-			PHP string `json:"php"`
-			WP  string `json:"wp"`
-		}{
+		Platform: wpm.Platform{
 			PHP: defaultPHP,
 			WP:  defaultWP,
 		},
 	}
-	ve, err := wpmCli.PackageValidator()
+
+	ve, err := wpm.NewValidator()
 	if err != nil {
 		return err
 	}
 
-	// If not auto-confirmed, prompt the user for values
 	if !opts.yes {
 		prompts := []promptField{
 			{
@@ -259,29 +247,11 @@ func runInit(ctx context.Context, wpmCli command.Cli, opts initOptions) error {
 		}
 	}
 
-	if err := writeWpmJson(wpmCli, wpmJsonPath, wpmJsonInitData); err != nil {
+	if err := wpm.WriteWpmJson(wpmJsonInitData, ""); err != nil {
 		return err
 	}
 
-	return nil
-}
-
-func writeWpmJson(wpmCli command.Cli, path string, data packageInit) error {
-	file, err := os.Create(path)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	encoder := json.NewEncoder(file)
-	encoder.SetEscapeHTML(false)
-	encoder.SetIndent("", "  ")
-
-	if err := encoder.Encode(data); err != nil {
-		return err
-	}
-
-	fmt.Fprint(wpmCli.Out(), "config created at ", path, "\n")
+	_, _ = fmt.Fprintf(wpmCli.Out(), "config created at %s\n", filepath.Join(cwd, wpm.Config))
 
 	return nil
 }

@@ -1,21 +1,29 @@
-package validator
+package wpm
 
 import (
-	"regexp"
+	"encoding/json"
+	"fmt"
+	"io"
+	"os"
+	"path/filepath"
 
-	goValidator "github.com/go-playground/validator/v10"
+	"github.com/go-playground/validator/v10"
+	"github.com/pkg/errors"
 )
 
+const Config = "wpm.json"
+
 // Platform struct to define the platform field
-type PackagePlatform struct {
+type Platform struct {
 	WP  string `json:"wp" validate:"required"`
 	PHP string `json:"php" validate:"required"`
 }
 
-// Package struct to define the wpm.json schema
-type Package struct {
+// Json struct to define the wpm.json schema
+type Json struct {
 	Name            string            `json:"name" validate:"required,min=3,max=164"`
 	Description     string            `json:"description,omitempty"`
+	Private         bool              `json:"private,omitempty"`
 	Type            string            `json:"type" validate:"required,oneof=plugin theme mu-plugin drop-in"`
 	Version         string            `json:"version" validate:"required,semver,max=64"`
 	License         string            `json:"license" validate:"omitempty"`
@@ -23,7 +31,7 @@ type Package struct {
 	Tags            []string          `json:"tags,omitempty" validate:"dive,max=5"`
 	Team            []string          `json:"team,omitempty"`
 	Bin             map[string]string `json:"bin,omitempty"`
-	Platform        PackagePlatform   `json:"platform" validate:"required"`
+	Platform        Platform          `json:"platform" validate:"required"`
 	Dependencies    map[string]string `json:"dependencies,omitempty"`
 	DevDependencies map[string]string `json:"dev_dependencies,omitempty"`
 	Scripts         map[string]string `json:"scripts,omitempty"`
@@ -33,6 +41,7 @@ type Package struct {
 var PackageFieldDescriptions = map[string]string{
 	"Name":            "must contain only lowercase letters, numbers, and hyphens, and be between 3 and 164 characters. (required)",
 	"Description":     "should be a string. (optional)",
+	"Private":         "must be a boolean. (optional)",
 	"Type":            "must be one of: 'plugin', 'theme', 'mu-plugin', or 'drop-in'. (required)",
 	"Version":         "must be a valid semantic version (semver) and less than 64 characters. (required)",
 	"License":         "must be a string. (optional)",
@@ -46,41 +55,53 @@ var PackageFieldDescriptions = map[string]string{
 	"Scripts":         "must be an object with string values. (optional)",
 }
 
-// Dist struct to define the dist field
-type PackageDist struct {
-	Size      int    `json:"size" validate:"gte=0"`
-	FileCount int    `json:"fileCount" validate:"gte=0"`
-	Digest    string `json:"digest" validate:"required,sha256"`
-}
-
-// NewValidator creates a new validator instance.
-func NewValidator() (*goValidator.Validate, error) {
-	validator := goValidator.New()
-	err := validator.RegisterValidation("package_name_regex", packageNameRegex)
-	if err != nil {
+// ReadWpmJson reads the wpm.json file from the passed path and
+// returns the list of paths to exclude
+func ReadWpmJson(path string) (*Json, error) {
+	f, err := os.Open(filepath.Join(path, "wpm.json"))
+	switch {
+	case os.IsNotExist(err):
+		return nil, fmt.Errorf("wpm.json file not found")
+	case err != nil:
 		return nil, err
 	}
+	defer f.Close()
 
-	return validator, nil
+	var j Json
+	if err := json.NewDecoder(f).Decode(&j); err != nil && !errors.Is(err, io.EOF) {
+		var typeError *json.UnmarshalTypeError
+		if errors.As(err, &typeError) {
+			return nil, errors.Errorf("wpm.json has an invalid value for field %s, expected %s but got %s", typeError.Field, typeError.Type.Name(), typeError.Value)
+		}
+
+		return nil, errors.New("error parsing wpm.json")
+	}
+
+	return &j, nil
 }
 
-// ValidatePackage validates the package struct.
-func ValidatePackage(pkg Package, v *goValidator.Validate) error {
-	errs := v.Struct(pkg)
-	if errs != nil {
-		return HandleValidatorError(errs)
+func WriteWpmJson(pkg *Json, path string) error {
+	file, err := os.Create(filepath.Join(path, "wpm.json"))
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	encoder := json.NewEncoder(file)
+	encoder.SetEscapeHTML(false)
+	encoder.SetIndent("", "\t")
+
+	if err := encoder.Encode(pkg); err != nil {
+		return err
 	}
 
 	return nil
 }
 
-// packageNameRegex validates the package name field with a regex.
-// Only lowercase letters, numbers, and hyphens are allowed.
-func packageNameRegex(fl goValidator.FieldLevel) bool {
-	value := fl.Field().String()
-	if value == "" {
-		return false
+func ValidateWpmJson(validator *validator.Validate, pkg *Json) error {
+	if err := validator.Struct(pkg); err != nil {
+		return handleValidatorError(err)
 	}
 
-	return regexp.MustCompile(`^[a-z0-9-]+$`).MatchString(value)
+	return nil
 }
