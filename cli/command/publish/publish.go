@@ -26,6 +26,7 @@ import (
 type publishOptions struct {
 	dryRun  bool
 	verbose bool
+	tag     string
 	access  string
 }
 
@@ -41,6 +42,7 @@ func NewPublishCommand(wpmCli command.Cli) *cobra.Command {
 
 	flags := cmd.Flags()
 
+	flags.StringVar(&opts.tag, "tag", "latest", "Set the package tag")
 	flags.BoolVar(&opts.verbose, "verbose", false, "Enable verbose output")
 	flags.StringVarP(&opts.access, "access", "a", "private", "Set the package access level to either public or private")
 	flags.BoolVar(&opts.dryRun, "dry-run", false, "Perform a publish operation without actually publishing the package")
@@ -156,7 +158,7 @@ func runPublish(wpmCli command.Cli, opts publishOptions) error {
 	fmt.Fprintf(wpmCli.Err(), "%s: %s\n", aec.LightBlueF.Apply("digest"), digest.String())
 	fmt.Fprintf(wpmCli.Err(), "%s: %s\n", aec.LightBlueF.Apply("unpacked size"), units.HumanSize(float64(tarball.UnpackedSize())))
 	fmt.Fprintf(wpmCli.Err(), "%s: %s\n", aec.LightBlueF.Apply("packed size"), units.HumanSize(float64(buf.Len())))
-	fmt.Fprintf(wpmCli.Err(), "%s: %s\n", aec.LightBlueF.Apply("tag"), "latest") // TODO: add support for tags
+	fmt.Fprintf(wpmCli.Err(), "%s: %s\n", aec.LightBlueF.Apply("tag"), opts.tag)
 	fmt.Fprintf(wpmCli.Err(), "%s: %s\n", aec.LightBlueF.Apply("access"), opts.access)
 	fmt.Fprint(wpmCli.Err(), "\n")
 
