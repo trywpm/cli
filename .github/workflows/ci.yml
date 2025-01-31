@@ -1,0 +1,91 @@
+name: ci
+
+on:
+  push:
+    branches:
+      - 'main'
+    tags:
+      - 'v*'
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+permissions: {}
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      platforms: ${{ steps.platforms.outputs.platforms }}
+    steps:
+      - name: platforms matrix
+        id: platforms
+        run: |
+          platforms="[
+            {\"os\": \"darwin\", \"arch\": \"amd64\"},
+            {\"os\": \"darwin\", \"arch\": \"arm64\"},
+            {\"os\": \"linux\", \"arch\": \"amd64\"},
+            {\"os\": \"linux\", \"arch\": \"arm64\"},
+            {\"os\": \"linux\", \"arch\": \"arm\", \"arm\": \"6\"},
+            {\"os\": \"linux\", \"arch\": \"arm\", \"arm\": \"7\"},
+            {\"os\": \"windows\", \"arch\": \"amd64\"},
+            {\"os\": \"windows\", \"arch\": \"arm64\"}
+          ]"
+          echo "platforms=$(echo $platforms | jq -c .)" >> $GITHUB_OUTPUT
+
+  lint:
+    runs-on: ubuntu-latest
+    permissions:
+      checks: write
+      contents: read
+      pull-requests: read
+    steps:
+      - name: checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: setup go
+        uses: actions/setup-go@f111f3307d8850f501ac008e886eec1fd1932a34 # v5.3.0
+        with:
+          go-version: "^1.23"
+
+      - name: check dependencies
+        run: |
+          go mod tidy
+          git diff --exit-code go.mod
+
+      - name: lint
+        uses: golangci/golangci-lint-action@ec5d18412c0aeab7936cb16880d708ba2a64e1ae # v6.2.0
+
+  build:
+    needs: prepare
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        platform: ${{fromJson(needs.prepare.outputs.platforms)}}
+    permissions:
+      contents: read
+    steps:
+      - name: checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: build
+        uses: ./.github/actions/build-wpm
+        with:
+          go-os: ${{ matrix.platform.os }}
+          go-arm: ${{ matrix.platform.arm }}
+          go-arch: ${{ matrix.platform.arch }}
+
+      - name: list artifacts
+        run: ls -alh ./build
+
+      - name: upload artifacts
+        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
+        with:
+          # see $TARGET in .github/actions/build-wpm/scripts/.variables
+          name: wpm-${{ matrix.platform.os }}-${{ matrix.platform.arch }}${{ matrix.platform.arm && '-v'}}${{ matrix.platform.arm }}
+          path: ./build/*
+          if-no-files-found: error
