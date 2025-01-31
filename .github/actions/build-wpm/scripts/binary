@@ -27,8 +27,10 @@ find . -type f -print0 | sort -z | xargs -r0 shasum -a 256 -b | sed 's# \*\./# *
 shasum -a 256 -U -c $RUNNER_TEMP/checksums.txt
 mv $RUNNER_TEMP/checksums.txt .
 cat checksums.txt | while read sum file; do
-if [[ "${file#\*}" == wpm-* ]]; then
-    echo "$sum $file" > ${file#\*}.sha256
-fi
+    case "${file#\*}" in
+        wpm-*)
+            echo "$sum $file" > "${file#\*}.sha256"
+            ;;
+    esac
 done
 cd -
