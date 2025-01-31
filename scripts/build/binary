@@ -7,13 +7,9 @@ set -eu
 
 . ./scripts/build/.variables
 
-if [ "$CGO_ENABLED" = "1" ] && [ "$(go env GOOS)" != "windows" ]; then
-    GO_BUILDTAGS="$GO_BUILDTAGS pkcs11"
-fi
+echo "building $(basename "${TARGET}")"
 
-echo "Building $GO_LINKMODE $(basename "${TARGET}")"
-
-export GO111MODULE=auto
+export GO111MODULE=on
 
 if [ "$(go env GOOS)" = "windows" ]; then
     if [ ! -x "$(command -v goversioninfo)" ]; then
@@ -25,5 +21,3 @@ if [ "$(go env GOOS)" = "windows" ]; then
 fi
 
 (set -x ; go build -o "${TARGET}" -tags "${GO_BUILDTAGS}" -ldflags "${GO_LDFLAGS}" ${GO_BUILDMODE} "${SOURCE}")
-
-ln -sf "$(basename "${TARGET}")" "$(dirname "${TARGET}")/wpm"

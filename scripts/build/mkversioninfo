@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
 set -eu
 
-: "${PACKAGER_NAME=}"
+: "${PACKAGER_NAME="wpm team"}"
 
 quadVersionNum() {
     num=$(echo "${1:-0}" | cut -d. -f"$2")
