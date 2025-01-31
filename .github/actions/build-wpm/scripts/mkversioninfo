@@ -12,7 +12,7 @@ quadVersionNum() {
     fi
 }
 
-. ./.github/actions/scripts/.variables
+. ./.github/actions/build-wpm/scripts/.variables
 
 # Create version quad for Windows of the form major.minor.patch.build
 VERSION_QUAD=$(printf "%s" "$VERSION" | sed -re 's/^([0-9.]*).*$/\1/' | sed -re 's/\.$//' | sed -re 's/^[0-9]+$/\0\.0/' | sed -re 's/^[0-9]+\.[0-9]+$/\0\.0/' | sed -re 's/^[0-9]+\.[0-9]+\.[0-9]+$/\0\.0/')

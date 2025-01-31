@@ -5,7 +5,7 @@
 
 set -eu
 
-. ./.github/actions/scripts/.variables
+. ./.github/actions/build-wpm/scripts/.variables
 
 echo "building $(basename "${TARGET}")"
 
@@ -15,7 +15,7 @@ if [ "$(go env GOOS)" = "windows" ]; then
     if [ ! -x "$(command -v goversioninfo)" ]; then
         >&2 echo "goversioninfo not found, skipping manifesting binary"
     else
-        ./.github/actions/scripts/mkversioninfo
+        ./.github/actions/build-wpm/scripts/mkversioninfo
         (set -x ; go generate -v "${SOURCE}")
     fi
 fi
