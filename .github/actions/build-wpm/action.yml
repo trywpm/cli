@@ -25,6 +25,7 @@ runs:
         go-version: ${{ inputs.go-version }}
 
     - name: build wpm
+      shell: bash
       run: ./.github/actions/build-wpm/scripts/binary
       env:
         GOOS: ${{ inputs.go-os }}
