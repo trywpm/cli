@@ -172,6 +172,14 @@ jobs:
           pattern: wpm-*
           merge-multiple: true
 
+      - name: checksums.txt
+        working-directory: ./build
+        run: |
+          rm -f checksums.txt
+          for file in *.sha256; do
+            echo "$(cat $file)" >> checksums.txt
+          done
+
       - name: create release
         id: create-release
         uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea #v7.0.1
@@ -196,17 +204,34 @@ jobs:
         with:
           script: |
             const fs = require('fs');
-            const uploadUrl = ${{ steps.create-release.outputs.result }}
+            let uploadUrl = ${{ steps.create-release.outputs.result }}
+            const templateMarkerPos = uploadUrl.indexOf("{");
+            if (templateMarkerPos !== -1) {
+              uploadUrl = uploadUrl.substring(0, templateMarkerPos);
+            }
             const files = fs.readdirSync('./build').map((file) => `./build/${file}`)
             for (const file of files) {
+              const fileHandle = fs.openSync(file, 'r')
               const name = file.replace('./build/', '')
-              const response = await github.rest.repos.uploadReleaseAsset({
-                url: uploadUrl,
-                headers: {
-                  'content-length': fs.statSync(file).size,
-                  'content-type': name.endsWith('.sha256') ? 'text/plain' : 'application/octet-stream',
-                },
-                name,
-                file: fs.readFileSync(file),
-              });
+              try {
+                const response = await github.request({
+                  method: 'POST',
+                  url: uploadUrl + `?name=${name}`,
+                  headers: {
+                    'content-length': fs.statSync(file).size,
+                    'authorization': `token ${process.env.GITHUB_TOKEN}`,
+                    'content-type': name.endsWith('.txt') || name.endsWith('.sha256') ? 'text/plain' : 'application/octet-stream',
+                  },
+                  name,
+                  data: fileHandle.readableWebStream({ type: "bytes" }),
+                });
+
+                if (response.status !== 201) {
+                  throw new Error(`failed to upload ${name}`)
+                }
+
+                core.info(`uploaded ${name}`)
+              } finally {
+                fileHandle.close()
+              }
             }
