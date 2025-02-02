@@ -179,7 +179,7 @@ jobs:
           script: |
             const tagName = context.ref.replace('refs/tags/', '')
             const isPreRelease = tagName.includes('-rc');
-            const { data: { upload_url: uploadUrl } } await github.rest.repos.createRelease({
+            const { data: { upload_url: uploadUrl } } = await github.rest.repos.createRelease({
               draft: true,
               name: tagName,
               tag_name: tagName,
