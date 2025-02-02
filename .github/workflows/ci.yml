@@ -191,11 +191,11 @@ jobs:
               draft: true,
               name: tagName,
               tag_name: tagName,
-              body: 'wpm cli builds',
               repo: context.repo.repo,
               prerelease: isPreRelease,
               owner: context.repo.owner,
               target_commitish: context.sha,
+              body: '> todo: add release notes',
             });
             return uploadUrl
 
