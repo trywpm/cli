@@ -122,21 +122,20 @@ jobs:
 
       - name: comment body
         id: comment-body
-        run: |
-          body=":package: wpm cli builds :package: \n\n"
-          for platform in ${{fromJson(needs.prepare.outputs.platforms)}}; do
-            build_url="https://cli-builds.wpm.so/${{ github.ref_name }}/wpm-${platform.os}-${platform.arch}${platform.arm && '-v'}${platform.arm}"
-            body="$body- ${platform.os}/${platform.arch}${platform.arm && '/v'}${platform.arm} - [build]($build_url) | [checksum]($build_url.sha256)\n"
-          done
-          delimiter="${body//$'\n'/'%0A'}"
-          echo "body<<${delimiter}" >> $GITHUB_OUTPUT
-          echo "$body" >> $GITHUB_OUTPUT
-          echo "${delimiter}" >> $GITHUB_OUTPUT
-        env:
-          S3_URL: "https://cli-builds.wpm.so"
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea #v7.0.1
+        with:
+          script: |
+            const platforms = JSON.parse(${{ toJson(needs.prepare.outputs.platforms) }})
+            const builds = platforms.map(({ os, arm, arch }) => {
+              const buildPath = `wpm-${os}-${arch}${arm ? `/v${arm}` : ''}`
+              const build_url = `https://cli-builds.wpm.so/${{ github.ref_name }}/${buildPath}`
+              const spec = `${os}/${arch}${arm ? `/v${arm}` : ''}`
+              return `- \`${spec}\` - [\`build\`](${build_url}) | [\`checksum\`](${build_url}.sha256)`
+            }).join('\n')
+            return `:package: wpm cli builds :package:\n${builds}\n`
 
       - name: create comment
-        if: ${{ steps.comment-body.outputs.result == null }}
+        if: ${{ steps.find-existing-comment.outputs.result == null }}
         uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea #v7.0.1
         with:
           script: |
@@ -144,17 +143,17 @@ jobs:
               repo: context.repo.repo,
               owner: context.repo.owner,
               issue_number: context.issue.number,
-              body: `${{ steps.comment-body.outputs.body }}`,
+              body: `${{ steps.comment-body.outputs.result }}`,
             });
 
       - name: update comment
-        if: ${{ steps.comment-body.outputs.result != null }}
+        if: ${{ steps.find-existing-comment.outputs.result != null }}
         uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea #v7.0.1
         with:
           script: |
             github.rest.issues.updateComment({
               repo: context.repo.repo,
               owner: context.repo.owner,
-              body: `${{ steps.comment-body.outputs.body }}`,
-              comment_id: ${{ steps.comment-body.outputs.result }},
+              body: `${{ steps.comment-body.outputs.result }}`,
+              comment_id: ${{ steps.find-existing-comment.outputs.result }},
             });
