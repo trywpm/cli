@@ -127,10 +127,10 @@ jobs:
           script: |
             const platforms = JSON.parse(${{ toJson(needs.prepare.outputs.platforms) }})
             const builds = platforms.map(({ os, arm, arch }) => {
-              const buildPath = `wpm-${os}-${arch}${arm ? `/v${arm}` : ''}`
-              const build_url = `https://cli-builds.wpm.so/${{ github.ref_name }}/${buildPath}`
+              const buildPath = `wpm-${os}-${arch}${arm ? `-v${arm}` : ''}`
+              const buildUrl = `https://cli-builds.wpm.so/${{ github.ref_name }}/${buildPath}`
               const spec = `${os}/${arch}${arm ? `/v${arm}` : ''}`
-              return `- \`${spec}\` - [\`build\`](${build_url}) | [\`checksum\`](${build_url}.sha256)`
+              return `- \`${spec}\` - [\`build\`](${buildUrl}) | [\`checksum\`](${buildUrl}.sha256)`
             }).join('\n')
             return `:package: wpm cli builds :package:\n${builds}\n`
 
@@ -143,7 +143,7 @@ jobs:
               repo: context.repo.repo,
               owner: context.repo.owner,
               issue_number: context.issue.number,
-              body: `${{ steps.comment-body.outputs.result }}`,
+              body: ${{ steps.comment-body.outputs.result }},
             });
 
       - name: update comment
@@ -154,6 +154,6 @@ jobs:
             github.rest.issues.updateComment({
               repo: context.repo.repo,
               owner: context.repo.owner,
-              body: `${{ steps.comment-body.outputs.result }}`,
+              body: ${{ steps.comment-body.outputs.result }},
               comment_id: ${{ steps.find-existing-comment.outputs.result }},
             });
