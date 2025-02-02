@@ -157,3 +157,56 @@ jobs:
               body: ${{ steps.comment-body.outputs.result }},
               comment_id: ${{ steps.find-existing-comment.outputs.result }},
             });
+
+  release:
+    needs: [prepare, build]
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') }}
+    permissions:
+      contents: write
+    steps:
+      - name: download artifacts
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 #v4.1.8
+        with:
+          path: ./build
+          pattern: wpm-*
+          merge-multiple: true
+
+      - name: create release
+        id: create-release
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea #v7.0.1
+        with:
+          script: |
+            const tagName = context.ref.replace('refs/tags/', '')
+            const isPreRelease = tagName.includes('-rc');
+            const { data: { upload_url: uploadUrl } } await github.rest.repos.createRelease({
+              draft: true,
+              name: tagName,
+              tag_name: tagName,
+              body: 'wpm cli builds',
+              repo: context.repo.repo,
+              prerelease: isPreRelease,
+              owner: context.repo.owner,
+              target_commitish: context.sha,
+            });
+            return uploadUrl
+
+      - name: upload release assets
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea #v7.0.1
+        with:
+          script: |
+            const fs = require('fs');
+            const uploadUrl = ${{ steps.create-release.outputs.result }}
+            const files = fs.readdirSync('./build').map((file) => `./build/${file}`)
+            for (const file of files) {
+              const name = file.replace('./build/', '')
+              const response = await github.rest.repos.uploadReleaseAsset({
+                url: uploadUrl,
+                headers: {
+                  'content-length': fs.statSync(file).size
+                  'content-type': name.endsWith('.sha256') ? 'text/plain' : 'application/octet-stream',
+                },
+                name,
+                file: fs.readFileSync(file),
+              });
+            }
