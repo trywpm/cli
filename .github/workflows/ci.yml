@@ -89,3 +89,68 @@ jobs:
           name: wpm-${{ matrix.platform.os }}-${{ matrix.platform.arch }}${{ matrix.platform.arm && '-v'}}${{ matrix.platform.arm }}
           path: ./build/*
           if-no-files-found: error
+
+      - name: s3 upload
+        if: ${{ github.ref_type == 'branch' }}
+        uses: ./.github/actions/s3-upload
+        with:
+          source: ./build
+          s3-dir: ${{ github.ref_name }}
+
+  pr-comment:
+    needs: [prepare, build]
+    runs-on: ubuntu-latest
+    if: ${{ github.head_ref && github.head_ref != null }}
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: prepare
+        id: find-existing-comment
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea #v7.0.1
+        with:
+          script: |
+            return (await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            })).data.find((comment) => comment.body.includes('wpm cli builds'))?.id || null
+
+      - name: comment body
+        id: comment-body
+        run: |
+          body=":package: wpm cli builds :package: \n\n"
+          for platform in ${{fromJson(needs.prepare.outputs.platforms)}}; do
+            build_url="https://cli-builds.wpm.so/${{ github.ref_name }}/wpm-${platform.os}-${platform.arch}${platform.arm && '-v'}${platform.arm}"
+            body="$body- ${platform.os}/${platform.arch}${platform.arm && '/v'}${platform.arm} - [build]($build_url) | [checksum]($build_url.sha256)\n"
+          done
+          delimiter="${body//$'\n'/'%0A'}"
+          echo "body<<${delimiter}" >> $GITHUB_OUTPUT
+          echo "$body" >> $GITHUB_OUTPUT
+          echo "${delimiter}" >> $GITHUB_OUTPUT
+        env:
+          S3_URL: "https://cli-builds.wpm.so"
+
+      - name: create comment
+        if: ${{ steps.comment-body.outputs.result == null }}
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea #v7.0.1
+        with:
+          script: |
+            github.rest.issues.createComment({
+              repo: context.repo.repo,
+              owner: context.repo.owner,
+              issue_number: context.issue.number,
+              body: `${{ steps.comment-body.outputs.body }}`,
+            });
+
+      - name: update comment
+        if: ${{ steps.comment-body.outputs.result != null }}
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea #v7.0.1
+        with:
+          script: |
+            github.rest.issues.updateComment({
+              repo: context.repo.repo,
+              owner: context.repo.owner,
+              body: `${{ steps.comment-body.outputs.body }}`,
+              comment_id: ${{ steps.comment-body.outputs.result }},
+            });
