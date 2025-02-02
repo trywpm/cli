@@ -95,7 +95,11 @@ jobs:
         uses: ./.github/actions/s3-upload
         with:
           source: ./build
-          s3-dir: ${{ github.ref_name }}
+          target: ${{ github.ref_name }}
+          vault: ${{ secrets.OP_VAULT }}
+          bucket: ${{ secrets.S3_BUCKET }}
+          rclone-config: ${{ secrets.RCLONE_CONFIG }}
+          token: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
 
   pr-comment:
     needs: [prepare, build]

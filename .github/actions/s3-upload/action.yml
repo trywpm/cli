@@ -3,11 +3,23 @@ name: upload wpm cli builds
 description: upload wpm cli build to s3
 
 inputs:
+  rclone-config:
+    description: op item name for rclone config
+    required: true
   source:
     description: directory containing the build artifacts
     required: true
   target:
     description: s3 directory to upload the build artifacts to
+    required: true
+  vault:
+    description: op vault to fetch the rclone config from
+    required: true
+  token:
+    description: op service account token
+    required: true
+  bucket:
+    description: s3 bucket to upload the build artifacts to
     required: true
 
 runs:
@@ -21,17 +33,19 @@ runs:
       run: sudo -v ; curl https://rclone.org/install.sh | sudo bash
 
     - name: download rclone config
+      shell: bash
       run: |
         rclone_config_path = $(rclone config file)
         op item get $rclone_config --vault="$vault" --fields notesPlain --format json | jq '.value' -r > $rclone_config_path
       env:
-        vault: ${{ secrets.OP_VAULT }}
-        rclone_config: ${{ secrets.RCLONE_CONFIG }}
-        OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        vault: ${{ inputs.vault }}
+        rclone_config: ${{ inputs.rclone-config }}
+        OP_SERVICE_ACCOUNT_TOKEN: ${{ inputs.token }}
 
     - name: upload build artifacts
+      shell: bash
       run: rclone copy $source s3:$bucket/$target
       env:
         target: ${{ inputs.target }}
         source: ${{ inputs.source }}
-        bucket: ${{ secrets.S3_BUCKET }}
+        bucket: ${{ inputs.bucket }}
