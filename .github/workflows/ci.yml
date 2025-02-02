@@ -211,27 +211,22 @@ jobs:
             }
             const files = fs.readdirSync('./build').map((file) => `./build/${file}`)
             for (const file of files) {
-              const fd = fs.openSync(file, 'r')
               const name = file.replace('./build/', '')
-              try {
-                const response = await github.request({
-                  method: 'POST',
-                  url: uploadUrl + `?name=${name}`,
-                  headers: {
-                    'content-length': fs.statSync(file).size,
-                    'authorization': `token ${process.env.GITHUB_TOKEN}`,
-                    'content-type': name.endsWith('.txt') || name.endsWith('.sha256') ? 'text/plain' : 'application/octet-stream',
-                  },
-                  name,
-                  data: fs.createReadStream(null, { fd }),
-                });
+              const response = await github.request({
+                method: 'POST',
+                url: uploadUrl + `?name=${name}`,
+                headers: {
+                  'content-length': fs.statSync(file).size,
+                  'authorization': `token ${process.env.GITHUB_TOKEN}`,
+                  'content-type': name.endsWith('.txt') || name.endsWith('.sha256') ? 'text/plain' : 'application/octet-stream',
+                },
+                name,
+                data: fs.readFileSync(file),
+              });
 
-                if (response.status !== 201) {
-                  throw new Error(`failed to upload ${name}`)
-                }
-
-                core.info(`uploaded ${name}`)
-              } finally {
-                fs.closeSync(fd)
+              if (response.status !== 201) {
+                throw new Error(`failed to upload ${name}`)
               }
+
+              core.info(`uploaded ${name}`)
             }
