@@ -33,4 +33,5 @@ cat checksums.txt | while read sum file; do
             ;;
     esac
 done
+rm checksums.txt
 cd -
