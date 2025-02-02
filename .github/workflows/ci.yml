@@ -203,7 +203,7 @@ jobs:
               const response = await github.rest.repos.uploadReleaseAsset({
                 url: uploadUrl,
                 headers: {
-                  'content-length': fs.statSync(file).size
+                  'content-length': fs.statSync(file).size,
                   'content-type': name.endsWith('.sha256') ? 'text/plain' : 'application/octet-stream',
                 },
                 name,
