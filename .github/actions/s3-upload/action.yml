@@ -1,0 +1,37 @@
+name: upload wpm cli builds
+
+description: upload wpm cli build to s3
+
+inputs:
+  source:
+    description: directory containing the build artifacts
+    required: true
+  target:
+    description: s3 directory to upload the build artifacts to
+    required: true
+
+runs:
+  using: 'composite'
+  steps:
+    - name: install 1password cli
+      uses: 1Password/install-cli-action@143a85f84a90555d121cde2ff5872e393a47ab9f #v1.0.0
+
+    - name: download rclone
+      shell: bash
+      run: sudo -v ; curl https://rclone.org/install.sh | sudo bash
+
+    - name: download rclone config
+      run: |
+        rclone_config_path = $(rclone config file)
+        op item get $rclone_config --vault="$vault" --fields notesPlain --format json | jq '.value' -r > $rclone_config_path
+      env:
+        vault: ${{ secrets.OP_VAULT }}
+        rclone_config: ${{ secrets.RCLONE_CONFIG }}
+        OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+
+    - name: upload build artifacts
+      run: rclone copy $source s3:$bucket/$target
+      env:
+        target: ${{ inputs.target }}
+        source: ${{ inputs.source }}
+        bucket: ${{ secrets.S3_BUCKET }}
