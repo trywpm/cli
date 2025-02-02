@@ -35,7 +35,7 @@ runs:
     - name: download rclone config
       shell: bash
       run: |
-        rclone_config_path = $(rclone config file)
+        rclone_config_path="$(rclone config file | awk 'NR==2{print $0}')"
         op item get $rclone_config --vault="$vault" --fields notesPlain --format json | jq '.value' -r > $rclone_config_path
       env:
         vault: ${{ inputs.vault }}
