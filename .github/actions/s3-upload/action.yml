@@ -49,3 +49,8 @@ runs:
         target: ${{ inputs.target }}
         source: ${{ inputs.source }}
         bucket: ${{ inputs.bucket }}
+
+  using: 'post'
+  steps:
+    - name: cleanup
+      run: rclone config delete s3
