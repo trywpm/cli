@@ -128,9 +128,9 @@ jobs:
             const platforms = JSON.parse(${{ toJson(needs.prepare.outputs.platforms) }})
             const builds = platforms.map(({ os, arm, arch }) => {
               const buildPath = `wpm-${os}-${arch}${arm ? `-v${arm}` : ''}`
-              const buildUrl = `https://cli-builds.wpm.so/${{ github.ref_name }}/${buildPath}`
+              const buildUrl = `https://cli-builds.wpm.so/${{ github.ref_name }}/${buildPath}${os === 'windows' ? '.exe' : ''}`
               const spec = `${os}/${arch}${arm ? `/v${arm}` : ''}`
-              return `- \`${spec}\` - [\`build\`](${buildUrl}) | [\`checksum\`](${buildUrl}.sha256)`
+              return `- \`${spec}\` - [\`build\`](${buildUrl}) [\`checksum\`](${buildUrl}.sha256)`
             }).join('\n')
             return `:package: wpm cli builds :package:\n${builds}\n`
 
