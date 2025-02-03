@@ -105,3 +105,21 @@ func ValidateWpmJson(validator *validator.Validate, pkg *Json) error {
 
 	return nil
 }
+
+func ReadAndValidateWpmJson(path string) (*Json, error) {
+	wpmJson, err := ReadWpmJson(path)
+	if err != nil {
+		return nil, err
+	}
+
+	ve, err := NewValidator()
+	if err != nil {
+		return nil, err
+	}
+
+	if err = ValidateWpmJson(ve, wpmJson); err != nil {
+		return nil, err
+	}
+
+	return wpmJson, nil
+}
