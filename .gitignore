@@ -27,6 +27,6 @@ go.work.sum
 .env
 
 # wpm files
-wpm
 wpm.json
+wpm.lock
 .wpmignore
