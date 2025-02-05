@@ -18,6 +18,20 @@ type validatorErrorItem struct {
 	FailedField string
 }
 
+// LockfileNotFound represents an error response when the lockfile is not found.
+type LockfileNotFound struct{ error }
+
+func (err *LockfileNotFound) Error() string {
+	return "lockfile not found"
+}
+
+// CorruptLockfile represents an error response when the lockfile is corrupted.
+type CorruptLockfile struct{ error }
+
+func (err *CorruptLockfile) Error() string {
+	return "lockfile is corrupted"
+}
+
 // Allow ValidatorError to satisfy error interface.
 func (err *validatorError) Error() string {
 	// Add all error messages to a string.
