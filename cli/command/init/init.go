@@ -77,10 +77,6 @@ func runInit(ctx context.Context, wpmCli command.Cli, opts initOptions) error {
 		License: defaultLicense,
 		Type:    defaultType,
 		Tags:    []string{},
-		Platform: wpm.Platform{
-			PHP: defaultPHP,
-			WP:  defaultWP,
-		},
 	}
 
 	ve, err := wpm.NewValidator()
@@ -121,7 +117,7 @@ func runInit(ctx context.Context, wpmCli command.Cli, opts initOptions) error {
 							val = defaultVersion
 						}
 
-						errs := ve.Var(val, "required,semver,max=64")
+						errs := ve.Var(val, "required,package_semver,max=64")
 						if errs != nil {
 							return errors.Errorf("invalid version: \"%s\"", aec.Bold.Apply(val))
 						}
@@ -164,62 +160,6 @@ func runInit(ctx context.Context, wpmCli command.Cli, opts initOptions) error {
 						}
 
 						wpmJsonInitData.Type = val
-
-						return nil
-					},
-				},
-			},
-			{
-				"php",
-				prompt{
-					"requires php",
-					defaultPHP,
-					func(val string) error {
-						if val == "" {
-							val = defaultPHP
-						}
-
-						var semverVal string
-
-						semverVal, err = formatSemver(val)
-						if err != nil {
-							return errors.Errorf("invalid php version: \"%s\"", aec.Bold.Apply(val))
-						}
-
-						errs := ve.Var(semverVal, "required,semver")
-						if errs != nil {
-							return errors.Errorf("invalid php version: \"%s\"", aec.Bold.Apply(semverVal))
-						}
-
-						wpmJsonInitData.Platform.PHP = val
-
-						return nil
-					},
-				},
-			},
-			{
-				"wp",
-				prompt{
-					"requires wp",
-					defaultWP,
-					func(val string) error {
-						if val == "" {
-							val = defaultWP
-						}
-
-						var semverVal string
-
-						semverVal, err = formatSemver(val)
-						if err != nil {
-							return errors.Errorf("invalid wp version: \"%s\"", aec.Bold.Apply(val))
-						}
-
-						errs := ve.Var(semverVal, "required,semver")
-						if errs != nil {
-							return errors.Errorf("invalid wp version: \"%s\"", aec.Bold.Apply(semverVal))
-						}
-
-						wpmJsonInitData.Platform.WP = val
 
 						return nil
 					},
