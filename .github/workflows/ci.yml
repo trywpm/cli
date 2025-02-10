@@ -91,7 +91,7 @@ jobs:
           if-no-files-found: error
 
       - name: s3 upload
-        if: ${{ github.ref_type == 'branch' }}
+        if: ${{ github.ref_type == 'branch' && github.actor != 'dependabot[bot]' }}
         uses: ./.github/actions/s3-upload
         with:
           source: ./build
@@ -104,7 +104,7 @@ jobs:
   pr-comment:
     needs: [prepare, build]
     runs-on: ubuntu-latest
-    if: ${{ github.head_ref && github.head_ref != null }}
+    if: ${{ github.head_ref && github.head_ref != null && github.actor != 'dependabot[bot]' }}
     permissions:
       contents: read
       pull-requests: write
