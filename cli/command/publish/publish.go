@@ -50,24 +50,6 @@ func NewPublishCommand(wpmCli command.Cli) *cobra.Command {
 	return cmd
 }
 
-func readAndValidateWpmJson(cwd string) (*wpm.Json, error) {
-	wpmJson, err := wpm.ReadWpmJson(cwd)
-	if err != nil {
-		return nil, err
-	}
-
-	ve, err := wpm.NewValidator()
-	if err != nil {
-		return nil, err
-	}
-
-	if err = wpm.ValidateWpmJson(ve, wpmJson); err != nil {
-		return nil, err
-	}
-
-	return wpmJson, nil
-}
-
 func pack(dst io.Writer, path string, opts publishOptions) (*archive.Tarballer, error) {
 	ignorePatterns, err := wpm.ReadWpmIgnore(path)
 	if err != nil {
@@ -124,7 +106,7 @@ func runPublish(wpmCli command.Cli, opts publishOptions) error {
 		return err
 	}
 
-	wpmJson, err := readAndValidateWpmJson(cwd)
+	wpmJson, err := wpm.ReadAndValidateWpmJson(cwd)
 	if err != nil {
 		return err
 	}
