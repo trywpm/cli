@@ -11,7 +11,6 @@ import (
 
 	"wpm/cli"
 	"wpm/cli/command"
-	"wpm/cli/registry/client"
 	"wpm/cli/version"
 	"wpm/pkg/archive"
 	"wpm/pkg/wpm"
@@ -164,25 +163,33 @@ func runPublish(wpmCli command.Cli, opts publishOptions) error {
 		ver = "0.1.0-dev"
 	}
 
-	newPackageData := &client.NewPackageData{
-		Name:            wpmJson.Name,
-		Description:     wpmJson.Description,
-		Type:            wpmJson.Type,
-		Version:         wpmJson.Version,
-		License:         wpmJson.License,
-		Homepage:        wpmJson.Homepage,
-		Tags:            wpmJson.Tags,
-		Team:            wpmJson.Team,
-		Bin:             wpmJson.Bin,
-		Platform:        wpmJson.Platform,
-		Dependencies:    wpmJson.Dependencies,
-		DevDependencies: wpmJson.DevDependencies,
-		Scripts:         wpmJson.Scripts,
-		Wpm:             ver,
-		Digest:          digest.String(),
-		Access:          opts.access,
-		Attachment:      base64.StdEncoding.EncodeToString(buf.Bytes()),
-		Readme:          readme,
+	newPackageData := &wpm.Package{
+		Config: wpm.Config{
+			Name:            wpmJson.Name,
+			Description:     wpmJson.Description,
+			Type:            wpmJson.Type,
+			Version:         wpmJson.Version,
+			License:         wpmJson.License,
+			Homepage:        wpmJson.Homepage,
+			Tags:            wpmJson.Tags,
+			Team:            wpmJson.Team,
+			Bin:             wpmJson.Bin,
+			Dependencies:    wpmJson.Dependencies,
+			DevDependencies: wpmJson.DevDependencies,
+			Scripts:         wpmJson.Scripts,
+		},
+		Meta: wpm.Meta{
+			Dist: wpm.Dist{
+				PackedSize:   buf.Len(),
+				Digest:       digest.String(),
+				TotalFiles:   tarball.FileCount(),
+				UnpackedSize: tarball.UnpackedSize(),
+			},
+			Access:     opts.access,
+			Attachment: base64.StdEncoding.EncodeToString(buf.Bytes()),
+			Readme:     readme,
+			Wpm:        ver,
+		},
 	}
 
 	var message string

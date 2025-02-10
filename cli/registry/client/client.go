@@ -21,34 +21,8 @@ type client struct {
 // registry
 type RegistryClient interface {
 	GetTarball(ctx context.Context, name string) (string, error)
-	GetPackage(ctx context.Context, name string) (PackageData, error)
-	PutPackage(ctx context.Context, data *NewPackageData) (string, error)
-}
-
-type PackageData struct{}
-
-type NewPackageData struct {
-	// fields from wpm.json
-	Name            string            `json:"name"`
-	Description     string            `json:"description,omitempty"`
-	Type            string            `json:"type"`
-	Version         string            `json:"version"`
-	License         string            `json:"license,omitempty"`
-	Homepage        string            `json:"homepage,omitempty"`
-	Tags            []string          `json:"tags,omitempty"`
-	Team            []string          `json:"team,omitempty"`
-	Bin             map[string]string `json:"bin,omitempty"`
-	Platform        wpm.Platform      `json:"platform"`
-	Dependencies    map[string]string `json:"dependencies,omitempty"`
-	DevDependencies map[string]string `json:"devDependencies,omitempty"`
-	Scripts         map[string]string `json:"scripts,omitempty"`
-
-	// package distribution fields
-	Wpm        string `json:"_wpm"`
-	Digest     string `json:"digest"`
-	Access     string `json:"access"`
-	Attachment string `json:"attachment"`
-	Readme     string `json:"readme,omitempty"`
+	GetPackage(ctx context.Context, name string) (wpm.Config, error)
+	PutPackage(ctx context.Context, data *wpm.Package) (string, error)
 }
 
 var _ RegistryClient = &client{}
@@ -77,11 +51,11 @@ func (c *client) GetTarball(ctx context.Context, name string) (string, error) {
 	return "", nil
 }
 
-func (c *client) GetPackage(ctx context.Context, name string) (PackageData, error) {
-	return PackageData{}, nil
+func (c *client) GetPackage(ctx context.Context, name string) (wpm.Config, error) {
+	return wpm.Config{}, nil
 }
 
-func (c *client) PutPackage(ctx context.Context, data *NewPackageData) (string, error) {
+func (c *client) PutPackage(ctx context.Context, data *wpm.Package) (string, error) {
 	bodyBytes, err := json.Marshal(data)
 	if err != nil {
 		return "", err

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"wpm/cli/command"
 	"wpm/pkg/wpm"
@@ -17,10 +16,8 @@ import (
 
 const (
 	defaultVersion = "1.0.0"
-	defaultLicense = "GPL-2.0-or-later"
 	defaultType    = "plugin"
-	defaultPHP     = "7.2"
-	defaultWP      = "6.7"
+	defaultLicense = "GPL-2.0-or-later"
 )
 
 type initOptions struct {
@@ -62,16 +59,16 @@ func runInit(ctx context.Context, wpmCli command.Cli, opts initOptions) error {
 		return err
 	}
 
-	if _, err = os.Stat(filepath.Join(cwd, wpm.Config)); err == nil {
+	if _, err = os.Stat(filepath.Join(cwd, wpm.ConfigFile)); err == nil {
 		return errors.New("wpm.json already exists")
 	}
 
-	if err != nil && !os.IsNotExist(err) {
+	if !os.IsNotExist(err) {
 		return err
 	}
 
 	basecwd := filepath.Base(cwd)
-	wpmJsonInitData := &wpm.Json{
+	wpmJsonInitData := &wpm.Config{
 		Name:    basecwd,
 		Version: defaultVersion,
 		License: defaultLicense,
@@ -191,27 +188,7 @@ func runInit(ctx context.Context, wpmCli command.Cli, opts initOptions) error {
 		return err
 	}
 
-	_, _ = fmt.Fprintf(wpmCli.Out(), "config created at %s\n", filepath.Join(cwd, wpm.Config))
+	_, _ = fmt.Fprintf(wpmCli.Out(), "config created at %s\n", filepath.Join(cwd, wpm.ConfigFile))
 
 	return nil
-}
-
-func formatSemver(version string) (string, error) {
-	parts := strings.Split(version, ".")
-
-	for _, part := range parts {
-		if part == "" {
-			return "", errors.New("empty part")
-		}
-
-		if _, err := fmt.Sscanf(part, "%d", new(int)); err != nil {
-			return "", err
-		}
-	}
-
-	for len(parts) < 3 {
-		parts = append(parts, "0")
-	}
-
-	return strings.Join(parts, "."), nil
 }
