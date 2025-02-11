@@ -20,8 +20,8 @@ type Config struct {
 	Tags            []string          `json:"tags,omitempty" validate:"dive,max=5"`
 	Team            []string          `json:"team,omitempty"`
 	Bin             map[string]string `json:"bin,omitempty"`
-	Dependencies    map[string]string `json:"dependencies,omitempty" validate:"package_dependencies,omitempty"`
-	DevDependencies map[string]string `json:"devDependencies,omitempty" validate:"package_dependencies,omitempty"`
+	Dependencies    map[string]string `json:"dependencies,omitempty" validate:"omitempty,package_dependencies"`
+	DevDependencies map[string]string `json:"devDependencies,omitempty" validate:"omitempty,package_dependencies"`
 	Scripts         map[string]string `json:"scripts,omitempty"`
 }
 
