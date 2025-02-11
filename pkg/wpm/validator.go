@@ -41,7 +41,7 @@ func NewValidator() (*validator.Validate, error) {
 var regex *regexp.Regexp
 
 func init() {
-	regex = regexp.MustCompile(`/^[a-zA-Z0-9_-]+$/`)
+	regex = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 }
 
 // nameRegex validates the name field with a regex.
