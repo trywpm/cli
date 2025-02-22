@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"wpm/cli/command"
 	"wpm/pkg/wpm"
@@ -17,10 +16,8 @@ import (
 
 const (
 	defaultVersion = "1.0.0"
-	defaultLicense = "GPL-2.0-or-later"
 	defaultType    = "plugin"
-	defaultPHP     = "7.2"
-	defaultWP      = "6.7"
+	defaultLicense = "GPL-2.0-or-later"
 )
 
 type initOptions struct {
@@ -62,25 +59,21 @@ func runInit(ctx context.Context, wpmCli command.Cli, opts initOptions) error {
 		return err
 	}
 
-	if _, err = os.Stat(filepath.Join(cwd, wpm.Config)); err == nil {
+	if _, err = os.Stat(filepath.Join(cwd, wpm.ConfigFile)); err == nil {
 		return errors.New("wpm.json already exists")
 	}
 
-	if err != nil && !os.IsNotExist(err) {
+	if !os.IsNotExist(err) {
 		return err
 	}
 
 	basecwd := filepath.Base(cwd)
-	wpmJsonInitData := &wpm.Json{
+	wpmJsonInitData := &wpm.Config{
 		Name:    basecwd,
 		Version: defaultVersion,
 		License: defaultLicense,
 		Type:    defaultType,
 		Tags:    []string{},
-		Platform: wpm.Platform{
-			PHP: defaultPHP,
-			WP:  defaultWP,
-		},
 	}
 
 	ve, err := wpm.NewValidator()
@@ -121,7 +114,7 @@ func runInit(ctx context.Context, wpmCli command.Cli, opts initOptions) error {
 							val = defaultVersion
 						}
 
-						errs := ve.Var(val, "required,semver,max=64")
+						errs := ve.Var(val, "required,package_semver,max=64")
 						if errs != nil {
 							return errors.Errorf("invalid version: \"%s\"", aec.Bold.Apply(val))
 						}
@@ -169,62 +162,6 @@ func runInit(ctx context.Context, wpmCli command.Cli, opts initOptions) error {
 					},
 				},
 			},
-			{
-				"php",
-				prompt{
-					"requires php",
-					defaultPHP,
-					func(val string) error {
-						if val == "" {
-							val = defaultPHP
-						}
-
-						var semverVal string
-
-						semverVal, err = formatSemver(val)
-						if err != nil {
-							return errors.Errorf("invalid php version: \"%s\"", aec.Bold.Apply(val))
-						}
-
-						errs := ve.Var(semverVal, "required,semver")
-						if errs != nil {
-							return errors.Errorf("invalid php version: \"%s\"", aec.Bold.Apply(semverVal))
-						}
-
-						wpmJsonInitData.Platform.PHP = val
-
-						return nil
-					},
-				},
-			},
-			{
-				"wp",
-				prompt{
-					"requires wp",
-					defaultWP,
-					func(val string) error {
-						if val == "" {
-							val = defaultWP
-						}
-
-						var semverVal string
-
-						semverVal, err = formatSemver(val)
-						if err != nil {
-							return errors.Errorf("invalid wp version: \"%s\"", aec.Bold.Apply(val))
-						}
-
-						errs := ve.Var(semverVal, "required,semver")
-						if errs != nil {
-							return errors.Errorf("invalid wp version: \"%s\"", aec.Bold.Apply(semverVal))
-						}
-
-						wpmJsonInitData.Platform.WP = val
-
-						return nil
-					},
-				},
-			},
 		}
 
 		for _, pf := range prompts {
@@ -251,27 +188,7 @@ func runInit(ctx context.Context, wpmCli command.Cli, opts initOptions) error {
 		return err
 	}
 
-	_, _ = fmt.Fprintf(wpmCli.Out(), "config created at %s\n", filepath.Join(cwd, wpm.Config))
+	_, _ = fmt.Fprintf(wpmCli.Out(), "config created at %s\n", filepath.Join(cwd, wpm.ConfigFile))
 
 	return nil
-}
-
-func formatSemver(version string) (string, error) {
-	parts := strings.Split(version, ".")
-
-	for _, part := range parts {
-		if part == "" {
-			return "", errors.New("empty part")
-		}
-
-		if _, err := fmt.Sscanf(part, "%d", new(int)); err != nil {
-			return "", err
-		}
-	}
-
-	for len(parts) < 3 {
-		parts = append(parts, "0")
-	}
-
-	return strings.Join(parts, "."), nil
 }
