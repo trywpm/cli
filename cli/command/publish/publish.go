@@ -185,6 +185,7 @@ func runPublish(wpmCli command.Cli, opts publishOptions) error {
 				TotalFiles:   tarball.FileCount(),
 				UnpackedSize: tarball.UnpackedSize(),
 			},
+			Tag:        opts.tag,
 			Access:     opts.access,
 			Attachment: base64.StdEncoding.EncodeToString(buf.Bytes()),
 			Readme:     readme,

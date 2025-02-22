@@ -27,6 +27,7 @@ type Config struct {
 
 // Meta struct to define the package metadata
 type Meta struct {
+	Tag        string `json:"tag"`
 	Dist       Dist   `json:"dist"`
 	Wpm        string `json:"_wpm"`
 	Access     string `json:"access"`
