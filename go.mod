@@ -1,7 +1,6 @@
 module wpm
 
 go 1.23.4
-
 toolchain go1.24.1
 
 require (
@@ -11,7 +10,7 @@ require (
 	github.com/docker/docker v28.0.2+incompatible
 	github.com/docker/go-units v0.5.0
 	github.com/fvbommel/sortorder v1.1.0
-	github.com/go-playground/validator/v10 v10.25.0
+	github.com/go-playground/validator/v10 v10.26.0
 	github.com/henvic/httpretty v0.1.4
 	github.com/moby/patternmatcher v0.6.0
 	github.com/moby/sys/sequential v0.6.0
