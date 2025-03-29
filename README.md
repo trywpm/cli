@@ -138,7 +138,6 @@ node_modules/
 
 ## Support
 
-* Website: [https://wpm.so](https://wpm.so)
 * GitHub: [https://github.com/trywpm/cli/discussions](https://github.com/trywpm/cli/discussions)
 * Twitter: [@thelovekesh](https://twitter.com/thelovekesh)
 
