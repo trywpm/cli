@@ -1,14 +1,13 @@
 module wpm
 
 go 1.23.4
-
 toolchain go1.24.1
 
 require (
 	github.com/Masterminds/semver/v3 v3.3.1
 	github.com/briandowns/spinner v1.23.2
 	github.com/cli/safeexec v1.0.1
-	github.com/docker/docker v28.0.2+incompatible
+	github.com/docker/docker v28.0.4+incompatible
 	github.com/docker/go-units v0.5.0
 	github.com/fvbommel/sortorder v1.1.0
 	github.com/go-playground/validator/v10 v10.25.0
