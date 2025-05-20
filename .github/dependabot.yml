@@ -19,5 +19,18 @@ updates:
         patterns:
           - "actions/*"
     labels:
-      - 'github-actions'
       - 'dependencies'
+      - 'github-actions'
+
+  - package-ecosystem: github-actions
+    directory: '.github/actions/build-wpm'
+    schedule:
+      day: saturday
+      interval: weekly
+    groups:
+      actions:
+        patterns:
+          - 'actions/*'
+    labels:
+      - 'dependencies'
+      - 'github-actions'
