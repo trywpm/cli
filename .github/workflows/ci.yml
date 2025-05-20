@@ -90,17 +90,12 @@ jobs:
           path: ./build/*
           if-no-files-found: error
 
-      - name: configure aws credentials
-        if: ${{ github.ref_type == 'branch' && github.actor != 'dependabot[bot]' }}
-        uses: aws-actions/configure-aws-credentials@b47578312673ae6fa5b5096b330d9fbac3d116df # v4.2.1
-        with:
-          aws-region: auto
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-
       - name: s3 upload
         if: ${{ github.ref_type == 'branch' && github.actor != 'dependabot[bot]' }}
-        run: aws s3 cp pkg/api/ s3://wpm-cli-builds/${{ github.event.number && github.event.number != null && github.event.number || 'latest' }}/ --recursive --endpoint-url ${{ secrets.S3_ENDPOINT_URL }}
+        run: aws s3 cp pkg/api/ s3://wpm-cli-builds/${{ github.event.number && github.event.number != null && github.event.number || 'latest' }}/ --recursive --endpoint-url ${{ secrets.S3_ENDPOINT_URL }} --region auto
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
   pr-comment:
     needs: [prepare, build]
