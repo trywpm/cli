@@ -92,14 +92,10 @@ jobs:
 
       - name: s3 upload
         if: ${{ github.ref_type == 'branch' && github.actor != 'dependabot[bot]' }}
-        uses: ./.github/actions/s3-upload
-        with:
-          source: ./build
-          vault: ${{ secrets.OP_VAULT }}
-          bucket: ${{ secrets.S3_BUCKET }}
-          rclone-config: ${{ secrets.RCLONE_CONFIG }}
-          token: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
-          target: ${{ github.event.number && github.event.number != null && github.event.number || 'latest' }}
+        run: aws s3 cp build/ s3://wpm-cli-builds/${{ github.event.number && github.event.number != null && github.event.number || 'latest' }}/ --recursive --endpoint-url ${{ secrets.S3_ENDPOINT_URL }} --region auto --checksum-algorithm CRC32
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
   pr-comment:
     needs: [prepare, build]
@@ -128,7 +124,7 @@ jobs:
             const platforms = JSON.parse(${{ toJson(needs.prepare.outputs.platforms) }})
             const builds = platforms.map(({ os, arm, arch }) => {
               const buildPath = `wpm-${os}-${arch}${arm ? `-v${arm}` : ''}`
-              const buildUrl = `https://cli-builds.wpm.so/${{ github.event.number }}/${buildPath}${os === 'windows' ? '.exe' : ''}`
+              const buildUrl = `https://pub-bea4f3d05c4f49e0b54ccf1dad0da103.r2.dev/${{ github.event.number }}/${buildPath}${os === 'windows' ? '.exe' : ''}`
               const spec = `${os}/${arch}${arm ? `/v${arm}` : ''}`
               return `- \`${spec}\` - [\`build\`](${buildUrl}) [\`checksum\`](${buildUrl}.sha256)`
             }).join('\n')
