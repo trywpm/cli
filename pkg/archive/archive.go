@@ -232,6 +232,18 @@ func (ta *tarAppender) addTarFile(path, name string) error {
 		return err
 	}
 
+	originalHdrName := hdr.Name
+
+	if originalHdrName == "." {
+		hdr.Name = "package"
+
+		if fi.IsDir() && !strings.HasSuffix(hdr.Name, "/") {
+			hdr.Name += "/"
+		}
+	} else {
+		hdr.Name = filepath.ToSlash(filepath.Join("package", originalHdrName))
+	}
+
 	// if it's not a directory and has more than 1 link,
 	// it's hard linked, so set the type flag accordingly
 	if !fi.IsDir() && hasHardlinks(fi) {
@@ -246,7 +258,7 @@ func (ta *tarAppender) addTarFile(path, name string) error {
 			hdr.Linkname = oldpath
 			hdr.Size = 0 // This Must be here for the writer math to add up!
 		} else {
-			ta.SeenFiles[inode] = name
+			ta.SeenFiles[inode] = hdr.Name
 		}
 	}
 
