@@ -2,7 +2,6 @@ package archive
 
 import (
 	"os"
-	"path/filepath"
 	"strings"
 )
 
@@ -24,17 +23,11 @@ func addLongPathPrefix(srcPath string) string {
 	return longPathPrefix + srcPath
 }
 
-// getWalkRoot calculates the root path when performing a TarWithOptions.
-// We use a separate function as this is platform specific.
-func getWalkRoot(srcPath string, include string) string {
-	return filepath.Join(srcPath, include)
-}
-
 // chmodTarEntry is used to adjust the file permissions used in tar header based
 // on the platform the archival is done.
 func chmodTarEntry(perm os.FileMode) os.FileMode {
 	// Remove group- and world-writable bits.
-	perm &= 0o775
+	perm &= ^os.FileMode(0o022)
 
 	// Add the x bit: make everything +x on Windows
 	return perm | 0o111
