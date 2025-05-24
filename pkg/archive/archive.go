@@ -146,7 +146,7 @@ func DecompressStream(archive io.Reader) (io.ReadCloser, error) {
 
 	// check if the stream is compressed with zstd
 	if !isZstd(bs) {
-		return nil, fmt.Errorf("archive is not compressed with zstd: %w", io.ErrUnexpectedEOF)
+		return nil, fmt.Errorf("unsupported archive format, expected zstd compressed tarball")
 	}
 
 	zstdReader, err := zstd.NewReader(buf)
@@ -169,12 +169,19 @@ func FileInfoHeader(name string, fi os.FileInfo, link string) (*tar.Header, erro
 	if err != nil {
 		return nil, err
 	}
+
+	// Disable gid, uid, uname, gname, access time, change time for portable tar files.
+	hdr.Uid = 0
+	hdr.Gid = 0
+	hdr.Uname = ""
+	hdr.Gname = ""
 	hdr.Format = tar.FormatPAX
-	hdr.ModTime = hdr.ModTime.Truncate(time.Second)
 	hdr.AccessTime = time.Time{}
 	hdr.ChangeTime = time.Time{}
-	hdr.Mode = int64(chmodTarEntry(os.FileMode(hdr.Mode)))
 	hdr.Name = canonicalTarName(name, fi.IsDir())
+	hdr.ModTime = hdr.ModTime.Truncate(time.Second)
+	hdr.Mode = int64(chmodTarEntry(os.FileMode(hdr.Mode)))
+
 	return hdr, nil
 }
 
@@ -438,17 +445,9 @@ func (t *Tarballer) Do() {
 	}
 
 	if !stat.IsDir() {
-		// We can't later join a non-dir with any includes because the
-		// 'walk' will error if "file/." is stat-ed and "file" is not a
-		// directory. So, we must split the source path and use the
-		// basename as the include.
-		if len(t.options.IncludeFiles) > 0 {
-			fmt.Fprint(t.dst, aec.YellowF.Apply("source path is not a directory, include patterns will be ignored"))
-		}
-
-		dir, base := SplitPathDirEntry(t.srcPath)
-		t.srcPath = dir
-		t.options.IncludeFiles = []string{base}
+		// Must be a valid directory to tar.
+		fmt.Fprintf(t.dst, "source path %s is not a directory", t.srcPath)
+		return
 	}
 
 	if len(t.options.IncludeFiles) == 0 {
@@ -463,7 +462,7 @@ func (t *Tarballer) Do() {
 			parentDirs      []string
 		)
 
-		walkRoot := getWalkRoot(t.srcPath, include)
+		walkRoot := filepath.Join(t.srcPath, include)
 		err = filepath.WalkDir(walkRoot, func(filePath string, f os.DirEntry, err error) error {
 			if err != nil {
 				fmt.Fprintf(t.dst, "unable to stat file %s: %s", t.srcPath, err)
