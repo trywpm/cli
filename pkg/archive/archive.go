@@ -5,24 +5,31 @@ import (
 	"archive/tar"
 	"bufio"
 	"bytes"
-	"compress/gzip"
-	"context"
+	"encoding/binary"
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	"github.com/cli/safeexec"
 	"github.com/docker/go-units"
+	"github.com/klauspost/compress/zstd"
 	"github.com/moby/patternmatcher"
 	"github.com/moby/sys/sequential"
 	"github.com/morikuni/aec"
+)
+
+const (
+	ImpliedDirectoryMode    = 0o755
+	zstdMagicSkippableStart = 0x184D2A50
+	zstdMagicSkippableMask  = 0xFFFFFFF0
+)
+
+var (
+	zstdMagic = []byte{0x28, 0xb5, 0x2f, 0xfd}
 )
 
 type TarOptions struct {
@@ -35,6 +42,23 @@ type TarOptions struct {
 // When testing archive breakout in the unit tests, this error is expected
 // in order for the test to pass.
 type breakoutError error
+
+// isZstd checks if the source byte slice indicates a Zstandard compressed stream.
+func isZstd(source []byte) bool {
+	if bytes.HasPrefix(source, zstdMagic) {
+		// Zstandard frame
+		return true
+	}
+	// skippable frame
+	if len(source) < 8 {
+		return false
+	}
+	// magic number from 0x184D2A50 to 0x184D2A5F.
+	if binary.LittleEndian.Uint32(source[:4])&zstdMagicSkippableMask == zstdMagicSkippableStart {
+		return true
+	}
+	return false
+}
 
 // IsArchivePath checks if the (possibly compressed) file at the given path
 // starts with a tar file header.
@@ -106,22 +130,6 @@ func (r *bufferedReader) Peek(n int) ([]byte, error) {
 	return r.buf.Peek(n)
 }
 
-func gzDecompress(ctx context.Context, buf io.Reader) (io.ReadCloser, error) {
-	if noPigzEnv := os.Getenv("WPM_NO_PIGZ"); noPigzEnv != "" {
-		noPigz, err := strconv.ParseBool(noPigzEnv)
-		if err != nil || noPigz {
-			return gzip.NewReader(buf)
-		}
-	}
-
-	unpigzPath, err := safeexec.LookPath("unpigz")
-	if err != nil {
-		return gzip.NewReader(buf)
-	}
-
-	return cmdStream(exec.CommandContext(ctx, unpigzPath, "-d", "-c"), buf)
-}
-
 // DecompressStream decompresses the archive and returns a ReaderCloser with the decompressed archive.
 func DecompressStream(archive io.Reader) (io.ReadCloser, error) {
 	buf := newBufferedReader(archive)
@@ -136,23 +144,21 @@ func DecompressStream(archive io.Reader) (io.ReadCloser, error) {
 		return nil, err
 	}
 
-	// check gzip header with magic bytes
-	if !bytes.HasPrefix(bs, []byte{0x1F, 0x8B, 0x08}) {
-		return nil, fmt.Errorf("invalid tarball format")
+	// check if the stream is compressed with zstd
+	if !isZstd(bs) {
+		return nil, fmt.Errorf("unsupported archive format, expected zstd compressed tarball")
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	gzReader, err := gzDecompress(ctx, buf)
+	zstdReader, err := zstd.NewReader(buf)
 	if err != nil {
-		cancel()
 		return nil, err
 	}
 
 	return &readCloserWrapper{
-		Reader: gzReader,
+		Reader: zstdReader,
 		closer: func() error {
-			cancel()
-			return gzReader.Close()
+			zstdReader.Close()
+			return nil
 		},
 	}, nil
 }
@@ -163,12 +169,19 @@ func FileInfoHeader(name string, fi os.FileInfo, link string) (*tar.Header, erro
 	if err != nil {
 		return nil, err
 	}
+
+	// Disable gid, uid, uname, gname, access time, change time for portable tar files.
+	hdr.Uid = 0
+	hdr.Gid = 0
+	hdr.Uname = ""
+	hdr.Gname = ""
 	hdr.Format = tar.FormatPAX
-	hdr.ModTime = hdr.ModTime.Truncate(time.Second)
 	hdr.AccessTime = time.Time{}
 	hdr.ChangeTime = time.Time{}
-	hdr.Mode = int64(chmodTarEntry(os.FileMode(hdr.Mode)))
 	hdr.Name = canonicalTarName(name, fi.IsDir())
+	hdr.ModTime = hdr.ModTime.Truncate(time.Second)
+	hdr.Mode = int64(chmodTarEntry(os.FileMode(hdr.Mode)))
+
 	return hdr, nil
 }
 
@@ -219,6 +232,18 @@ func (ta *tarAppender) addTarFile(path, name string) error {
 		return err
 	}
 
+	originalHdrName := hdr.Name
+
+	if originalHdrName == "." {
+		hdr.Name = "package"
+
+		if fi.IsDir() && !strings.HasSuffix(hdr.Name, "/") {
+			hdr.Name += "/"
+		}
+	} else {
+		hdr.Name = filepath.ToSlash(filepath.Join("package", originalHdrName))
+	}
+
 	// if it's not a directory and has more than 1 link,
 	// it's hard linked, so set the type flag accordingly
 	if !fi.IsDir() && hasHardlinks(fi) {
@@ -233,7 +258,7 @@ func (ta *tarAppender) addTarFile(path, name string) error {
 			hdr.Linkname = oldpath
 			hdr.Size = 0 // This Must be here for the writer math to add up!
 		} else {
-			ta.SeenFiles[inode] = name
+			ta.SeenFiles[inode] = hdr.Name
 		}
 	}
 
@@ -376,6 +401,13 @@ func NewTarballer(srcPath string, options *TarOptions, dst io.Writer) (*Tarballe
 
 	pipeReader, pipeWriter := io.Pipe()
 
+	zstdWriter, err := zstd.NewWriter(pipeWriter, zstd.WithEncoderLevel(zstd.SpeedBestCompression))
+	if err != nil {
+		pipeReader.Close()
+		pipeWriter.Close()
+		return nil, fmt.Errorf("failed to create zstd writer: %w", err)
+	}
+
 	return &Tarballer{
 		// Fix the source path to work with long path names. This is a no-op
 		// on platforms other than Windows.
@@ -385,7 +417,7 @@ func NewTarballer(srcPath string, options *TarOptions, dst io.Writer) (*Tarballe
 		pm:             pm,
 		pipeReader:     pipeReader,
 		pipeWriter:     pipeWriter,
-		compressWriter: gzip.NewWriter(pipeWriter),
+		compressWriter: zstdWriter,
 	}, nil
 }
 
@@ -425,17 +457,9 @@ func (t *Tarballer) Do() {
 	}
 
 	if !stat.IsDir() {
-		// We can't later join a non-dir with any includes because the
-		// 'walk' will error if "file/." is stat-ed and "file" is not a
-		// directory. So, we must split the source path and use the
-		// basename as the include.
-		if len(t.options.IncludeFiles) > 0 {
-			fmt.Fprint(t.dst, aec.YellowF.Apply("source path is not a directory, include patterns will be ignored"))
-		}
-
-		dir, base := SplitPathDirEntry(t.srcPath)
-		t.srcPath = dir
-		t.options.IncludeFiles = []string{base}
+		// Must be a valid directory to tar.
+		fmt.Fprintf(t.dst, "source path %s is not a directory", t.srcPath)
+		return
 	}
 
 	if len(t.options.IncludeFiles) == 0 {
@@ -450,7 +474,7 @@ func (t *Tarballer) Do() {
 			parentDirs      []string
 		)
 
-		walkRoot := getWalkRoot(t.srcPath, include)
+		walkRoot := filepath.Join(t.srcPath, include)
 		err = filepath.WalkDir(walkRoot, func(filePath string, f os.DirEntry, err error) error {
 			if err != nil {
 				fmt.Fprintf(t.dst, "unable to stat file %s: %s", t.srcPath, err)
@@ -675,7 +699,7 @@ func createImpliedDirectories(dest string, hdr *tar.Header) error {
 		parent := filepath.Dir(hdr.Name)
 		parentPath := filepath.Join(dest, parent)
 		if _, err := os.Lstat(parentPath); err != nil && os.IsNotExist(err) {
-			err = os.MkdirAll(parentPath, 0777)
+			err = os.MkdirAll(parentPath, ImpliedDirectoryMode)
 			if err != nil {
 				return err
 			}
@@ -687,17 +711,11 @@ func createImpliedDirectories(dest string, hdr *tar.Header) error {
 
 // Untar reads a stream of bytes from `archive`, parses it as a tar archive,
 // and unpacks it into the directory at `dest`.
-//
-// FIXME: specify behavior when target path exists vs. doesn't exist.
 func Untar(tarArchive io.Reader, dest string, options *TarOptions) error {
-	return untarHandler(tarArchive, dest, options, true)
-}
-
-// Handler for teasing out the automatic decompression
-func untarHandler(tarArchive io.Reader, dest string, options *TarOptions, decompress bool) error {
 	if tarArchive == nil {
 		return fmt.Errorf("empty archive")
 	}
+
 	dest = filepath.Clean(dest)
 	if options == nil {
 		options = &TarOptions{}
@@ -706,55 +724,11 @@ func untarHandler(tarArchive io.Reader, dest string, options *TarOptions, decomp
 		options.ExcludePatterns = []string{}
 	}
 
-	r := tarArchive
-	if decompress {
-		decompressedArchive, err := DecompressStream(tarArchive)
-		if err != nil {
-			return err
-		}
-		defer decompressedArchive.Close()
-		r = decompressedArchive
+	decompressedArchive, err := DecompressStream(tarArchive)
+	if err != nil {
+		return err
 	}
+	defer decompressedArchive.Close()
 
-	return Unpack(r, dest, options)
-}
-
-// cmdStream executes a command, and returns its stdout as a stream.
-// If the command fails to run or doesn't complete successfully, an error
-// will be returned, including anything written on stderr.
-func cmdStream(cmd *exec.Cmd, input io.Reader) (io.ReadCloser, error) {
-	cmd.Stdin = input
-	pipeR, pipeW := io.Pipe()
-	cmd.Stdout = pipeW
-	var errBuf bytes.Buffer
-	cmd.Stderr = &errBuf
-
-	// Run the command and return the pipe
-	if err := cmd.Start(); err != nil {
-		return nil, err
-	}
-
-	// Ensure the command has exited before we clean anything up
-	done := make(chan struct{})
-
-	// Copy stdout to the returned pipe
-	go func() {
-		if err := cmd.Wait(); err != nil {
-			pipeW.CloseWithError(fmt.Errorf("%s: %s", err, errBuf.String()))
-		} else {
-			pipeW.Close()
-		}
-		close(done)
-	}()
-
-	return &readCloserWrapper{
-		Reader: pipeR,
-		closer: func() error {
-			// Close pipeR, and then wait for the command to complete before returning. We have to close pipeR first, as
-			// cmd.Wait waits for any non-file stdout/stderr/stdin to close.
-			err := pipeR.Close()
-			<-done
-			return err
-		},
-	}, nil
+	return Unpack(decompressedArchive, dest, options)
 }
