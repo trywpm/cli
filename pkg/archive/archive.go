@@ -23,6 +23,7 @@ import (
 )
 
 const (
+	ImpliedDirectoryMode    = 0o755
 	zstdMagicSkippableStart = 0x184D2A50
 	zstdMagicSkippableMask  = 0xFFFFFFF0
 )
@@ -687,7 +688,7 @@ func createImpliedDirectories(dest string, hdr *tar.Header) error {
 		parent := filepath.Dir(hdr.Name)
 		parentPath := filepath.Join(dest, parent)
 		if _, err := os.Lstat(parentPath); err != nil && os.IsNotExist(err) {
-			err = os.MkdirAll(parentPath, 0777)
+			err = os.MkdirAll(parentPath, ImpliedDirectoryMode)
 			if err != nil {
 				return err
 			}
@@ -699,17 +700,11 @@ func createImpliedDirectories(dest string, hdr *tar.Header) error {
 
 // Untar reads a stream of bytes from `archive`, parses it as a tar archive,
 // and unpacks it into the directory at `dest`.
-//
-// FIXME: specify behavior when target path exists vs. doesn't exist.
 func Untar(tarArchive io.Reader, dest string, options *TarOptions) error {
-	return untarHandler(tarArchive, dest, options, true)
-}
-
-// Handler for teasing out the automatic decompression
-func untarHandler(tarArchive io.Reader, dest string, options *TarOptions, decompress bool) error {
 	if tarArchive == nil {
 		return fmt.Errorf("empty archive")
 	}
+
 	dest = filepath.Clean(dest)
 	if options == nil {
 		options = &TarOptions{}
@@ -718,15 +713,11 @@ func untarHandler(tarArchive io.Reader, dest string, options *TarOptions, decomp
 		options.ExcludePatterns = []string{}
 	}
 
-	r := tarArchive
-	if decompress {
-		decompressedArchive, err := DecompressStream(tarArchive)
-		if err != nil {
-			return err
-		}
-		defer decompressedArchive.Close()
-		r = decompressedArchive
+	decompressedArchive, err := DecompressStream(tarArchive)
+	if err != nil {
+		return err
 	}
+	defer decompressedArchive.Close()
 
-	return Unpack(r, dest, options)
+	return Unpack(decompressedArchive, dest, options)
 }
