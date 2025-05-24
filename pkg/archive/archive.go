@@ -5,24 +5,30 @@ import (
 	"archive/tar"
 	"bufio"
 	"bytes"
-	"compress/gzip"
-	"context"
+	"encoding/binary"
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	"github.com/cli/safeexec"
 	"github.com/docker/go-units"
+	"github.com/klauspost/compress/zstd"
 	"github.com/moby/patternmatcher"
 	"github.com/moby/sys/sequential"
 	"github.com/morikuni/aec"
+)
+
+const (
+	zstdMagicSkippableStart = 0x184D2A50
+	zstdMagicSkippableMask  = 0xFFFFFFF0
+)
+
+var (
+	zstdMagic = []byte{0x28, 0xb5, 0x2f, 0xfd}
 )
 
 type TarOptions struct {
@@ -35,6 +41,23 @@ type TarOptions struct {
 // When testing archive breakout in the unit tests, this error is expected
 // in order for the test to pass.
 type breakoutError error
+
+// isZstd checks if the source byte slice indicates a Zstandard compressed stream.
+func isZstd(source []byte) bool {
+	if bytes.HasPrefix(source, zstdMagic) {
+		// Zstandard frame
+		return true
+	}
+	// skippable frame
+	if len(source) < 8 {
+		return false
+	}
+	// magic number from 0x184D2A50 to 0x184D2A5F.
+	if binary.LittleEndian.Uint32(source[:4])&zstdMagicSkippableMask == zstdMagicSkippableStart {
+		return true
+	}
+	return false
+}
 
 // IsArchivePath checks if the (possibly compressed) file at the given path
 // starts with a tar file header.
@@ -106,22 +129,6 @@ func (r *bufferedReader) Peek(n int) ([]byte, error) {
 	return r.buf.Peek(n)
 }
 
-func gzDecompress(ctx context.Context, buf io.Reader) (io.ReadCloser, error) {
-	if noPigzEnv := os.Getenv("WPM_NO_PIGZ"); noPigzEnv != "" {
-		noPigz, err := strconv.ParseBool(noPigzEnv)
-		if err != nil || noPigz {
-			return gzip.NewReader(buf)
-		}
-	}
-
-	unpigzPath, err := safeexec.LookPath("unpigz")
-	if err != nil {
-		return gzip.NewReader(buf)
-	}
-
-	return cmdStream(exec.CommandContext(ctx, unpigzPath, "-d", "-c"), buf)
-}
-
 // DecompressStream decompresses the archive and returns a ReaderCloser with the decompressed archive.
 func DecompressStream(archive io.Reader) (io.ReadCloser, error) {
 	buf := newBufferedReader(archive)
@@ -136,23 +143,21 @@ func DecompressStream(archive io.Reader) (io.ReadCloser, error) {
 		return nil, err
 	}
 
-	// check gzip header with magic bytes
-	if !bytes.HasPrefix(bs, []byte{0x1F, 0x8B, 0x08}) {
-		return nil, fmt.Errorf("invalid tarball format")
+	// check if the stream is compressed with zstd
+	if !isZstd(bs) {
+		return nil, fmt.Errorf("archive is not compressed with zstd: %w", io.ErrUnexpectedEOF)
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	gzReader, err := gzDecompress(ctx, buf)
+	zstdReader, err := zstd.NewReader(buf)
 	if err != nil {
-		cancel()
 		return nil, err
 	}
 
 	return &readCloserWrapper{
-		Reader: gzReader,
+		Reader: zstdReader,
 		closer: func() error {
-			cancel()
-			return gzReader.Close()
+			zstdReader.Close()
+			return nil
 		},
 	}, nil
 }
@@ -376,6 +381,13 @@ func NewTarballer(srcPath string, options *TarOptions, dst io.Writer) (*Tarballe
 
 	pipeReader, pipeWriter := io.Pipe()
 
+	zstdWriter, err := zstd.NewWriter(pipeWriter, zstd.WithEncoderLevel(zstd.SpeedBestCompression))
+	if err != nil {
+		pipeReader.Close()
+		pipeWriter.Close()
+		return nil, fmt.Errorf("failed to create zstd writer: %w", err)
+	}
+
 	return &Tarballer{
 		// Fix the source path to work with long path names. This is a no-op
 		// on platforms other than Windows.
@@ -385,7 +397,7 @@ func NewTarballer(srcPath string, options *TarOptions, dst io.Writer) (*Tarballe
 		pm:             pm,
 		pipeReader:     pipeReader,
 		pipeWriter:     pipeWriter,
-		compressWriter: gzip.NewWriter(pipeWriter),
+		compressWriter: zstdWriter,
 	}, nil
 }
 
@@ -717,44 +729,4 @@ func untarHandler(tarArchive io.Reader, dest string, options *TarOptions, decomp
 	}
 
 	return Unpack(r, dest, options)
-}
-
-// cmdStream executes a command, and returns its stdout as a stream.
-// If the command fails to run or doesn't complete successfully, an error
-// will be returned, including anything written on stderr.
-func cmdStream(cmd *exec.Cmd, input io.Reader) (io.ReadCloser, error) {
-	cmd.Stdin = input
-	pipeR, pipeW := io.Pipe()
-	cmd.Stdout = pipeW
-	var errBuf bytes.Buffer
-	cmd.Stderr = &errBuf
-
-	// Run the command and return the pipe
-	if err := cmd.Start(); err != nil {
-		return nil, err
-	}
-
-	// Ensure the command has exited before we clean anything up
-	done := make(chan struct{})
-
-	// Copy stdout to the returned pipe
-	go func() {
-		if err := cmd.Wait(); err != nil {
-			pipeW.CloseWithError(fmt.Errorf("%s: %s", err, errBuf.String()))
-		} else {
-			pipeW.Close()
-		}
-		close(done)
-	}()
-
-	return &readCloserWrapper{
-		Reader: pipeR,
-		closer: func() error {
-			// Close pipeR, and then wait for the command to complete before returning. We have to close pipeR first, as
-			// cmd.Wait waits for any non-file stdout/stderr/stdin to close.
-			err := pipeR.Close()
-			<-done
-			return err
-		},
-	}, nil
 }
