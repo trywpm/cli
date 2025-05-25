@@ -2,7 +2,6 @@ package parser
 
 import (
 	"fmt"
-	"io"
 	"regexp"
 	"sort"
 	"strconv"
@@ -58,7 +57,7 @@ func NewReadmeParser() *ReadmeParser {
 }
 
 // Parse reads and parses the readme.txt content.
-func (p *ReadmeParser) Parse(content string) error {
+func (p *ReadmeParser) Parse(content string) {
 	normalizedContent := strings.ReplaceAll(content, "\r\n", "\n")
 	normalizedContent = strings.ReplaceAll(normalizedContent, "\r", "\n")
 	lines := strings.Split(normalizedContent, "\n")
@@ -81,8 +80,6 @@ func (p *ReadmeParser) Parse(content string) error {
 	lineIndex = p.parseMetaDescription(lines, lineIndex)
 	p.parseSections(lines, lineIndex)
 	p.processSpecialSections()
-
-	return nil
 }
 
 func (p *ReadmeParser) stripBOM(lines []string) []string {
@@ -459,18 +456,4 @@ func (p *ReadmeParser) GetMetadata() map[string]interface{} {
 		"license_uri":      p.LicenseURI,
 		"donate_link":      p.DonateLink,
 	}
-}
-
-func ConvertReadmeToMarkdown(input io.Reader) (string, error) {
-	contentBytes, err := io.ReadAll(input)
-	if err != nil {
-		return "", fmt.Errorf("failed to read input: %w", err)
-	}
-
-	parser := NewReadmeParser()
-	if err := parser.Parse(string(contentBytes)); err != nil {
-		return "", fmt.Errorf("failed to parse readme content: %w", err)
-	}
-
-	return parser.ToMarkdown(), nil
 }
