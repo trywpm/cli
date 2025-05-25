@@ -15,69 +15,33 @@ const (
 )
 
 type PluginFileHeaders struct {
-	Name            string
 	PluginURI       string
 	Version         string
-	Description     string
-	Author          string
-	AuthorURI       string
-	TextDomain      string
-	DomainPath      string
-	Network         bool
 	RequiresPHP     string
 	RequiresWP      string
-	UpdateURI       string
-	RequiresPlugins string
+	RequiresPlugins []string
 }
 
 var pluginFileHeaders = map[string]string{
-	"Name":            "Plugin Name",
 	"PluginURI":       "Plugin URI",
 	"Version":         "Version",
-	"Description":     "Description",
-	"Author":          "Author",
-	"AuthorURI":       "Author URI",
-	"TextDomain":      "Text Domain",
-	"DomainPath":      "Domain Path",
-	"Network":         "Network",
-	"RequiresWP":      "Requires at least",
 	"RequiresPHP":     "Requires PHP",
-	"UpdateURI":       "Update URI",
+	"RequiresWP":      "Requires at least",
 	"RequiresPlugins": "Requires Plugins",
 }
 
 type ThemeFileHeaders struct {
-	Name        string
 	ThemeURI    string
-	Description string
-	Author      string
-	AuthorURI   string
 	Version     string
-	Template    string
-	Status      string
-	Tags        string
-	TextDomain  string
-	DomainPath  string
 	RequiresWP  string
 	RequiresPHP string
-	UpdateURI   string
 }
 
 var themeFileHeaders = map[string]string{
-	"Name":        "Theme Name",
 	"ThemeURI":    "Theme URI",
-	"Description": "Description",
-	"Author":      "Author",
-	"AuthorURI":   "Author URI",
 	"Version":     "Version",
-	"Template":    "Template",
-	"Status":      "Status",
-	"Tags":        "Tags",
-	"TextDomain":  "Text Domain",
-	"DomainPath":  "Domain Path",
 	"RequiresWP":  "Requires at least",
 	"RequiresPHP": "Requires PHP",
-	"UpdateURI":   "Update URI",
 }
 
 var headerCleanupRe = regexp.MustCompile(`\s*(?:\*\/|\?>).*`)
@@ -153,22 +117,11 @@ func GetPluginHeaders(filePath string) (PluginFileHeaders, error) {
 	}
 
 	headers := PluginFileHeaders{}
-	headers.Name = rawHeaders["Name"]
 	headers.PluginURI = rawHeaders["PluginURI"]
 	headers.Version = rawHeaders["Version"]
-	headers.Description = rawHeaders["Description"]
-	headers.Author = rawHeaders["Author"]
-	headers.AuthorURI = rawHeaders["AuthorURI"]
-	headers.TextDomain = rawHeaders["TextDomain"]
-	headers.DomainPath = rawHeaders["DomainPath"]
-	networkVal := rawHeaders["Network"]
-	if networkVal == "true" || networkVal == "1" {
-		headers.Network = true
-	}
 	headers.RequiresWP = rawHeaders["RequiresWP"]
 	headers.RequiresPHP = rawHeaders["RequiresPHP"]
-	headers.UpdateURI = rawHeaders["UpdateURI"]
-	headers.RequiresPlugins = rawHeaders["RequiresPlugins"]
+	headers.RequiresPlugins = parseCommaSeparatedList(rawHeaders["RequiresPlugins"])
 
 	return headers, nil
 }
@@ -184,20 +137,10 @@ func GetThemeHeaders(filePath string) (ThemeFileHeaders, error) {
 	}
 
 	headers := ThemeFileHeaders{}
-	headers.Name = rawHeaders["Name"]
 	headers.ThemeURI = rawHeaders["ThemeURI"]
-	headers.Description = rawHeaders["Description"]
-	headers.Author = rawHeaders["Author"]
-	headers.AuthorURI = rawHeaders["AuthorURI"]
 	headers.Version = rawHeaders["Version"]
-	headers.Template = rawHeaders["Template"]
-	headers.Status = rawHeaders["Status"]
-	headers.Tags = rawHeaders["Tags"]
-	headers.TextDomain = rawHeaders["TextDomain"]
-	headers.DomainPath = rawHeaders["DomainPath"]
 	headers.RequiresWP = rawHeaders["RequiresWP"]
 	headers.RequiresPHP = rawHeaders["RequiresPHP"]
-	headers.UpdateURI = rawHeaders["UpdateURI"]
 
 	return headers, nil
 }
