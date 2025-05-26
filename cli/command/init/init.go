@@ -406,6 +406,34 @@ func buildWPMConfig(
 	return cfg
 }
 
+func normalizeVersion(version string) (string, error) {
+	if version == "" {
+		return "", errors.New("version cannot be empty")
+	}
+
+	// Attempt to normalize the version format to be compatible with semver.
+	// If version has more than 2 dots, we replace the last dot with a hyphen
+	// Example:
+	// 1.0.0.0 -> 1.0.0-0
+	// 1.0.0.alpha.1+build -> 1.0.0-alpha.1+build
+	parts := strings.Split(version, ".")
+	if len(parts) > 3 {
+		major := parts[0]
+		minor := parts[1]
+		patch := parts[2]
+		prerelease := strings.Join(parts[3:], ".")
+
+		version = fmt.Sprintf("%s.%s.%s-%s", major, minor, patch, prerelease)
+	}
+
+	v, err := semver.NewVersion(version)
+	if err != nil {
+		return "", errors.Wrapf(err, "invalid version format: %s", version)
+	}
+
+	return v.String(), nil
+}
+
 func runMigrationProcess(wpmCli command.Cli, opts initOptions, cwd string) error {
 	baseFiles, err := findMigrationBaseFiles(cwd)
 	if err != nil {
@@ -471,12 +499,12 @@ func runMigrationProcess(wpmCli command.Cli, opts initOptions, cwd string) error
 
 	wpmJsonData := buildWPMConfig(opts, opts.packageType, mainFileHeaders, readmeMetadata)
 
-	v, err := semver.NewVersion(wpmJsonData.Version)
+	v, err := normalizeVersion(wpmJsonData.Version)
 	if err != nil {
 		return errors.Wrapf(err, "invalid version %s; must be a valid semantic version", wpmJsonData.Version)
 	}
 
-	wpmJsonData.Version = v.String()
+	wpmJsonData.Version = v
 
 	if err := wpm.WriteWpmJson(wpmJsonData, cwd); err != nil {
 		return errors.Wrapf(err, "failed to write %s", wpm.ConfigFile)
