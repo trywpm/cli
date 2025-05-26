@@ -2,7 +2,6 @@ package install
 
 import (
 	"context"
-	"os"
 
 	"wpm/cli"
 	"wpm/cli/command"
@@ -38,14 +37,10 @@ func NewInstallCommand(wpmCli command.Cli) *cobra.Command {
 }
 
 func runInstall(ctx context.Context, wpmCli command.Cli, opts installOptions) error {
-	var err error
-	cwd, err := os.Getwd()
-	if err != nil {
-		return err
-	}
+	cwd := wpmCli.Options().Cwd
 
 	// @todo: complete the install command
-	_, err = wpm.ReadAndValidateWpmJson(cwd)
+	_, err := wpm.ReadAndValidateWpmJson(cwd)
 	if err != nil {
 		return err
 	}

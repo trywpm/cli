@@ -91,6 +91,8 @@ func readme(path string) (string, error) {
 }
 
 func runPublish(wpmCli command.Cli, opts publishOptions) error {
+	cwd := wpmCli.Options().Cwd
+
 	if opts.access != "public" && opts.access != "private" {
 		return errors.New("access must be either public or private")
 	}
@@ -98,11 +100,6 @@ func runPublish(wpmCli command.Cli, opts publishOptions) error {
 	cfg := wpmCli.ConfigFile()
 	if cfg.AuthToken == "" {
 		return errors.New("user must be logged in to perform this action")
-	}
-
-	cwd, err := os.Getwd()
-	if err != nil {
-		return err
 	}
 
 	wpmJson, err := wpm.ReadAndValidateWpmJson(cwd)

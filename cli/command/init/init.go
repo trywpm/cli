@@ -70,10 +70,7 @@ func NewInitCommand(wpmCli command.Cli) *cobra.Command {
 }
 
 func runInit(ctx context.Context, wpmCli command.Cli, opts initOptions) error {
-	cwd, err := os.Getwd()
-	if err != nil {
-		return errors.Wrap(err, "failed to get current working directory")
-	}
+	cwd := wpmCli.Options().Cwd
 
 	wpmConfigFilePath := filepath.Join(cwd, wpm.ConfigFile)
 	if _, err := os.Stat(wpmConfigFilePath); err == nil {
@@ -492,10 +489,7 @@ func getMigrateType(cwd string) string {
 }
 
 func runMigrate(ctx context.Context, wpmCli command.Cli, opts *initOptions) error {
-	cwd, err := os.Getwd()
-	if err != nil {
-		return errors.Wrap(err, "failed to get current working directory")
-	}
+	cwd := wpmCli.Options().Cwd
 
 	if opts.name == "" {
 		return errors.Errorf("package --name is required for migration (e.g., --name=amp)")
