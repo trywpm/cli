@@ -13,7 +13,7 @@ type Config struct {
 	Name            string            `json:"name" validate:"required,min=3,max=164,package_name_regex"`
 	Description     string            `json:"description,omitempty"`
 	Private         bool              `json:"private,omitempty" validate:"boolean,omitempty"`
-	Type            string            `json:"type" validate:"required,oneof=plugin theme"`
+	Type            string            `json:"type" validate:"required,oneof=plugin theme mu-plugin"`
 	Version         string            `json:"version" validate:"required,package_semver,max=64"`
 	License         string            `json:"license" validate:"omitempty"`
 	Homepage        string            `json:"homepage,omitempty" validate:"omitempty,url"`
@@ -30,7 +30,7 @@ type Meta struct {
 	Tag        string `json:"tag"`
 	Dist       Dist   `json:"dist"`
 	Wpm        string `json:"_wpm"`
-	Access     string `json:"access"`
+	Visibility string `json:"visibility"`
 	Attachment string `json:"attachment"`
 	Readme     string `json:"readme,omitempty"`
 }

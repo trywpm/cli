@@ -31,3 +31,7 @@ wpm
 !pkg/wpm
 wpm.json
 .wpmignore
+
+# test theme and plugin dir
+amp
+astra

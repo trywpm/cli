@@ -66,7 +66,7 @@ func validateSemver(fl validator.FieldLevel) bool {
 		return false
 	}
 
-	_, err := semver.NewVersion(value)
+	_, err := semver.StrictNewVersion(value)
 
 	return err == nil
 }
