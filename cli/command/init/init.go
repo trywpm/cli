@@ -471,6 +471,13 @@ func runMigrationProcess(wpmCli command.Cli, opts initOptions, cwd string) error
 
 	wpmJsonData := buildWPMConfig(opts, opts.packageType, mainFileHeaders, readmeMetadata)
 
+	v, err := semver.NewVersion(wpmJsonData.Version)
+	if err != nil {
+		return errors.Wrapf(err, "invalid version %s; must be a valid semantic version", wpmJsonData.Version)
+	}
+
+	wpmJsonData.Version = v.String()
+
 	if err := wpm.WriteWpmJson(wpmJsonData, cwd); err != nil {
 		return errors.Wrapf(err, "failed to write %s", wpm.ConfigFile)
 	}
@@ -502,7 +509,7 @@ func runMigrate(ctx context.Context, wpmCli command.Cli, opts *initOptions) erro
 	if opts.packageType == "" {
 		opts.packageType = getMigrateType(cwd)
 
-		_, _ = fmt.Fprintf(wpmCli.Out(), "Auto-detected package type: %s\n", opts.packageType)
+		_, _ = fmt.Fprintf(wpmCli.Out(), "auto-detected package type: %s\n", opts.packageType)
 	}
 
 	if opts.packageType != "theme" && opts.packageType != "plugin" {
@@ -516,7 +523,7 @@ func runMigrate(ctx context.Context, wpmCli command.Cli, opts *initOptions) erro
 	if errs := ve.Var(opts.name, "required,min=3,max=164,package_name_regex"); errs != nil {
 		return errors.Errorf("invalid --name for migration: \"%s\"", aec.Bold.Apply(opts.name))
 	}
-	if errs := ve.Var(opts.version, "required,package_semver,max=64"); errs != nil {
+	if errs := ve.Var(opts.version, "required,max=64"); errs != nil {
 		return errors.Errorf("invalid --version for migration: \"%s\"", aec.Bold.Apply(opts.version))
 	}
 
