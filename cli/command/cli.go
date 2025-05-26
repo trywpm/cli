@@ -136,9 +136,7 @@ func (cli *WpmCli) Initialize(opts *cliflags.ClientOptions, ops ...CLIOption) er
 		config.SetDir(opts.ConfigDir)
 	}
 
-	if opts.Cwd == "" {
-		opts.Cwd = cliflags.GetWorkingDir(opts.Cwd)
-	}
+	opts.Cwd = cliflags.GetWorkingDir(opts.Cwd)
 
 	if opts.Debug {
 		debug.Enable()

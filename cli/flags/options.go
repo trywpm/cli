@@ -3,6 +3,7 @@ package flags
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"wpm/pkg/config"
 
@@ -61,6 +62,13 @@ func GetWorkingDir(cwd string) string {
 			fmt.Fprintf(os.Stderr, "Invalid working directory: %s\n", cwd)
 			os.Exit(1)
 		}
+
+		cwd, err := filepath.Abs(cwd)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Unable to resolve absolute path for cwd: %s\n", cwd)
+			os.Exit(1)
+		}
+
 		return cwd
 	}
 
