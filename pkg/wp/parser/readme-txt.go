@@ -356,7 +356,7 @@ func renderScreenshotsMarkdown(parser *ReadmeParser, _ string, md *strings.Build
 		}
 		sort.Ints(keys)
 		for _, k := range keys {
-			md.WriteString(fmt.Sprintf("%d. %s\n", k, parser.Screenshots[k]))
+			fmt.Fprintf(md, "![Screenshot %d](%s)\n", k, parser.Screenshots[k])
 		}
 		md.WriteString("\n") // Extra newline after the list
 		return true
