@@ -11,6 +11,7 @@ import (
 	"wpm/pkg/wp/parser"
 	"wpm/pkg/wpm"
 
+	"github.com/Masterminds/semver/v3"
 	"github.com/morikuni/aec"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
@@ -390,10 +391,16 @@ func buildWPMConfig(
 	}
 
 	if wpRequires != "" {
-		dependencies["wp"] = wpRequires
+		v, err := semver.NewVersion(wpRequires)
+		if err == nil {
+			dependencies["wp"] = v.String()
+		}
 	}
 	if phpRequires != "" {
-		dependencies["php"] = phpRequires
+		v, err := semver.NewVersion(phpRequires)
+		if err == nil {
+			dependencies["php"] = v.String()
+		}
 	}
 	if len(dependencies) > 0 {
 		cfg.Dependencies = dependencies
