@@ -523,7 +523,8 @@ func runMigrationProcess(wpmCli command.Cli, opts initOptions, cwd string) error
 	var mainFileHeaders interface{}
 	var mainFileNameForMsg string // style.css for themes, main plugin file for plugins
 
-	if opts.packageType == "theme" {
+	switch opts.packageType {
+	case "theme":
 		mainFileNameForMsg = "style.css"
 		mainFilePath = filepath.Join(cwd, mainFileNameForMsg)
 		if _, statErr := os.Stat(mainFilePath); statErr != nil {
@@ -542,7 +543,7 @@ func runMigrationProcess(wpmCli command.Cli, opts initOptions, cwd string) error
 		}
 
 		mainFileHeaders = headers
-	} else if opts.packageType == "plugin" {
+	case "plugin":
 		dirEntries, readDirErr := os.ReadDir(cwd)
 		if readDirErr != nil {
 			return errors.Wrap(readDirErr, "failed to read current directory for plugin files")
@@ -560,7 +561,7 @@ func runMigrationProcess(wpmCli command.Cli, opts initOptions, cwd string) error
 		}
 
 		mainFileHeaders = parsedHeaders
-	} else {
+	default:
 		return errors.Errorf("unsupported package type for migration: %s", opts.packageType)
 	}
 
