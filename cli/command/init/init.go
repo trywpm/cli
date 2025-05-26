@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
+	"unicode"
 
 	"wpm/cli/command"
 	"wpm/pkg/wp/parser"
@@ -22,6 +24,8 @@ const (
 	defaultType    = "plugin"
 	defaultLicense = "GPL-2.0-or-later"
 )
+
+var findLetters = regexp.MustCompile(`\b[a-zA-Z]{2,}\b`)
 
 type initOptions struct {
 	yes         bool
@@ -335,6 +339,29 @@ func getMetaStringSlice(meta map[string]interface{}, key string) []string {
 	return []string{}
 }
 
+func isMeaningfulText(s string) bool {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return false
+	}
+
+	allSymbols := true
+	for _, r := range s {
+		if unicode.IsLetter(r) {
+			allSymbols = false
+			break
+		}
+	}
+	if allSymbols {
+		return false
+	}
+
+	// Find at least one word with 2 or more letters
+	words := findLetters.FindAllString(s, -1)
+
+	return len(words) > 0
+}
+
 func buildWPMConfig(
 	opts initOptions,
 	pkgType string,
@@ -364,6 +391,26 @@ func buildWPMConfig(
 
 	switch h := mainFileHeaders.(type) {
 	case parser.ThemeFileHeaders:
+		if cfg.License == "" {
+			cfg.License = h.License
+		}
+
+		if cfg.Description == "" || !isMeaningfulText(cfg.Description) {
+			cfg.Description = h.Description
+		}
+
+		if len(cfg.Team) == 0 && h.Author != "" {
+			cfg.Team = []string{h.Author}
+		}
+
+		if len(tags) == 0 && len(h.Tags) > 0 {
+			if len(h.Tags) > 5 {
+				cfg.Tags = h.Tags[:5]
+			} else {
+				cfg.Tags = h.Tags
+			}
+		}
+
 		cfg.Homepage = h.ThemeURI
 		if wpRequires == "" && h.RequiresWP != "" {
 			wpRequires = h.RequiresWP
@@ -372,6 +419,26 @@ func buildWPMConfig(
 			phpRequires = h.RequiresPHP
 		}
 	case parser.PluginFileHeaders:
+		if cfg.License == "" {
+			cfg.License = h.License
+		}
+
+		if cfg.Description == "" || !isMeaningfulText(cfg.Description) {
+			cfg.Description = h.Description
+		}
+
+		if len(cfg.Team) == 0 && h.Author != "" {
+			cfg.Team = []string{h.Author}
+		}
+
+		if len(tags) == 0 && len(h.Tags) > 0 {
+			if len(h.Tags) > 5 {
+				cfg.Tags = h.Tags[:5]
+			} else {
+				cfg.Tags = h.Tags
+			}
+		}
+
 		cfg.Homepage = h.PluginURI
 		if wpRequires == "" && h.RequiresWP != "" {
 			wpRequires = h.RequiresWP
