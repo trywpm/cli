@@ -30,6 +30,7 @@ type Cli interface {
 	SetIn(in *streams.In)
 	Apply(ops ...CLIOption) error
 	Progress() *progress.Progress
+	Options() *cliflags.ClientOptions
 	ConfigFile() *configfile.ConfigFile
 	RegistryClient() (client.RegistryClient, error)
 }
@@ -116,6 +117,11 @@ func (cli *WpmCli) ConfigFile() *configfile.ConfigFile {
 	return cli.configFile
 }
 
+// Options returns the options used to initialize the cli
+func (cli *WpmCli) Options() *cliflags.ClientOptions {
+	return cli.options
+}
+
 // Initialize the wpmCli runs initialization that must happen after command
 // line flags are parsed.
 func (cli *WpmCli) Initialize(opts *cliflags.ClientOptions, ops ...CLIOption) error {
@@ -128,6 +134,10 @@ func (cli *WpmCli) Initialize(opts *cliflags.ClientOptions, ops ...CLIOption) er
 
 	if opts.ConfigDir != "" {
 		config.SetDir(opts.ConfigDir)
+	}
+
+	if opts.Cwd == "" {
+		opts.Cwd = cliflags.GetWorkingDir(opts.Cwd)
 	}
 
 	if opts.Debug {
