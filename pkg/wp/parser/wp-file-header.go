@@ -15,33 +15,49 @@ const (
 )
 
 type PluginFileHeaders struct {
+	Author          string
+	Description     string
+	License         string
 	PluginURI       string
 	Version         string
 	RequiresPHP     string
 	RequiresWP      string
 	RequiresPlugins []string
+	Tags            []string
 }
 
 var pluginFileHeaders = map[string]string{
+	"Author":          "Author",
+	"Description":     "Description",
+	"License":         "License",
 	"PluginURI":       "Plugin URI",
 	"Version":         "Version",
 	"RequiresPHP":     "Requires PHP",
 	"RequiresWP":      "Requires at least",
 	"RequiresPlugins": "Requires Plugins",
+	"Tags":            "Tags",
 }
 
 type ThemeFileHeaders struct {
+	Author      string
+	Description string
+	License     string
 	ThemeURI    string
 	Version     string
 	RequiresWP  string
 	RequiresPHP string
+	Tags        []string
 }
 
 var themeFileHeaders = map[string]string{
+	"Author":      "Author",
+	"Description": "Description",
+	"License":     "License",
 	"ThemeURI":    "Theme URI",
 	"Version":     "Version",
 	"RequiresWP":  "Requires at least",
 	"RequiresPHP": "Requires PHP",
+	"Tags":        "Tags",
 }
 
 var headerCleanupRe = regexp.MustCompile(`\s*(?:\*\/|\?>).*`)
@@ -117,10 +133,14 @@ func GetPluginHeaders(filePath string) (PluginFileHeaders, error) {
 	}
 
 	headers := PluginFileHeaders{}
+	headers.Author = rawHeaders["Author"]
+	headers.Description = rawHeaders["Description"]
+	headers.License = rawHeaders["License"]
 	headers.PluginURI = rawHeaders["PluginURI"]
 	headers.Version = rawHeaders["Version"]
 	headers.RequiresWP = rawHeaders["RequiresWP"]
 	headers.RequiresPHP = rawHeaders["RequiresPHP"]
+	headers.Tags = parseCommaSeparatedList(rawHeaders["Tags"])
 	headers.RequiresPlugins = parseCommaSeparatedList(rawHeaders["RequiresPlugins"])
 
 	return headers, nil
@@ -137,10 +157,14 @@ func GetThemeHeaders(filePath string) (ThemeFileHeaders, error) {
 	}
 
 	headers := ThemeFileHeaders{}
+	headers.Author = rawHeaders["Author"]
+	headers.Description = rawHeaders["Description"]
+	headers.License = rawHeaders["License"]
 	headers.ThemeURI = rawHeaders["ThemeURI"]
 	headers.Version = rawHeaders["Version"]
 	headers.RequiresWP = rawHeaders["RequiresWP"]
 	headers.RequiresPHP = rawHeaders["RequiresPHP"]
+	headers.Tags = parseCommaSeparatedList(rawHeaders["Tags"])
 
 	return headers, nil
 }
