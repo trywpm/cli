@@ -278,7 +278,7 @@ func findMigrationBaseFiles(cwd string) (migrationBaseFiles, error) {
 
 func generateReadme(wpmCli command.Cli, readmeTxtPath, readmeMdPath string) (*parser.ReadmeParser, error) {
 	if readmeTxtPath == "" {
-		return nil, errors.New("readme.txt not found in the current directory (required for migration)")
+		return &parser.ReadmeParser{}, nil
 	}
 
 	readmeTxtContent, err := os.ReadFile(readmeTxtPath)
