@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"os"
@@ -127,13 +128,19 @@ func runPublish(wpmCli command.Cli, opts publishOptions) error {
 	tarReader.Close()
 
 	digest := digest.FromBytes(buf.Bytes())
+	digestBytes, err := hex.DecodeString(digest.Hex())
+	if err != nil {
+		return errors.Wrap(err, "failed to decode digest")
+	}
+
+	digestBase64 := "sha256:" + base64.StdEncoding.EncodeToString(digestBytes)
 
 	if opts.verbose {
 		fmt.Fprint(wpmCli.Err(), "\n") // add a newline after the tarball progress
 	}
 
 	fmt.Fprintf(wpmCli.Err(), "%s: %d\n", aec.LightBlueF.Apply("total files"), tarball.FileCount())
-	fmt.Fprintf(wpmCli.Err(), "%s: %s\n", aec.LightBlueF.Apply("digest"), digest.String())
+	fmt.Fprintf(wpmCli.Err(), "%s: %s\n", aec.LightBlueF.Apply("digest"), digestBase64)
 	fmt.Fprintf(wpmCli.Err(), "%s: %s\n", aec.LightBlueF.Apply("unpacked size"), units.HumanSize(float64(tarball.UnpackedSize())))
 	fmt.Fprintf(wpmCli.Err(), "%s: %s\n", aec.LightBlueF.Apply("packed size"), units.HumanSize(float64(buf.Len())))
 	fmt.Fprintf(wpmCli.Err(), "%s: %s\n", aec.LightBlueF.Apply("tag"), opts.tag)
@@ -178,9 +185,9 @@ func runPublish(wpmCli command.Cli, opts publishOptions) error {
 		Meta: wpm.Meta{
 			Dist: wpm.Dist{
 				PackedSize:   buf.Len(),
-				Digest:       digest.String(),
 				TotalFiles:   tarball.FileCount(),
 				UnpackedSize: tarball.UnpackedSize(),
+				Digest:       digestBase64,
 			},
 			Tag:        opts.tag,
 			Visibility: opts.access,
