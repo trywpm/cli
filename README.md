@@ -118,7 +118,7 @@ The `wpm.json` file defines your package and its dependencies:
 * `homepage`: URL to your package's homepage
 * `tags`: Keywords (maximum 5)
 * `dependencies`: Production dependencies
-* `dev_dependencies`: Development-only dependencies
+* `devDependencies`: Development-only dependencies
 
 ## Excluding Files from Publishing
 
