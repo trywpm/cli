@@ -17,7 +17,7 @@ type Config struct {
 	Version         string            `json:"version" validate:"required,package_semver,max=64"`
 	License         string            `json:"license" validate:"omitempty"`
 	Homepage        string            `json:"homepage,omitempty" validate:"omitempty,url"`
-	Tags            []string          `json:"tags,omitempty" validate:"dive,max=5"`
+	Tags            []string          `json:"tags,omitempty" validate:"max=5"`
 	Team            []string          `json:"team,omitempty"`
 	Bin             map[string]string `json:"bin,omitempty"`
 	Dependencies    map[string]string `json:"dependencies,omitempty" validate:"omitempty,package_dependencies"`
