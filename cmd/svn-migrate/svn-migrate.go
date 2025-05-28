@@ -562,7 +562,11 @@ func init() {
 	migrateCmd.Flags().BoolP("verbose", "v", false, "Enable verbose logging")
 	migrateCmd.Flags().String("wpm-path", "", "Path to wpm binary (default: search in PATH)")
 
-	migrateCmd.MarkFlagRequired("type")
+	err := migrateCmd.MarkFlagRequired("type")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error marking 'type' flag as required: %v\n", err)
+		os.Exit(1)
+	}
 
 	rootCmd.AddCommand(migrateCmd)
 }
