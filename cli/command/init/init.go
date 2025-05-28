@@ -368,6 +368,11 @@ func buildWPMConfig(
 	mainFileHeaders interface{},
 	readmeMeta map[string]interface{},
 ) *wpm.Config {
+	ve, err := wpm.NewValidator()
+	if err != nil {
+		return &wpm.Config{}
+	}
+
 	cfg := &wpm.Config{
 		Name:        opts.name,
 		Version:     opts.version,
@@ -411,10 +416,16 @@ func buildWPMConfig(
 			}
 		}
 
-		cfg.Homepage = h.ThemeURI
+		if h.ThemeURI != "" {
+			if err := ve.Var(h.ThemeURI, "url"); err == nil {
+				cfg.Homepage = h.ThemeURI
+			}
+		}
+
 		if wpRequires == "" && h.RequiresWP != "" {
 			wpRequires = h.RequiresWP
 		}
+
 		if phpRequires == "" && h.RequiresPHP != "" {
 			phpRequires = h.RequiresPHP
 		}
@@ -439,13 +450,20 @@ func buildWPMConfig(
 			}
 		}
 
-		cfg.Homepage = h.PluginURI
+		if h.PluginURI != "" {
+			if err := ve.Var(h.PluginURI, "url"); err == nil {
+				cfg.Homepage = h.PluginURI
+			}
+		}
+
 		if wpRequires == "" && h.RequiresWP != "" {
 			wpRequires = h.RequiresWP
 		}
+
 		if phpRequires == "" && h.RequiresPHP != "" {
 			phpRequires = h.RequiresPHP
 		}
+
 		if len(h.RequiresPlugins) > 0 {
 			for _, reqPlugin := range h.RequiresPlugins {
 				// Add "*" as version since requires plugins only specify the plugin slug, not a version.
@@ -566,6 +584,10 @@ func runMigrationProcess(wpmCli command.Cli, opts initOptions, cwd string) error
 	}
 
 	wpmJsonData := buildWPMConfig(opts, opts.packageType, mainFileHeaders, readmeMetadata)
+
+	if wpmJsonData.Name == "" || wpmJsonData.Version == "" || wpmJsonData.Type == "" {
+		return errors.New("failed to build wpm.json data; name, version, and type are required")
+	}
 
 	v, err := normalizeVersion(wpmJsonData.Version)
 	if err != nil {
