@@ -517,9 +517,11 @@ func migratePackage(ctx context.Context, pkgInfo *PackageInfo, manifest *Package
 		cancelTag()
 
 		manifest.Tags[rawVersionName] = tagManifestEntry
-		if tagManifestEntry.Status == statusSuccess {
+
+		switch tagManifestEntry.Status {
+		case statusSuccess:
 			result.TagsSucceededThisRun++
-		} else if tagManifestEntry.Status == statusFailed {
+		case statusFailed:
 			result.TagsFailedThisRun++
 		}
 
@@ -640,7 +642,8 @@ func processPackage(ctx context.Context, svnRepoPath, repoType, packageName stri
 		shouldFetchApi = true
 		l.Debug("refreshing api due to tag count change")
 	} else if !manifest.Qualified && manifest.ApiLookupDone &&
-		!(strings.Contains(manifest.ApiError, "(404)") || strings.Contains(manifest.ApiError, "plugin tags directory missing")) {
+		!strings.Contains(manifest.ApiError, "(404)") &&
+		!strings.Contains(manifest.ApiError, "plugin tags directory missing") {
 		l.Debugf("retrying api lookup: %s", manifest.ApiError)
 		shouldFetchApi = true
 	}
