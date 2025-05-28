@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"os/exec"
@@ -15,21 +16,31 @@ import (
 
 	"github.com/Masterminds/semver/v3"
 	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
 const (
 	defaultMaxWorkers = 5
-	defaultTagTimeout = 5 * time.Minute // Timeout per individual tag
+	defaultTagTimeout = 5 * time.Minute
 	requestTimeout    = 30 * time.Second
+	manifestFileName  = "manifest.json"
+	globalLogFileName = "wp-migration-activity.log"
+	statusSuccess     = "success"
+	statusFailed      = "failed"
+	statusPending     = "pending"
+
+	wpmOutputAlreadyExists       = "already exists"
+	wpmErrorInitNoPluginMainFile = "no main plugin file with valid plugin headers"
+	wpmErrorInitVersionMismatch  = "does not match specified version"
 )
 
 var (
 	nameReg    = regexp.MustCompile(`^[\w-]{3,164}$`)
 	httpClient = &http.Client{Timeout: requestTimeout}
+	log        = logrus.New()
 )
 
-// CLI configuration
 type Config struct {
 	RepoPath   string
 	RepoType   string
@@ -38,32 +49,134 @@ type Config struct {
 	DryRun     bool
 	Verbose    bool
 	WpmPath    string
+	LogPath    string
 }
 
-// Package information
 type PackageInfo struct {
 	Name          string
 	Type          string
 	Path          string
 	TagsPath      string
+	SvnTags       []string
 	LatestVersion string
-	Tags          []string
 }
 
-// Migration result
+type TagManifest struct {
+	Status        string    `json:"status"`
+	PublishedAt   time.Time `json:"published_at,omitempty"`
+	PublishTag    string    `json:"publish_tag,omitempty"`
+	Error         string    `json:"error,omitempty"`
+	Retryable     bool      `json:"retryable"`
+	LastAttempt   time.Time `json:"last_attempt,omitempty"`
+	WpmInitLog    string    `json:"wpm_init_log,omitempty"`
+	WpmPublishLog string    `json:"wpm_publish_log,omitempty"`
+}
+
+type PackageManifest struct {
+	PackageName     string                 `json:"package_name"`
+	Type            string                 `json:"type"`
+	Qualified       bool                   `json:"qualified"`
+	ApiLookupDone   bool                   `json:"api_lookup_done"`
+	ApiError        string                 `json:"api_error,omitempty"`
+	LatestWpVersion string                 `json:"latest_wp_version"`
+	TotalSvnTags    int                    `json:"total_svn_tags"`
+	LastSvnSync     time.Time              `json:"last_svn_sync"`
+	LastUpdated     time.Time              `json:"last_updated"`
+	Tags            map[string]TagManifest `json:"tags"`
+	path            string                 `json:"-"`
+}
+
 type MigrationResult struct {
-	PackageName string
-	Success     bool
-	Error       error
-	Duration    time.Duration
-	TagsCount   int
+	PackageName             string
+	IsQualified             bool
+	QualificationReason     string
+	SvnTagsCount            int
+	TagsProcessedThisRun    int
+	TagsSucceededThisRun    int
+	TagsFailedThisRun       int
+	TagsSkippedSuccess      int
+	TagsSkippedNonRetryable int
+	Error                   error
+	Duration                time.Duration
 }
 
-// WordPress API response
 type APIResponse struct {
 	Version string `json:"version"`
 }
 
+// FileHook enables dual logging: structured JSON to file, readable text to stdout
+type FileHook struct {
+	file      *os.File
+	formatter logrus.Formatter
+	levels    []logrus.Level
+}
+
+func NewFileHook(filePath string, formatter logrus.Formatter, levels []logrus.Level) (*FileHook, error) {
+	logDir := filepath.Dir(filePath)
+	if err := os.MkdirAll(logDir, 0755); err != nil {
+		return nil, errors.Wrapf(err, "failed to create log directory: %s", logDir)
+	}
+
+	file, err := os.OpenFile(filePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to open log file: %s", filePath)
+	}
+
+	return &FileHook{file: file, formatter: formatter, levels: levels}, nil
+}
+
+func (hook *FileHook) Fire(entry *logrus.Entry) error {
+	lineBytes, err := hook.formatter.Format(entry)
+	if err != nil {
+		return err
+	}
+	_, err = hook.file.Write(lineBytes)
+	return err
+}
+
+func (hook *FileHook) Levels() []logrus.Level {
+	if len(hook.levels) == 0 {
+		return logrus.AllLevels
+	}
+	return hook.levels
+}
+
+func setupLogger(logLevel logrus.Level, jsonLogFilePath string, verbose bool) error {
+	log.SetOutput(os.Stdout)
+	log.SetLevel(logLevel)
+
+	if verbose {
+		log.SetFormatter(&logrus.TextFormatter{
+			FullTimestamp:   true,
+			TimestampFormat: "2006-01-02 15:04:05.000",
+			ForceColors:     true,
+		})
+	} else {
+		log.SetFormatter(&logrus.TextFormatter{
+			TimestampFormat: "15:04:05",
+			ForceColors:     true,
+		})
+	}
+
+	if jsonLogFilePath != "" {
+		fileHook, err := NewFileHook(jsonLogFilePath, &logrus.JSONFormatter{
+			TimestampFormat: time.RFC3339Nano,
+		}, logrus.AllLevels)
+
+		if err != nil {
+			log.WithError(err).Errorf("❌ failed to initialize file logging: %s", jsonLogFilePath)
+		} else {
+			log.AddHook(fileHook)
+			log.Infof("📝 logging: text to stdout, json to %s", jsonLogFilePath)
+		}
+	} else {
+		log.Info("📝 logging: text to stdout only")
+	}
+
+	return nil
+}
+
+// normalizeVersion handles version strings with more than 3 dot-separated parts
 func normalizeVersion(version string) (string, error) {
 	if version == "" {
 		return "", errors.New("version cannot be empty")
@@ -86,7 +199,53 @@ func normalizeVersion(version string) (string, error) {
 	return v.String(), nil
 }
 
-func fetchLatestVersion(ctx context.Context, packageName, repoType string) (string, error) {
+func getManifestPath(packageRootPath string) string {
+	return filepath.Join(packageRootPath, manifestFileName)
+}
+
+func loadManifest(manifestPath string) (*PackageManifest, error) {
+	data, err := os.ReadFile(manifestPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, os.ErrNotExist
+		}
+		return nil, errors.Wrapf(err, "failed to read manifest: %s", manifestPath)
+	}
+
+	var manifest PackageManifest
+	if err := json.Unmarshal(data, &manifest); err != nil {
+		return nil, errors.Wrapf(err, "failed to unmarshal manifest: %s", manifestPath)
+	}
+
+	manifest.path = manifestPath
+	if manifest.Tags == nil {
+		manifest.Tags = make(map[string]TagManifest)
+	}
+
+	return &manifest, nil
+}
+
+func saveManifest(manifest *PackageManifest) error {
+	manifest.LastUpdated = time.Now()
+	data, err := json.MarshalIndent(manifest, "", "  ")
+	if err != nil {
+		return errors.Wrap(err, "failed to marshal manifest")
+	}
+
+	if manifest.path == "" {
+		return errors.New("manifest path is not set")
+	}
+
+	if err := os.MkdirAll(filepath.Dir(manifest.path), 0755); err != nil {
+		return errors.Wrapf(err, "failed to create directory for manifest: %s", manifest.path)
+	}
+
+	return os.WriteFile(manifest.path, data, 0644)
+}
+
+func fetchLatestVersion(ctx context.Context, packageName, repoType string) (version string, statusCode int, err error) {
+	l := log.WithFields(logrus.Fields{"package": packageName, "action": "api_lookup"})
+
 	var apiURL string
 	if repoType == "theme" {
 		apiURL = fmt.Sprintf("https://api.wordpress.org/themes/info/1.2/?action=theme_information&slug=%s", packageName)
@@ -94,287 +253,501 @@ func fetchLatestVersion(ctx context.Context, packageName, repoType string) (stri
 		apiURL = fmt.Sprintf("https://api.wordpress.org/plugins/info/1.2/?action=plugin_information&slug=%s", packageName)
 	}
 
+	l.Debugf("fetching from: %s", apiURL)
+
 	req, err := http.NewRequestWithContext(ctx, "GET", apiURL, nil)
 	if err != nil {
-		return "", err
+		return "", 0, errors.Wrap(err, "failed to create API request")
 	}
 
 	resp, err := httpClient.Do(req)
 	if err != nil {
-		return "", err
+		return "", 0, errors.Wrap(err, "API request failed")
 	}
 	defer resp.Body.Close()
 
+	bodyBytes, readErr := io.ReadAll(resp.Body)
+	if readErr != nil {
+		l.WithError(readErr).Warn("could not read api response body")
+	}
+
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("API returned status code %d", resp.StatusCode)
+		return "", resp.StatusCode, fmt.Errorf("api returned status %d. body: %s", resp.StatusCode, string(bodyBytes))
 	}
 
 	var apiResp APIResponse
-	if err := json.NewDecoder(resp.Body).Decode(&apiResp); err != nil {
-		return "", err
+	if err := json.Unmarshal(bodyBytes, &apiResp); err != nil {
+		return "", resp.StatusCode, errors.Wrapf(err, "failed to decode api response. body: %s", string(bodyBytes))
 	}
 
-	return apiResp.Version, nil
+	if apiResp.Version == "" {
+		return "", resp.StatusCode, fmt.Errorf("api response has no version. body: %s", string(bodyBytes))
+	}
+
+	l.Debugf("✅ fetched version: %s", apiResp.Version)
+	return apiResp.Version, resp.StatusCode, nil
 }
 
-func getPackageTags(tagsPath string) ([]string, error) {
+func getPackageSvnTags(tagsPath string) ([]string, error) {
+	l := log.WithField("tags_path", tagsPath)
 	entries, err := os.ReadDir(tagsPath)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrapf(err, "failed to read tags directory: %s", tagsPath)
 	}
 
-	var tags []string
+	var validRawTags []string
 	for _, entry := range entries {
 		if entry.IsDir() {
-			if _, err := normalizeVersion(entry.Name()); err == nil {
-				tags = append(tags, entry.Name())
+			dirName := entry.Name()
+			if strings.HasPrefix(dirName, ".") {
+				l.Debugf("skipping dot-directory: %s", dirName)
+				continue
+			}
+
+			if _, normErr := normalizeVersion(dirName); normErr == nil {
+				validRawTags = append(validRawTags, dirName)
+			} else {
+				l.Debugf("skipping invalid version '%s': %v", dirName, normErr)
 			}
 		}
 	}
 
-	return tags, nil
+	l.Debugf("found %d valid tag directories", len(validRawTags))
+	return validRawTags, nil
 }
 
-func runWpmCommand(ctx context.Context, wpmPath string, args []string, workDir string, logFile *os.File) error {
+func runWpmCommand(ctx context.Context, l *logrus.Entry, wpmPath string, args []string, workDir string) (string, error) {
 	cmd := exec.CommandContext(ctx, wpmPath, args...)
 	cmd.Dir = workDir
 
-	// Log the command being executed
-	fmt.Fprintf(logFile, "[%s] Executing: %s %s\n", time.Now().Format("2006-01-02 15:04:05"), wpmPath, strings.Join(args, " "))
-	fmt.Fprintf(logFile, "Working directory: %s\n", workDir)
+	commandStr := fmt.Sprintf("%s %s", wpmPath, strings.Join(args, " "))
+	l.WithFields(logrus.Fields{
+		"command": commandStr,
+		"workdir": workDir,
+	}).Info("🔧 executing wpm command")
 
-	// Capture output
-	output, err := cmd.CombinedOutput()
-	fmt.Fprintf(logFile, "Command output:\n%s\n", string(output))
+	outputBytes, err := cmd.CombinedOutput()
+	outputStr := string(outputBytes)
+
+	l.WithField("output", outputStr).Debug("wpm command output")
 
 	if err != nil {
-		// Check if it was a timeout
-		if ctx.Err() == context.DeadlineExceeded {
-			fmt.Fprintf(logFile, "Command timed out after timeout period\n")
-			return fmt.Errorf("wpm command timed out")
+		exitCode := -1
+		if cmd.ProcessState != nil {
+			exitCode = cmd.ProcessState.ExitCode()
 		}
 
-		fmt.Fprintf(logFile, "Command failed with error: %v\n", err)
-		if cmd.ProcessState != nil {
-			fmt.Fprintf(logFile, "Exit code: %d\n", cmd.ProcessState.ExitCode())
+		l.WithFields(logrus.Fields{
+			"exit_code": exitCode,
+			"output":    outputStr,
+		}).WithError(err).Error("❌ wpm command failed")
+
+		if ctx.Err() == context.DeadlineExceeded {
+			return outputStr, errors.New("wpm command timed out")
 		}
-		return fmt.Errorf("wpm command failed: %w", err)
+		return outputStr, errors.Wrapf(err, "wpm command failed. output: %s", outputStr)
 	}
 
-	fmt.Fprintf(logFile, "Command completed successfully\n")
-	return nil
+	l.Info("✅ wpm command completed")
+	return outputStr, nil
 }
 
-func migratePackage(ctx context.Context, pkg *PackageInfo, config *Config) *MigrationResult {
+func migratePackage(ctx context.Context, pkgInfo *PackageInfo, manifest *PackageManifest, config *Config) *MigrationResult {
 	start := time.Now()
+	l := log.WithFields(logrus.Fields{
+		"package": pkgInfo.Name,
+		"type":    pkgInfo.Type,
+		"action":  "migrate",
+	})
+
 	result := &MigrationResult{
-		PackageName: pkg.Name,
-		TagsCount:   len(pkg.Tags),
+		PackageName:         pkgInfo.Name,
+		IsQualified:         manifest.Qualified,
+		QualificationReason: manifest.ApiError,
+		SvnTagsCount:        len(pkgInfo.SvnTags),
 	}
 
-	// Create log file
-	logPath := filepath.Join(pkg.Path, "migrate.log")
-	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
-	if err != nil {
-		result.Error = fmt.Errorf("failed to create log file: %w", err)
+	if manifest.Qualified {
+		result.QualificationReason = "OK"
+	}
+
+	l.WithFields(logrus.Fields{
+		"tags_path":      pkgInfo.TagsPath,
+		"tags_count":     len(pkgInfo.SvnTags),
+		"qualified":      manifest.Qualified,
+		"api_done":       manifest.ApiLookupDone,
+		"api_error":      manifest.ApiError,
+		"latest_version": manifest.LatestWpVersion,
+		"tag_timeout":    config.TagTimeout.Seconds(),
+		"dry_run":        config.DryRun,
+	}).Info("🚀 starting package migration")
+
+	if !manifest.Qualified && manifest.ApiLookupDone {
+		l.Infof("⏭️  package not qualified (%s). skipping tags.", manifest.ApiError)
+		if err := saveManifest(manifest); err != nil {
+			l.WithError(err).Error("failed to save manifest for non-qualified package")
+			result.Error = errors.Wrapf(err, "failed to save manifest for %s", pkgInfo.Name)
+		}
 		result.Duration = time.Since(start)
 		return result
 	}
-	defer logFile.Close()
 
-	// Write log header
-	fmt.Fprintf(logFile, "========================================\n")
-	fmt.Fprintf(logFile, "WordPress Package Migration Log\n")
-	fmt.Fprintf(logFile, "========================================\n")
-	fmt.Fprintf(logFile, "Package: %s\n", pkg.Name)
-	fmt.Fprintf(logFile, "Type: %s\n", pkg.Type)
-	fmt.Fprintf(logFile, "Path: %s\n", pkg.Path)
-	fmt.Fprintf(logFile, "Tags Path: %s\n", pkg.TagsPath)
-	fmt.Fprintf(logFile, "Latest Version: %s\n", pkg.LatestVersion)
-	fmt.Fprintf(logFile, "Total Tags: %d\n", len(pkg.Tags))
-	fmt.Fprintf(logFile, "Tag Timeout: %v\n", config.TagTimeout)
-	fmt.Fprintf(logFile, "Started at: %s\n", time.Now().Format("2006-01-02 15:04:05"))
-	fmt.Fprintf(logFile, "========================================\n\n")
+	for i, rawVersionName := range pkgInfo.SvnTags {
+		tagLogger := l.WithFields(logrus.Fields{
+			"tag":   rawVersionName,
+			"index": fmt.Sprintf("%d/%d", i+1, len(pkgInfo.SvnTags)),
+		})
 
-	// Process each tag/version
-	var failedTags []string
-	var successfulTags []string
+		tagLogger.Info("🏷️  processing tag")
 
-	for i, version := range pkg.Tags {
-		fmt.Fprintf(logFile, "--- Processing Version %s (%d/%d) ---\n", version, i+1, len(pkg.Tags))
+		tagManifestEntry, entryExists := manifest.Tags[rawVersionName]
 
-		// we only run migration for 5 minutes per tag
-		// because there are thousand of tags in whole svn repository
-		tagCtx, cancel := context.WithTimeout(ctx, config.TagTimeout)
-
-		tagPath := filepath.Join(pkg.TagsPath, version)
-
-		// Check if tag directory exists
-		if _, err := os.Stat(tagPath); os.IsNotExist(err) {
-			fmt.Fprintf(logFile, "ERROR: Tag directory not found: %s\n", tagPath)
-			fmt.Fprintf(logFile, "Skipping version %s\n\n", version)
-			failedTags = append(failedTags, fmt.Sprintf("%s (directory not found)", version))
-			cancel()
-			continue
-		}
-
-		// Run wpm init --migrate
-		initArgs := []string{
-			"--cwd", tagPath,
-			"init",
-			"--migrate",
-			"--name", pkg.Name,
-			"--version", version,
-		}
-
-		if err := runWpmCommand(tagCtx, config.WpmPath, initArgs, tagPath, logFile); err != nil {
-			fmt.Fprintf(logFile, "ERROR: Init failed for version %s: %v\n", version, err)
-			fmt.Fprintf(logFile, "Skipping version %s\n\n", version)
-			failedTags = append(failedTags, fmt.Sprintf("%s (init failed)", version))
-			cancel()
-			continue
-		}
-
-		// Determine tag for publish
-		var publishTag string
-		if version == pkg.LatestVersion {
-			publishTag = "latest"
+		if entryExists {
+			if tagManifestEntry.Status == statusSuccess {
+				tagLogger.Info("✅ already migrated successfully")
+				result.TagsSkippedSuccess++
+				continue
+			}
+			if tagManifestEntry.Status == statusFailed && !tagManifestEntry.Retryable {
+				tagLogger.WithField("error", tagManifestEntry.Error).Info("⏭️  failed previously (non-retryable)")
+				result.TagsSkippedNonRetryable++
+				continue
+			}
 		} else {
-			publishTag = "untagged"
+			tagManifestEntry = TagManifest{Status: statusPending}
 		}
 
-		// Run wpm publish
-		publishArgs := []string{
-			"--cwd", tagPath,
-			"publish",
-			"--access", "public",
-			"--tag", publishTag,
-		}
+		result.TagsProcessedThisRun++
+		tagManifestEntry.LastAttempt = time.Now()
+		tagPath := filepath.Join(pkgInfo.TagsPath, rawVersionName)
 
-		if err := runWpmCommand(tagCtx, config.WpmPath, publishArgs, tagPath, logFile); err != nil {
-			fmt.Fprintf(logFile, "ERROR: Publish failed for version %s: %v\n", version, err)
-			fmt.Fprintf(logFile, "Skipping version %s\n\n", version)
-			failedTags = append(failedTags, fmt.Sprintf("%s (publish failed)", version))
-			cancel()
+		if _, statErr := os.Stat(tagPath); os.IsNotExist(statErr) {
+			errMsg := fmt.Sprintf("tag directory not found: %s", tagPath)
+			tagLogger.WithField("tag_path", tagPath).Error("❌ " + errMsg)
+			tagManifestEntry.Status = statusFailed
+			tagManifestEntry.Error = errMsg
+			tagManifestEntry.Retryable = false
+			manifest.Tags[rawVersionName] = tagManifestEntry
+			result.TagsFailedThisRun++
+
+			if !config.DryRun {
+				if err := saveManifest(manifest); err != nil {
+					tagLogger.WithError(err).Error("failed to save manifest")
+				}
+			}
 			continue
 		}
 
-		cancel()
-		fmt.Fprintf(logFile, "✓ Successfully migrated version %s with tag '%s'\n\n", version, publishTag)
-		successfulTags = append(successfulTags, version)
+		versionForWpmCommand := rawVersionName
+
+		if config.DryRun {
+			tagLogger.WithField("wpm_version", versionForWpmCommand).Info("🔍 dry run: would migrate")
+			continue
+		}
+
+		tagCtx, cancelTag := context.WithTimeout(ctx, config.TagTimeout)
+
+		// wpm init
+		initArgs := []string{"--cwd", tagPath, "init", "--migrate", "--name", pkgInfo.Name, "--version", versionForWpmCommand}
+		initOutput, initErr := runWpmCommand(tagCtx, tagLogger.WithField("cmd", "init"), config.WpmPath, initArgs, tagPath)
+		tagManifestEntry.WpmInitLog = initOutput
+
+		if initErr != nil {
+			errStr := initErr.Error()
+			if strings.Contains(initOutput, wpmOutputAlreadyExists) || strings.Contains(errStr, wpmOutputAlreadyExists) {
+				tagLogger.Info("✅ wpm init: already exists, continuing")
+				tagManifestEntry.Error = ""
+			} else {
+				tagManifestEntry.Error = fmt.Sprintf("init failed: %s", errStr)
+				if strings.Contains(errStr, wpmErrorInitNoPluginMainFile) || strings.Contains(errStr, wpmErrorInitVersionMismatch) {
+					tagLogger.WithError(initErr).Error("❌ wpm init failed (non-retryable)")
+					tagManifestEntry.Status = statusFailed
+					tagManifestEntry.Retryable = false
+				} else {
+					tagLogger.WithError(initErr).Error("❌ wpm init failed (retryable)")
+					tagManifestEntry.Status = statusFailed
+					tagManifestEntry.Retryable = true
+				}
+				cancelTag()
+				manifest.Tags[rawVersionName] = tagManifestEntry
+				result.TagsFailedThisRun++
+				if err := saveManifest(manifest); err != nil {
+					tagLogger.WithError(err).Error("failed to save manifest after init fail")
+				}
+				continue
+			}
+		} else {
+			tagLogger.Info("✅ wpm init successful")
+			tagManifestEntry.Error = ""
+		}
+
+		// wpm publish
+		publishCmdTag := "untagged"
+		if rawVersionName == manifest.LatestWpVersion {
+			publishCmdTag = "latest"
+		}
+		tagManifestEntry.PublishTag = publishCmdTag
+
+		publishArgs := []string{"--cwd", tagPath, "publish", "--access", "public", "--tag", publishCmdTag}
+		publishOutput, publishErr := runWpmCommand(tagCtx, tagLogger.WithField("cmd", "publish"), config.WpmPath, publishArgs, tagPath)
+		tagManifestEntry.WpmPublishLog = publishOutput
+
+		if publishErr != nil {
+			errStr := publishErr.Error()
+			tagManifestEntry.Error = fmt.Sprintf("publish failed: %s", errStr)
+			if strings.Contains(publishOutput, wpmOutputAlreadyExists) || strings.Contains(errStr, wpmOutputAlreadyExists) {
+				tagLogger.Info("✅ wpm publish: already published")
+				tagManifestEntry.Status = statusSuccess
+				tagManifestEntry.PublishedAt = time.Now()
+				tagManifestEntry.Error = ""
+				tagManifestEntry.Retryable = false
+			} else {
+				tagLogger.WithError(publishErr).Error("❌ wpm publish failed (retryable)")
+				tagManifestEntry.Status = statusFailed
+				tagManifestEntry.Retryable = true
+			}
+		} else {
+			tagLogger.WithField("publish_tag", publishCmdTag).Info("🎉 successfully migrated")
+			tagManifestEntry.Status = statusSuccess
+			tagManifestEntry.PublishedAt = time.Now()
+			tagManifestEntry.Error = ""
+			tagManifestEntry.Retryable = false
+		}
+
+		cancelTag()
+
+		manifest.Tags[rawVersionName] = tagManifestEntry
+
+		switch tagManifestEntry.Status {
+		case statusSuccess:
+			result.TagsSucceededThisRun++
+		case statusFailed:
+			result.TagsFailedThisRun++
+		}
+
+		if err := saveManifest(manifest); err != nil {
+			errMsg := fmt.Sprintf("critical: failed to save manifest after processing %s", rawVersionName)
+			tagLogger.WithError(err).Error(errMsg)
+			result.Error = errors.New(errMsg)
+			result.Duration = time.Since(start)
+			return result
+		}
+
+		tagLogger.Info("✅ finished processing tag")
 	}
 
-	// Summary in log
-	fmt.Fprintf(logFile, "========================================\n")
-	fmt.Fprintf(logFile, "PACKAGE MIGRATION SUMMARY\n")
-	fmt.Fprintf(logFile, "========================================\n")
-	fmt.Fprintf(logFile, "Total versions: %d\n", len(pkg.Tags))
-	fmt.Fprintf(logFile, "Successful: %d\n", len(successfulTags))
-	fmt.Fprintf(logFile, "Failed: %d\n", len(failedTags))
+	l.WithFields(logrus.Fields{
+		"total_tags":     result.SvnTagsCount,
+		"attempted":      result.TagsProcessedThisRun,
+		"succeeded":      result.TagsSucceededThisRun,
+		"failed":         result.TagsFailedThisRun,
+		"skipped_ok":     result.TagsSkippedSuccess,
+		"skipped_nonret": result.TagsSkippedNonRetryable,
+		"duration":       time.Since(start).Seconds(),
+	}).Info("📊 package migration summary")
 
-	if len(successfulTags) > 0 {
-		fmt.Fprintf(logFile, "Successful versions: %s\n", strings.Join(successfulTags, ", "))
-	}
-
-	if len(failedTags) > 0 {
-		fmt.Fprintf(logFile, "Failed versions: %s\n", strings.Join(failedTags, ", "))
-	}
-
-	fmt.Fprintf(logFile, "Completed at: %s\n", time.Now().Format("2006-01-02 15:04:05"))
-	fmt.Fprintf(logFile, "Duration: %v\n", time.Since(start))
-
-	if len(successfulTags) == 0 {
-		result.Error = fmt.Errorf("all %d tags failed migration", len(pkg.Tags))
-	} else if len(failedTags) > 0 {
-		result.Success = true
-		fmt.Fprintf(logFile, "PARTIAL SUCCESS: %d/%d tags migrated successfully\n", len(successfulTags), len(pkg.Tags))
-	} else {
-		result.Success = true
-		fmt.Fprintf(logFile, "COMPLETE SUCCESS: All tags migrated successfully\n")
+	if err := saveManifest(manifest); err != nil {
+		l.WithError(err).Error("failed to save manifest at end")
+		if result.Error == nil {
+			result.Error = errors.Wrap(err, "final manifest save failed")
+		}
 	}
 
 	result.Duration = time.Since(start)
 	return result
 }
 
-func processPackage(ctx context.Context, svnRepoPath, repoType, packageName string, config *Config) (*PackageInfo, error) {
-	if !nameReg.MatchString(packageName) {
-		return nil, fmt.Errorf("invalid package name: %s", packageName)
-	}
+func processPackage(ctx context.Context, svnRepoPath, repoType, packageName string, config *Config) (*PackageInfo, *PackageManifest, error) {
+	l := log.WithFields(logrus.Fields{
+		"package": packageName,
+		"type":    repoType,
+		"action":  "process",
+	})
 
-	var tagsPath string
-	packagePath := filepath.Join(svnRepoPath, packageName)
+	l.Info("📦 starting package processing")
 
+	packageRootPath := filepath.Join(svnRepoPath, packageName)
+	var svnTagsDir string
 	if repoType == "theme" {
-		tagsPath = packagePath
+		svnTagsDir = packageRootPath
 	} else {
-		tagsPath = filepath.Join(packagePath, "tags")
+		svnTagsDir = filepath.Join(packageRootPath, "tags")
 	}
 
-	// Check if tags directory exists
-	if _, err := os.Stat(tagsPath); os.IsNotExist(err) {
-		return nil, fmt.Errorf("tags directory not found: %s", tagsPath)
+	if _, err := os.Stat(packageRootPath); os.IsNotExist(err) {
+		l.WithError(err).Error("❌ package directory not found")
+		return nil, nil, fmt.Errorf("package directory not found: %s", packageRootPath)
 	}
 
-	// Fetch latest version from WordPress API
-	// It will also validate if package qualifies as a valid theme/plugin to be migrated
-	// to the wpm registry
-	latestVersion, err := fetchLatestVersion(ctx, packageName, repoType)
+	if _, err := os.Stat(svnTagsDir); os.IsNotExist(err) {
+		if repoType == "plugin" {
+			l.WithField("tags_dir", svnTagsDir).Error("❌ plugin tags directory missing")
+			manifestPath := getManifestPath(packageRootPath)
+			manifest := &PackageManifest{
+				PackageName:   packageName,
+				Type:          repoType,
+				Qualified:     false,
+				ApiLookupDone: true,
+				ApiError:      fmt.Sprintf("plugin tags directory missing: %s", svnTagsDir),
+				Tags:          make(map[string]TagManifest),
+				path:          manifestPath,
+			}
+			if errSave := saveManifest(manifest); errSave != nil {
+				l.WithError(errSave).Error("failed to save manifest")
+				return nil, nil, errors.Wrapf(errSave, "failed to save manifest for %s", packageName)
+			}
+			pkgInfo := &PackageInfo{Name: packageName, Type: repoType, Path: packageRootPath, TagsPath: svnTagsDir, SvnTags: []string{}}
+			return pkgInfo, manifest, nil
+		}
+	}
+
+	manifestPath := getManifestPath(packageRootPath)
+	manifest, err := loadManifest(manifestPath)
+	previousSvnTagCount := 0
+
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch latest version: %w", err)
+		if !os.IsNotExist(err) {
+			l.WithError(err).Error("❌ error loading manifest")
+			return nil, nil, errors.Wrapf(err, "error loading manifest for %s", packageName)
+		}
+
+		l.Info("📝 creating new manifest")
+		manifest = &PackageManifest{
+			PackageName: packageName,
+			Type:        repoType,
+			Tags:        make(map[string]TagManifest),
+			path:        manifestPath,
+		}
+	} else {
+		l.Debug("✅ manifest loaded")
+		previousSvnTagCount = manifest.TotalSvnTags
+		manifest.Type = repoType
 	}
 
-	// Get package tags. In theme its themeName/..tags and in plugin its themeName/tags/...tags
-	tags, err := getPackageTags(tagsPath)
+	currentSvnTags, err := getPackageSvnTags(svnTagsDir)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read tags: %w", err)
+		l.WithError(err).WithField("tags_dir", svnTagsDir).Error("❌ failed to get svn tags")
+		return nil, nil, errors.Wrapf(err, "failed to get svn tags for %s from %s", packageName, svnTagsDir)
 	}
 
-	if len(tags) == 0 {
-		return nil, fmt.Errorf("no valid tags found")
+	manifest.TotalSvnTags = len(currentSvnTags)
+	manifest.LastSvnSync = time.Now()
+	l.Debugf("found %d valid svn tags (previous: %d)", manifest.TotalSvnTags, previousSvnTagCount)
+
+	shouldFetchApi := false
+	if !manifest.ApiLookupDone {
+		shouldFetchApi = true
+		l.Debug("api lookup needed")
+	} else if manifest.Qualified && previousSvnTagCount != manifest.TotalSvnTags {
+		shouldFetchApi = true
+		l.Debug("refreshing api due to tag count change")
+	} else if !manifest.Qualified && manifest.ApiLookupDone &&
+		!strings.Contains(manifest.ApiError, "(404)") &&
+		!strings.Contains(manifest.ApiError, "plugin tags directory missing") {
+		l.Debugf("retrying api lookup: %s", manifest.ApiError)
+		shouldFetchApi = true
 	}
 
-	return &PackageInfo{
+	if shouldFetchApi && !config.DryRun {
+		l.Info("🔍 fetching latest version from wordpress api")
+		latestVersion, statusCode, apiErr := fetchLatestVersion(ctx, packageName, repoType)
+		manifest.ApiLookupDone = true
+
+		if apiErr != nil {
+			errMsg := apiErr.Error()
+			manifest.ApiError = errMsg
+			manifest.Qualified = false
+			manifest.LatestWpVersion = ""
+
+			if statusCode == http.StatusNotFound {
+				manifest.ApiError = fmt.Sprintf("package not found on wordpress.org (%d)", statusCode)
+				l.Info("❌ package not found on wordpress.org (404)")
+			} else {
+				l.WithField("status", statusCode).WithError(apiErr).Warn("⚠️  api error - marking as not qualified")
+			}
+		} else {
+			manifest.LatestWpVersion = latestVersion
+			manifest.Qualified = true
+			manifest.ApiError = ""
+			l.Infof("✅ wordpress api latest version: %s", latestVersion)
+		}
+
+		if errSave := saveManifest(manifest); errSave != nil {
+			l.WithError(errSave).Error("failed to save manifest after api call")
+			return nil, nil, errors.Wrapf(errSave, "failed to save manifest for %s after api call", packageName)
+		}
+	} else if config.DryRun && shouldFetchApi {
+		l.Info("🔍 dry run: would fetch from wordpress api")
+	}
+
+	pkgInfo := &PackageInfo{
 		Name:          packageName,
 		Type:          repoType,
-		Path:          packagePath,
-		TagsPath:      tagsPath,
-		LatestVersion: latestVersion,
-		Tags:          tags,
-	}, nil
+		Path:          packageRootPath,
+		TagsPath:      svnTagsDir,
+		SvnTags:       currentSvnTags,
+		LatestVersion: manifest.LatestWpVersion,
+	}
+
+	if !shouldFetchApi || config.DryRun {
+		if errSave := saveManifest(manifest); errSave != nil {
+			l.WithError(errSave).Error("failed to save manifest")
+			return nil, nil, errors.Wrapf(errSave, "failed to save manifest for %s", packageName)
+		}
+	}
+
+	l.Info("✅ finished package processing")
+	return pkgInfo, manifest, nil
 }
 
 func worker(ctx context.Context, jobs <-chan string, results chan<- *MigrationResult, svnRepoPath string, config *Config, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	for packageName := range jobs {
+		workerLogger := log.WithField("worker_package", packageName)
+
 		select {
 		case <-ctx.Done():
-			results <- &MigrationResult{
-				PackageName: packageName,
-				Error:       ctx.Err(),
-			}
+			workerLogger.WithError(ctx.Err()).Info("⚠️  worker context cancelled")
+			results <- &MigrationResult{PackageName: packageName, Error: ctx.Err()}
 			return
 		default:
-			pkg, err := processPackage(ctx, svnRepoPath, config.RepoType, packageName, config)
+			workerLogger.Info("👷 worker processing package")
+
+			pkgInfo, manifest, err := processPackage(ctx, svnRepoPath, config.RepoType, packageName, config)
 			if err != nil {
+				workerLogger.WithError(err).Error("❌ critical error during package processing")
+				results <- &MigrationResult{PackageName: packageName, Error: err}
+				continue
+			}
+
+			if config.DryRun {
+				workerLogger.WithFields(logrus.Fields{
+					"qualified":      manifest.Qualified,
+					"api_done":       manifest.ApiLookupDone,
+					"api_error":      manifest.ApiError,
+					"valid_tags":     len(pkgInfo.SvnTags),
+					"latest_version": manifest.LatestWpVersion,
+				}).Info("🔍 dry run: package processed")
+
 				results <- &MigrationResult{
-					PackageName: packageName,
-					Error:       err,
+					PackageName:         packageName,
+					IsQualified:         manifest.Qualified,
+					QualificationReason: manifest.ApiError,
+					SvnTagsCount:        len(pkgInfo.SvnTags),
 				}
 				continue
 			}
 
-			// Migrate package
-			result := migratePackage(ctx, pkg, config)
-			results <- result
+			migrationResult := migratePackage(ctx, pkgInfo, manifest, config)
+			results <- migrationResult
+			workerLogger.Info("✅ worker finished processing package")
 		}
 	}
 }
 
-// Cobra command setup
 var rootCmd = &cobra.Command{
-	Use:           "wp-migrate",
+	Use:           "svn-to-wpm",
 	Short:         "svn to wpm migration tool",
 	SilenceUsage:  true,
 	SilenceErrors: true,
@@ -382,15 +755,16 @@ var rootCmd = &cobra.Command{
 
 var migrateCmd = &cobra.Command{
 	Use:   "migrate [repository-path]",
-	Short: "Migrate svn to wpm registry",
+	Short: "migrate from svn to wpm",
 	Args:  cobra.ExactArgs(1),
 	RunE:  runMigrate,
 }
 
 func runMigrate(cmd *cobra.Command, args []string) error {
-	config := &Config{}
+	log.SetOutput(os.Stdout)
+	log.SetFormatter(&logrus.TextFormatter{ForceColors: true, FullTimestamp: true})
 
-	// Get flags
+	config := &Config{}
 	config.RepoPath = args[0]
 	config.RepoType, _ = cmd.Flags().GetString("type")
 	config.MaxWorkers, _ = cmd.Flags().GetInt("workers")
@@ -398,122 +772,244 @@ func runMigrate(cmd *cobra.Command, args []string) error {
 	config.DryRun, _ = cmd.Flags().GetBool("dry-run")
 	config.Verbose, _ = cmd.Flags().GetBool("verbose")
 	config.WpmPath, _ = cmd.Flags().GetString("wpm-path")
+	config.LogPath, _ = cmd.Flags().GetString("log-path")
 
-	// Validate inputs
-	if err := validateConfig(config); err != nil {
+	logLevel := logrus.InfoLevel
+	if config.Verbose {
+		logLevel = logrus.DebugLevel
+	}
+
+	if err := setupLogger(logLevel, config.LogPath, config.Verbose); err != nil {
+		fmt.Fprintf(os.Stderr, "critical: failed to setup logger: %v\n", err)
 		return err
 	}
 
-	// Read packages
-	packages, err := os.ReadDir(config.RepoPath)
-	if err != nil {
-		return fmt.Errorf("failed to read repository directory: %w", err)
+	mainLogger := log.WithField("component", "main")
+	mainLogger.Info("🚀 wordpress migration tool started")
+
+	mainLogger.WithFields(logrus.Fields{
+		"repo_path": config.RepoPath,
+		"repo_type": config.RepoType,
+		"workers":   config.MaxWorkers,
+		"timeout":   config.TagTimeout,
+		"dry_run":   config.DryRun,
+		"verbose":   config.Verbose,
+		"wpm_path":  config.WpmPath,
+		"log_path":  config.LogPath,
+	}).Debug("configuration loaded")
+
+	if err := validateConfig(config); err != nil {
+		mainLogger.WithError(err).Error("❌ invalid configuration")
+		return err
 	}
 
-	// Filter valid packages
-	var packageNames []string
-	for _, pkg := range packages {
-		if pkg.IsDir() {
-			packageNames = append(packageNames, pkg.Name())
+	repoDirEntries, err := os.ReadDir(config.RepoPath)
+	if err != nil {
+		mainLogger.WithError(err).Errorf("❌ failed to read repository directory: %s", config.RepoPath)
+		return fmt.Errorf("failed to read repository directory %s: %w", config.RepoPath, err)
+	}
+
+	var validPackageNames []string
+	var skippedNames []string
+
+	for _, entry := range repoDirEntries {
+		if entry.IsDir() {
+			name := entry.Name()
+			if !nameReg.MatchString(name) {
+				skippedNames = append(skippedNames, name)
+				continue
+			}
+			validPackageNames = append(validPackageNames, name)
 		}
 	}
 
-	if len(packageNames) == 0 {
-		fmt.Println("No packages found in repository")
+	if len(skippedNames) > 0 {
+		mainLogger.WithFields(logrus.Fields{
+			"count":        len(skippedNames),
+			"skipped_dirs": strings.Join(skippedNames, ", "),
+			"name_regex":   nameReg.String(),
+		}).Warn("⚠️  skipped directories with invalid package names")
+	}
+
+	if len(validPackageNames) == 0 {
+		mainLogger.Warn("⚠️  no valid package directories found")
 		return nil
 	}
 
-	fmt.Printf("Found %d package(s) in %s repository\n", len(packageNames), config.RepoType)
+	mainLogger.Infof("📁 found %d valid %s package(s)", len(validPackageNames), config.RepoType)
 
 	if config.DryRun {
-		fmt.Println("\nDry run - packages that would be migrated:")
-		for _, name := range packageNames {
-			fmt.Printf("  - %s\n", name)
-		}
-		return nil
+		mainLogger.Info("🔍 dry run mode enabled - no changes will be made")
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Setup worker pool
-	jobs := make(chan string, len(packageNames))
-	results := make(chan *MigrationResult, len(packageNames))
-
+	jobs := make(chan string, len(validPackageNames))
+	resultsChan := make(chan *MigrationResult, len(validPackageNames))
 	var wg sync.WaitGroup
 
 	numWorkers := config.MaxWorkers
-	if len(packageNames) < numWorkers {
-		numWorkers = len(packageNames)
+	if len(validPackageNames) < numWorkers {
+		numWorkers = len(validPackageNames)
 	}
 
-	fmt.Printf("Starting migration with %d worker(s)...\n", numWorkers)
-	fmt.Printf("Timeout per tag: %v\n", config.TagTimeout)
+	mainLogger.Infof("👷 starting migration: %d packages, %d workers, %v timeout per tag",
+		len(validPackageNames), numWorkers, config.TagTimeout)
 
+	// Start workers
 	for i := 0; i < numWorkers; i++ {
 		wg.Add(1)
-		go worker(ctx, jobs, results, config.RepoPath, config, &wg)
+		go worker(ctx, jobs, resultsChan, config.RepoPath, config, &wg)
 	}
 
+	// Feed jobs
 	go func() {
 		defer close(jobs)
-		for _, name := range packageNames {
+		for _, name := range validPackageNames {
 			select {
 			case jobs <- name:
 			case <-ctx.Done():
+				mainLogger.Info("⚠️  job feeding cancelled")
 				return
 			}
 		}
 	}()
 
+	// Close results when all workers done
 	go func() {
 		wg.Wait()
-		close(results)
+		close(resultsChan)
 	}()
 
 	// Collect results
-	var successCount, errorCount int
-	var totalDuration time.Duration
-	var failedPackages []string
-	var totalTags int
+	var (
+		totalPackagesProcessed, pkgsFullSuccess, pkgsPartialSuccess,
+		pkgsWithTagFails, pkgsNotQualified, pkgsCriticalError int
+		totalSvnTagsScanned, totalTagsAttemptedRun,
+		totalTagsSucceededRun, totalTagsFailedRun int
+		problematicPackages []string
+	)
 
-	for result := range results {
-		if result.Success {
-			if result.Error != nil {
-				fmt.Printf("⚠ %s (%d tags, %.2fs) - some tags failed\n", result.PackageName, result.TagsCount, result.Duration.Seconds())
-			} else {
-				fmt.Printf("✓ %s (%d tags, %.2fs)\n", result.PackageName, result.TagsCount, result.Duration.Seconds())
+	overallStart := time.Now()
+
+	for res := range resultsChan {
+		totalPackagesProcessed++
+		resLogger := mainLogger.WithField("result_package", res.PackageName)
+
+		if res.Error != nil {
+			resLogger.WithError(res.Error).Errorf("💥 critical error (%.2fs)", res.Duration.Seconds())
+			pkgsCriticalError++
+			problematicPackages = append(problematicPackages,
+				fmt.Sprintf("%s (critical error: %v)", res.PackageName, res.Error))
+			continue
+		}
+
+		if config.DryRun {
+			if !res.IsQualified && res.QualificationReason != "OK" && res.QualificationReason != "" {
+				pkgsNotQualified++
 			}
+			continue
+		}
 
-			successCount++
-			totalTags += result.TagsCount
+		totalSvnTagsScanned += res.SvnTagsCount
+		totalTagsAttemptedRun += res.TagsProcessedThisRun
+		totalTagsSucceededRun += res.TagsSucceededThisRun
+		totalTagsFailedRun += res.TagsFailedThisRun
+
+		baseFields := logrus.Fields{
+			"duration":     fmt.Sprintf("%.2fs", res.Duration.Seconds()),
+			"tags_total":   res.SvnTagsCount,
+			"tags_tried":   res.TagsProcessedThisRun,
+			"tags_success": res.TagsSucceededThisRun,
+			"tags_failed":  res.TagsFailedThisRun,
+			"tags_skip_ok": res.TagsSkippedSuccess,
+			"tags_skip_nr": res.TagsSkippedNonRetryable,
+		}
+
+		if !res.IsQualified {
+			resLogger.WithFields(baseFields).WithField("reason", res.QualificationReason).
+				Warn("⚠️  package not qualified")
+			pkgsNotQualified++
+		} else if res.SvnTagsCount == 0 {
+			resLogger.WithFields(baseFields).Info("✅ package qualified, no svn tags")
+			pkgsFullSuccess++
+		} else if res.TagsProcessedThisRun == 0 {
+			resLogger.WithFields(baseFields).Info("✅ all tags already processed")
+			pkgsFullSuccess++
+		} else if res.TagsSucceededThisRun > 0 && res.TagsFailedThisRun == 0 {
+			resLogger.WithFields(baseFields).Info("🎉 all attempted tags migrated successfully")
+			pkgsFullSuccess++
+		} else if res.TagsSucceededThisRun > 0 && res.TagsFailedThisRun > 0 {
+			resLogger.WithFields(baseFields).Warn("⚠️  partial success")
+			pkgsPartialSuccess++
+			problematicPackages = append(problematicPackages,
+				fmt.Sprintf("%s (partial: %d✅ %d❌)", res.PackageName, res.TagsSucceededThisRun, res.TagsFailedThisRun))
+		} else if res.TagsFailedThisRun > 0 && res.TagsSucceededThisRun == 0 {
+			resLogger.WithFields(baseFields).Error("❌ all attempted tags failed")
+			pkgsWithTagFails++
+			problematicPackages = append(problematicPackages,
+				fmt.Sprintf("%s (all %d tags failed)", res.PackageName, res.TagsProcessedThisRun))
 		} else {
-			fmt.Printf("✗ %s: %v\n", result.PackageName, result.Error)
-			errorCount++
-			failedPackages = append(failedPackages, result.PackageName)
+			resLogger.WithFields(baseFields).Error("❓ unhandled status")
+			pkgsWithTagFails++
+			problematicPackages = append(problematicPackages,
+				fmt.Sprintf("%s (unhandled status)", res.PackageName))
 		}
-		totalDuration += result.Duration
 	}
 
-	fmt.Printf("\n=== Migration Summary ===\n")
-	fmt.Printf("Total packages: %d\n", len(packageNames))
-	fmt.Printf("Successfully migrated: %d\n", successCount)
-	fmt.Printf("Failed: %d\n", errorCount)
-	fmt.Printf("Total tags/versions processed: %d\n", totalTags)
-	if len(packageNames) > 0 {
-		fmt.Printf("Success rate: %d%%\n", (successCount*100)/len(packageNames))
+	// Final Summary
+	summaryFields := logrus.Fields{
+		"total_duration":          fmt.Sprintf("%.2fs", time.Since(overallStart).Seconds()),
+		"packages_found":          len(validPackageNames),
+		"packages_processed":      totalPackagesProcessed,
+		"packages_success":        pkgsFullSuccess,
+		"packages_partial":        pkgsPartialSuccess,
+		"packages_tag_fails":      pkgsWithTagFails,
+		"packages_not_qualified":  pkgsNotQualified,
+		"packages_critical_error": pkgsCriticalError,
+		"tags_scanned":            totalSvnTagsScanned,
+		"tags_attempted":          totalTagsAttemptedRun,
+		"tags_succeeded":          totalTagsSucceededRun,
+		"tags_failed":             totalTagsFailedRun,
 	}
-	fmt.Printf("Each package has detailed logs in migrate.log files\n")
 
+	if config.DryRun {
+		mainLogger.WithFields(logrus.Fields{
+			"duration":               fmt.Sprintf("%.2fs", time.Since(overallStart).Seconds()),
+			"packages_found":         len(validPackageNames),
+			"packages_processed":     totalPackagesProcessed,
+			"packages_not_qualified": pkgsNotQualified,
+		}).Info("🔍 dry run summary")
+	} else {
+		mainLogger.WithFields(summaryFields).Info("📊 migration summary")
+	}
+
+	fmt.Println("\n" + strings.Repeat("=", 80))
+	fmt.Println("📄 detailed logs: stdout (text) + log file (json)")
+	fmt.Println("📋 manifest files: [package-dir]/manifest.json")
+	fmt.Println(strings.Repeat("=", 80))
+
+	errorCount := pkgsPartialSuccess + pkgsWithTagFails + pkgsCriticalError
 	if errorCount > 0 {
-		fmt.Printf("\nFailed packages:\n")
-		for _, name := range failedPackages {
-			fmt.Printf("  - %s\n", name)
+		mainLogger.WithField("error_count", errorCount).Error("❌ migration completed with issues")
+
+		if len(problematicPackages) > 0 {
+			fmt.Println("\n🚨 packages requiring attention:")
+			for _, detail := range problematicPackages {
+				fmt.Printf("   • %s\n", detail)
+			}
 		}
-		return fmt.Errorf("%d packages failed migration", errorCount)
+
+		return fmt.Errorf("%d package(s) had issues requiring attention", errorCount)
 	}
 
-	fmt.Printf("\n✓ All packages migrated successfully!\n")
+	if config.DryRun {
+		mainLogger.Info("🔍 dry run completed - no changes made")
+	} else {
+		mainLogger.Info("🎉 migration completed successfully")
+	}
+
 	return nil
 }
 
@@ -532,48 +1028,77 @@ func validateConfig(config *Config) error {
 		return fmt.Errorf("repository type must be 'plugin' or 'theme'")
 	}
 
-	// Validate wpm path
 	if config.WpmPath == "" {
-		if _, err := exec.LookPath("wpm"); err != nil {
-			return fmt.Errorf("wpm command not found in PATH, please specify --wpm-path")
+		foundPath, err := exec.LookPath("wpm")
+		if err != nil {
+			return errors.New("wpm command not found in PATH and --wpm-path not specified")
 		}
-		config.WpmPath = "wpm"
+		config.WpmPath = foundPath
 	} else {
-		if _, err := os.Stat(config.WpmPath); err != nil {
-			return fmt.Errorf("wpm binary not found at path: %s", config.WpmPath)
+		absWpmPath, err := filepath.Abs(config.WpmPath)
+		if err != nil {
+			return fmt.Errorf("could not get absolute path for wpm binary %s: %w", config.WpmPath, err)
 		}
+		if _, err := os.Stat(absWpmPath); err != nil {
+			return fmt.Errorf("wpm binary not found: %s", absWpmPath)
+		}
+		config.WpmPath = absWpmPath
 	}
 
 	if config.MaxWorkers <= 0 {
 		config.MaxWorkers = defaultMaxWorkers
 	}
+
 	if config.TagTimeout <= 0 {
 		config.TagTimeout = defaultTagTimeout
+	}
+
+	if config.LogPath != "" {
+		absLogPath, err := filepath.Abs(config.LogPath)
+		if err != nil {
+			return fmt.Errorf("invalid log path: %w", err)
+		}
+		config.LogPath = absLogPath
+
+		info, err := os.Stat(config.LogPath)
+		if err == nil && info.IsDir() {
+			config.LogPath = filepath.Join(config.LogPath, globalLogFileName)
+		} else if os.IsNotExist(err) {
+			parentDir := filepath.Dir(config.LogPath)
+			if _, err := os.Stat(parentDir); os.IsNotExist(err) {
+				if mkErr := os.MkdirAll(parentDir, 0755); mkErr != nil {
+					return fmt.Errorf("cannot create log directory %s: %w", parentDir, mkErr)
+				}
+			}
+		}
+	} else {
+		config.LogPath = globalLogFileName
 	}
 
 	return nil
 }
 
 func init() {
-	migrateCmd.Flags().StringP("type", "t", "", "Repository type: 'plugin' or 'theme' (required)")
-	migrateCmd.Flags().IntP("workers", "w", defaultMaxWorkers, "Number of parallel workers")
-	migrateCmd.Flags().Duration("tag-timeout", defaultTagTimeout, "Timeout per individual tag migration")
-	migrateCmd.Flags().Bool("dry-run", false, "Show what would be migrated without executing")
-	migrateCmd.Flags().BoolP("verbose", "v", false, "Enable verbose logging")
-	migrateCmd.Flags().String("wpm-path", "", "Path to wpm binary (default: search in PATH)")
+	migrateCmd.Flags().StringP("type", "t", "", "repository type: 'plugin' or 'theme' (required)")
+	migrateCmd.Flags().IntP("workers", "w", defaultMaxWorkers, "number of parallel workers")
+	migrateCmd.Flags().Duration("tag-timeout", defaultTagTimeout, "timeout per tag migration")
+	migrateCmd.Flags().Bool("dry-run", false, "simulate migration without making changes")
+	migrateCmd.Flags().BoolP("verbose", "v", false, "enable verbose (debug) logging")
+	migrateCmd.Flags().String("wpm-path", "", "path to wpm binary (if not in PATH)")
+	migrateCmd.Flags().String("log-path", "", fmt.Sprintf("path to json log file (default: ./%s)", globalLogFileName))
 
-	err := migrateCmd.MarkFlagRequired("type")
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error marking 'type' flag as required: %v\n", err)
-		os.Exit(1)
+	if err := migrateCmd.MarkFlagRequired("type"); err != nil {
+		logrus.WithError(err).Fatal("internal error marking 'type' flag required")
 	}
 
 	rootCmd.AddCommand(migrateCmd)
 }
 
 func main() {
+	logrus.SetFormatter(&logrus.TextFormatter{ForceColors: true, FullTimestamp: true})
+	logrus.SetOutput(os.Stderr)
+
 	if err := rootCmd.Execute(); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
+		logrus.WithError(err).Fatal("failed to execute command")
 	}
 }
