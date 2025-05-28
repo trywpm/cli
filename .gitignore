@@ -35,3 +35,8 @@ wpm.json
 # test theme and plugin dir
 amp
 astra
+wp-plugins
+wp-themes
+
+# misc
+wpm.todo
