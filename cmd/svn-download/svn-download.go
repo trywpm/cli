@@ -595,36 +595,19 @@ func runDownload(cmd *cobra.Command, args []string) error {
 	mainLogger := log.WithField("component", "main")
 	mainLogger.Info("🚀 wordpress svn downloader started")
 
-	if cfg.PackageType != "theme" && cfg.PackageType != "plugin" {
-		return errors.New("--type must be 'theme' or 'plugin'")
-	}
+	mainLogger.WithFields(logrus.Fields{
+		"package_type": cfg.PackageType,
+		"output_dir":   cfg.OutputDir,
+		"workers":      cfg.NumWorkers,
+		"limit":        cfg.Limit,
+		"verbose":      cfg.Verbose,
+		"log_path":     cfg.LogPath,
+	}).Debug("configuration loaded")
 
-	if cfg.PackageType == "theme" {
-		cfg.SvnRepoURL = "https://themes.svn.wordpress.org"
-	} else {
-		cfg.SvnRepoURL = "https://plugins.svn.wordpress.org"
-	}
-
-	if cfg.OutputDir == "" {
-		cfg.OutputDir = filepath.Join(".", "wp-content", cfg.PackageType+"s")
-	}
-
-	absOutputDir, err := filepath.Abs(cfg.OutputDir)
-	if err != nil {
-		return errors.Wrapf(err, "failed to get absolute path for output directory: %s", cfg.OutputDir)
-	}
-	cfg.OutputDir = absOutputDir
-
-	if err := os.MkdirAll(cfg.OutputDir, 0755); err != nil {
-		return errors.Wrapf(err, "failed to create output directory: %s", cfg.OutputDir)
-	}
-	mainLogger.Infof("📁 output directory: %s", cfg.OutputDir)
-
-	if err := checkSVNInstalled(); err != nil {
-		mainLogger.WithError(err).Error("❌ svn installation check failed")
+	if err := validateConfig(&cfg); err != nil {
+		mainLogger.WithError(err).Error("❌ invalid configuration")
 		return err
 	}
-	mainLogger.Info("✅ svn command-line tool found")
 
 	mainLogger.Infof("📄 using manifest file: %s", cfg.ManifestPath)
 	manifest, err := loadDownloaderManifest(cfg.ManifestPath)
@@ -747,6 +730,128 @@ func runDownload(cmd *cobra.Command, args []string) error {
 }
 
 func validateConfig(config *DownloaderConfig) error {
+	// Validate package type
+	if config.PackageType != "theme" && config.PackageType != "plugin" {
+		return errors.New("package type must be 'theme' or 'plugin'")
+	}
+
+	// Set SVN repository URL based on package type
+	if config.PackageType == "theme" {
+		config.SvnRepoURL = "https://themes.svn.wordpress.org"
+	} else {
+		config.SvnRepoURL = "https://plugins.svn.wordpress.org"
+	}
+
+	// Validate and setup output directory
+	if config.OutputDir == "" {
+		config.OutputDir = filepath.Join(".", "wp-content", config.PackageType+"s")
+	}
+
+	absOutputDir, err := filepath.Abs(config.OutputDir)
+	if err != nil {
+		return errors.Wrapf(err, "invalid output directory path: %s", config.OutputDir)
+	}
+	config.OutputDir = absOutputDir
+
+	// Create output directory and test write permissions
+	if err := os.MkdirAll(config.OutputDir, 0755); err != nil {
+		return errors.Wrapf(err, "failed to create output directory: %s", config.OutputDir)
+	}
+
+	// Test write permissions by creating a temporary file
+	testFile := filepath.Join(config.OutputDir, ".write_test")
+	if err := os.WriteFile(testFile, []byte("test"), 0644); err != nil {
+		return errors.Wrapf(err, "no write permission for output directory: %s", config.OutputDir)
+	}
+	os.Remove(testFile) // Clean up test file
+
+	log.Infof("📁 output directory: %s", config.OutputDir)
+
+	// Check SVN installation
+	if err := checkSVNInstalled(); err != nil {
+		return errors.Wrap(err, "svn installation check failed")
+	}
+	log.Info("✅ svn command-line tool found")
+
+	// Test SVN repository connectivity
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	log.Infof("🔗 testing connectivity to svn repository: %s", config.SvnRepoURL)
+	cmd := exec.CommandContext(ctx, "svn", "info", config.SvnRepoURL, "--non-interactive")
+	if err := cmd.Run(); err != nil {
+		return errors.Wrapf(err, "failed to connect to svn repository: %s", config.SvnRepoURL)
+	}
+	log.Info("✅ svn repository connectivity confirmed")
+
+	// Test WordPress API connectivity
+	log.Info("🌐 testing connectivity to wordpress api...")
+	ctx2, cancel2 := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel2()
+
+	var testAPIURL string
+	if config.PackageType == "theme" {
+		testAPIURL = "https://api.wordpress.org/themes/info/1.2/?action=theme_information&slug=twentytwentyfour"
+	} else {
+		testAPIURL = "https://api.wordpress.org/plugins/info/1.2/?action=plugin_information&slug=hello-dolly"
+	}
+
+	req, err := http.NewRequestWithContext(ctx2, "GET", testAPIURL, nil)
+	if err != nil {
+		return errors.Wrap(err, "failed to create test api request")
+	}
+
+	resp, err := downloaderHttpClient.Do(req)
+	if err != nil {
+		return errors.Wrapf(err, "failed to connect to wordpress api: %s", testAPIURL)
+	}
+	resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("wordpress api returned status %d, expected 200", resp.StatusCode)
+	}
+	log.Info("✅ wordpress api connectivity confirmed")
+
+	// Validate workers count
+	if config.NumWorkers <= 0 {
+		config.NumWorkers = defaultDownloaderWorkers
+		log.Infof("⚠️ invalid workers count, using default: %d", defaultDownloaderWorkers)
+	}
+	if config.NumWorkers > 50 {
+		return errors.New("workers count cannot exceed 50 (to prevent overwhelming the svn server)")
+	}
+
+	// Validate limit
+	if config.Limit < 0 {
+		config.Limit = 0
+		log.Warn("⚠️ negative limit not allowed, using 0 (no limit)")
+	}
+
+	// Validate and setup manifest path
+	if config.ManifestPath == "" {
+		config.ManifestPath = defaultDownloaderManifestFile
+	}
+
+	absManifestPath, err := filepath.Abs(config.ManifestPath)
+	if err != nil {
+		return errors.Wrapf(err, "invalid manifest path: %s", config.ManifestPath)
+	}
+	config.ManifestPath = absManifestPath
+
+	// Ensure manifest directory exists and is writable
+	manifestDir := filepath.Dir(config.ManifestPath)
+	if err := os.MkdirAll(manifestDir, 0755); err != nil {
+		return errors.Wrapf(err, "failed to create manifest directory: %s", manifestDir)
+	}
+
+	// Test manifest file write permissions
+	testManifest := config.ManifestPath + ".write_test"
+	if err := os.WriteFile(testManifest, []byte("{}"), 0644); err != nil {
+		return errors.Wrapf(err, "no write permission for manifest path: %s", config.ManifestPath)
+	}
+	os.Remove(testManifest) // Clean up test file
+
+	// Validate and setup log path
 	if config.LogPath != "" {
 		absLogPath, err := filepath.Abs(config.LogPath)
 		if err != nil {
@@ -765,6 +870,13 @@ func validateConfig(config *DownloaderConfig) error {
 				}
 			}
 		}
+
+		// Test log file write permissions
+		testLog := config.LogPath + ".write_test"
+		if err := os.WriteFile(testLog, []byte("test"), 0644); err != nil {
+			return errors.Wrapf(err, "no write permission for log path: %s", config.LogPath)
+		}
+		os.Remove(testLog) // Clean up test file
 	} else {
 		config.LogPath = globalLogFileName
 	}
