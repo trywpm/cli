@@ -25,7 +25,7 @@ const (
 	defaultTagTimeout = 5 * time.Minute
 	requestTimeout    = 30 * time.Second
 	manifestFileName  = "manifest.json"
-	globalLogFileName = "wp-migration-activity.log"
+	globalLogFileName = "wpm-migration-activity.log"
 	statusSuccess     = "success"
 	statusFailed      = "failed"
 	statusPending     = "pending"
