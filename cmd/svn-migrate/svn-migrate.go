@@ -567,28 +567,22 @@ func processPackage(ctx context.Context, svnRepoPath, repoType, packageName stri
 	l.Info("📦 starting package processing")
 
 	packageRootPath := filepath.Join(svnRepoPath, packageName)
-	var svnTagsDir string
-	if repoType == "theme" {
-		svnTagsDir = packageRootPath
-	} else {
-		svnTagsDir = filepath.Join(packageRootPath, "tags")
-	}
 
 	if _, err := os.Stat(packageRootPath); os.IsNotExist(err) {
 		l.WithError(err).Error("❌ package directory not found")
 		return nil, nil, fmt.Errorf("package directory not found: %s", packageRootPath)
 	}
 
-	if _, err := os.Stat(svnTagsDir); os.IsNotExist(err) {
+	if _, err := os.Stat(packageRootPath); os.IsNotExist(err) {
 		if repoType == "plugin" {
-			l.WithField("tags_dir", svnTagsDir).Error("❌ plugin tags directory missing")
+			l.WithField("tags_dir", packageRootPath).Error("❌ plugin tags directory missing")
 			manifestPath := getManifestPath(packageRootPath)
 			manifest := &PackageManifest{
 				PackageName:   packageName,
 				Type:          repoType,
 				Qualified:     false,
 				ApiLookupDone: true,
-				ApiError:      fmt.Sprintf("plugin tags directory missing: %s", svnTagsDir),
+				ApiError:      fmt.Sprintf("plugin tags directory missing: %s", packageRootPath),
 				Tags:          make(map[string]TagManifest),
 				path:          manifestPath,
 			}
@@ -596,7 +590,7 @@ func processPackage(ctx context.Context, svnRepoPath, repoType, packageName stri
 				l.WithError(errSave).Error("failed to save manifest")
 				return nil, nil, errors.Wrapf(errSave, "failed to save manifest for %s", packageName)
 			}
-			pkgInfo := &PackageInfo{Name: packageName, Type: repoType, Path: packageRootPath, TagsPath: svnTagsDir, SvnTags: []string{}}
+			pkgInfo := &PackageInfo{Name: packageName, Type: repoType, Path: packageRootPath, TagsPath: packageRootPath, SvnTags: []string{}}
 			return pkgInfo, manifest, nil
 		}
 	}
@@ -624,10 +618,10 @@ func processPackage(ctx context.Context, svnRepoPath, repoType, packageName stri
 		manifest.Type = repoType
 	}
 
-	currentSvnTags, err := getPackageSvnTags(svnTagsDir)
+	currentSvnTags, err := getPackageSvnTags(packageRootPath)
 	if err != nil {
-		l.WithError(err).WithField("tags_dir", svnTagsDir).Error("❌ failed to get svn tags")
-		return nil, nil, errors.Wrapf(err, "failed to get svn tags for %s from %s", packageName, svnTagsDir)
+		l.WithError(err).WithField("tags_dir", packageRootPath).Error("❌ failed to get svn tags")
+		return nil, nil, errors.Wrapf(err, "failed to get svn tags for %s from %s", packageName, packageRootPath)
 	}
 
 	manifest.TotalSvnTags = len(currentSvnTags)
@@ -684,7 +678,7 @@ func processPackage(ctx context.Context, svnRepoPath, repoType, packageName stri
 		Name:          packageName,
 		Type:          repoType,
 		Path:          packageRootPath,
-		TagsPath:      svnTagsDir,
+		TagsPath:      packageRootPath,
 		SvnTags:       currentSvnTags,
 		LatestVersion: manifest.LatestWpVersion,
 	}
