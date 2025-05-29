@@ -747,17 +747,12 @@ func worker(ctx context.Context, jobs <-chan string, results chan<- *MigrationRe
 }
 
 var rootCmd = &cobra.Command{
-	Use:           "svn-to-wpm",
+	Use:           "svn-migrate",
 	Short:         "svn to wpm migration tool",
+	Args:          cobra.ExactArgs(1),
 	SilenceUsage:  true,
 	SilenceErrors: true,
-}
-
-var migrateCmd = &cobra.Command{
-	Use:   "migrate [repository-path]",
-	Short: "migrate from svn to wpm",
-	Args:  cobra.ExactArgs(1),
-	RunE:  runMigrate,
+	RunE:          runMigrate,
 }
 
 func runMigrate(cmd *cobra.Command, args []string) error {
@@ -799,7 +794,6 @@ func runMigrate(cmd *cobra.Command, args []string) error {
 	}).Debug("configuration loaded")
 
 	if err := validateConfig(config); err != nil {
-		mainLogger.WithError(err).Error("❌ invalid configuration")
 		return err
 	}
 
@@ -1079,19 +1073,17 @@ func validateConfig(config *Config) error {
 }
 
 func init() {
-	migrateCmd.Flags().StringP("type", "t", "", "repository type: 'plugin' or 'theme' (required)")
-	migrateCmd.Flags().IntP("workers", "w", defaultMaxWorkers, "number of parallel workers")
-	migrateCmd.Flags().Duration("tag-timeout", defaultTagTimeout, "timeout per tag migration")
-	migrateCmd.Flags().Bool("dry-run", false, "simulate migration without making changes")
-	migrateCmd.Flags().BoolP("verbose", "v", false, "enable verbose (debug) logging")
-	migrateCmd.Flags().String("wpm-path", "", "path to wpm binary (if not in PATH)")
-	migrateCmd.Flags().String("log-path", "", fmt.Sprintf("path to json log file (default: ./%s)", globalLogFileName))
+	rootCmd.Flags().StringP("type", "t", "", "repository type: 'plugin' or 'theme' (required)")
+	rootCmd.Flags().IntP("workers", "w", defaultMaxWorkers, "number of parallel workers")
+	rootCmd.Flags().Duration("tag-timeout", defaultTagTimeout, "timeout per tag migration")
+	rootCmd.Flags().Bool("dry-run", false, "simulate migration without making changes")
+	rootCmd.Flags().BoolP("verbose", "v", false, "enable verbose (debug) logging")
+	rootCmd.Flags().String("wpm-path", "", "path to wpm binary (if not in PATH)")
+	rootCmd.Flags().String("log-path", "", fmt.Sprintf("path to json log file (default: ./%s)", globalLogFileName))
 
-	if err := migrateCmd.MarkFlagRequired("type"); err != nil {
-		logrus.WithError(err).Fatal("internal error marking 'type' flag required")
+	if err := rootCmd.MarkFlagRequired("type"); err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "failed to mark 'type' flag as required: %v\n", err)
 	}
-
-	rootCmd.AddCommand(migrateCmd)
 }
 
 func main() {
@@ -1099,6 +1091,7 @@ func main() {
 	logrus.SetOutput(os.Stderr)
 
 	if err := rootCmd.Execute(); err != nil {
-		logrus.WithError(err).Fatal("failed to execute command")
+		_, _ = fmt.Fprintf(os.Stderr, "failed to run command: %v\n", err)
+		os.Exit(1)
 	}
 }
