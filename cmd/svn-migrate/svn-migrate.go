@@ -25,7 +25,7 @@ const (
 	defaultTagTimeout = 5 * time.Minute
 	requestTimeout    = 30 * time.Second
 	manifestFileName  = "manifest.json"
-	globalLogFileName = "wp-migration-activity.log"
+	globalLogFileName = "wpm-migration-activity.log"
 	statusSuccess     = "success"
 	statusFailed      = "failed"
 	statusPending     = "pending"
@@ -567,28 +567,22 @@ func processPackage(ctx context.Context, svnRepoPath, repoType, packageName stri
 	l.Info("📦 starting package processing")
 
 	packageRootPath := filepath.Join(svnRepoPath, packageName)
-	var svnTagsDir string
-	if repoType == "theme" {
-		svnTagsDir = packageRootPath
-	} else {
-		svnTagsDir = filepath.Join(packageRootPath, "tags")
-	}
 
 	if _, err := os.Stat(packageRootPath); os.IsNotExist(err) {
 		l.WithError(err).Error("❌ package directory not found")
 		return nil, nil, fmt.Errorf("package directory not found: %s", packageRootPath)
 	}
 
-	if _, err := os.Stat(svnTagsDir); os.IsNotExist(err) {
+	if _, err := os.Stat(packageRootPath); os.IsNotExist(err) {
 		if repoType == "plugin" {
-			l.WithField("tags_dir", svnTagsDir).Error("❌ plugin tags directory missing")
+			l.WithField("tags_dir", packageRootPath).Error("❌ plugin tags directory missing")
 			manifestPath := getManifestPath(packageRootPath)
 			manifest := &PackageManifest{
 				PackageName:   packageName,
 				Type:          repoType,
 				Qualified:     false,
 				ApiLookupDone: true,
-				ApiError:      fmt.Sprintf("plugin tags directory missing: %s", svnTagsDir),
+				ApiError:      fmt.Sprintf("plugin tags directory missing: %s", packageRootPath),
 				Tags:          make(map[string]TagManifest),
 				path:          manifestPath,
 			}
@@ -596,7 +590,7 @@ func processPackage(ctx context.Context, svnRepoPath, repoType, packageName stri
 				l.WithError(errSave).Error("failed to save manifest")
 				return nil, nil, errors.Wrapf(errSave, "failed to save manifest for %s", packageName)
 			}
-			pkgInfo := &PackageInfo{Name: packageName, Type: repoType, Path: packageRootPath, TagsPath: svnTagsDir, SvnTags: []string{}}
+			pkgInfo := &PackageInfo{Name: packageName, Type: repoType, Path: packageRootPath, TagsPath: packageRootPath, SvnTags: []string{}}
 			return pkgInfo, manifest, nil
 		}
 	}
@@ -624,10 +618,10 @@ func processPackage(ctx context.Context, svnRepoPath, repoType, packageName stri
 		manifest.Type = repoType
 	}
 
-	currentSvnTags, err := getPackageSvnTags(svnTagsDir)
+	currentSvnTags, err := getPackageSvnTags(packageRootPath)
 	if err != nil {
-		l.WithError(err).WithField("tags_dir", svnTagsDir).Error("❌ failed to get svn tags")
-		return nil, nil, errors.Wrapf(err, "failed to get svn tags for %s from %s", packageName, svnTagsDir)
+		l.WithError(err).WithField("tags_dir", packageRootPath).Error("❌ failed to get svn tags")
+		return nil, nil, errors.Wrapf(err, "failed to get svn tags for %s from %s", packageName, packageRootPath)
 	}
 
 	manifest.TotalSvnTags = len(currentSvnTags)
@@ -684,7 +678,7 @@ func processPackage(ctx context.Context, svnRepoPath, repoType, packageName stri
 		Name:          packageName,
 		Type:          repoType,
 		Path:          packageRootPath,
-		TagsPath:      svnTagsDir,
+		TagsPath:      packageRootPath,
 		SvnTags:       currentSvnTags,
 		LatestVersion: manifest.LatestWpVersion,
 	}
@@ -747,17 +741,12 @@ func worker(ctx context.Context, jobs <-chan string, results chan<- *MigrationRe
 }
 
 var rootCmd = &cobra.Command{
-	Use:           "svn-to-wpm",
+	Use:           "svn-migrate",
 	Short:         "svn to wpm migration tool",
+	Args:          cobra.ExactArgs(1),
 	SilenceUsage:  true,
 	SilenceErrors: true,
-}
-
-var migrateCmd = &cobra.Command{
-	Use:   "migrate [repository-path]",
-	Short: "migrate from svn to wpm",
-	Args:  cobra.ExactArgs(1),
-	RunE:  runMigrate,
+	RunE:          runMigrate,
 }
 
 func runMigrate(cmd *cobra.Command, args []string) error {
@@ -799,7 +788,6 @@ func runMigrate(cmd *cobra.Command, args []string) error {
 	}).Debug("configuration loaded")
 
 	if err := validateConfig(config); err != nil {
-		mainLogger.WithError(err).Error("❌ invalid configuration")
 		return err
 	}
 
@@ -1079,19 +1067,17 @@ func validateConfig(config *Config) error {
 }
 
 func init() {
-	migrateCmd.Flags().StringP("type", "t", "", "repository type: 'plugin' or 'theme' (required)")
-	migrateCmd.Flags().IntP("workers", "w", defaultMaxWorkers, "number of parallel workers")
-	migrateCmd.Flags().Duration("tag-timeout", defaultTagTimeout, "timeout per tag migration")
-	migrateCmd.Flags().Bool("dry-run", false, "simulate migration without making changes")
-	migrateCmd.Flags().BoolP("verbose", "v", false, "enable verbose (debug) logging")
-	migrateCmd.Flags().String("wpm-path", "", "path to wpm binary (if not in PATH)")
-	migrateCmd.Flags().String("log-path", "", fmt.Sprintf("path to json log file (default: ./%s)", globalLogFileName))
+	rootCmd.Flags().StringP("type", "t", "", "repository type: 'plugin' or 'theme' (required)")
+	rootCmd.Flags().IntP("workers", "w", defaultMaxWorkers, "number of parallel workers")
+	rootCmd.Flags().Duration("tag-timeout", defaultTagTimeout, "timeout per tag migration")
+	rootCmd.Flags().Bool("dry-run", false, "simulate migration without making changes")
+	rootCmd.Flags().BoolP("verbose", "v", false, "enable verbose (debug) logging")
+	rootCmd.Flags().String("wpm-path", "", "path to wpm binary (if not in PATH)")
+	rootCmd.Flags().String("log-path", "", fmt.Sprintf("path to json log file (default: ./%s)", globalLogFileName))
 
-	if err := migrateCmd.MarkFlagRequired("type"); err != nil {
-		logrus.WithError(err).Fatal("internal error marking 'type' flag required")
+	if err := rootCmd.MarkFlagRequired("type"); err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "failed to mark 'type' flag as required: %v\n", err)
 	}
-
-	rootCmd.AddCommand(migrateCmd)
 }
 
 func main() {
@@ -1099,6 +1085,7 @@ func main() {
 	logrus.SetOutput(os.Stderr)
 
 	if err := rootCmd.Execute(); err != nil {
-		logrus.WithError(err).Fatal("failed to execute command")
+		_, _ = fmt.Fprintf(os.Stderr, "failed to run command: %v\n", err)
+		os.Exit(1)
 	}
 }
