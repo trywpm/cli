@@ -21,14 +21,15 @@ import (
 )
 
 const (
-	defaultMaxWorkers = 5
-	defaultTagTimeout = 5 * time.Minute
-	requestTimeout    = 30 * time.Second
-	manifestFileName  = "manifest.json"
-	globalLogFileName = "wpm-migration-activity.log"
-	statusSuccess     = "success"
-	statusFailed      = "failed"
-	statusPending     = "pending"
+	defaultMaxWorkers           = 5
+	defaultTagTimeout           = 5 * time.Minute
+	requestTimeout              = 30 * time.Second
+	statusSuccess               = "success"
+	statusFailed                = "failed"
+	statusPending               = "pending"
+	manifestFileName            = "manifest.json"
+	globalLogFileName           = "wpm-migration-activity.log"
+	defaultDownloadManifestFile = "svn-download-manifest.json"
 
 	wpmOutputAlreadyExists       = "already exists"
 	wpmErrorInitNoPluginMainFile = "no main plugin file with valid plugin headers"
@@ -42,14 +43,15 @@ var (
 )
 
 type Config struct {
-	RepoPath   string
-	RepoType   string
-	MaxWorkers int
-	TagTimeout time.Duration
-	DryRun     bool
-	Verbose    bool
-	WpmPath    string
-	LogPath    string
+	RepoPath             string
+	RepoType             string
+	MaxWorkers           int
+	TagTimeout           time.Duration
+	DryRun               bool
+	Verbose              bool
+	WpmPath              string
+	LogPath              string
+	DownloadManifestPath string
 }
 
 type PackageInfo struct {
@@ -102,6 +104,17 @@ type MigrationResult struct {
 
 type APIResponse struct {
 	Version string `json:"version"`
+}
+
+// DownloadManifest structures for reading from svn-download-manifest.json
+type DownloadPackageState struct {
+	Status        string `json:"status"`
+	LatestVersion string `json:"latest_version,omitempty"`
+}
+
+type DownloadManifest struct {
+	RepoType string                           `json:"repo_type"`
+	Packages map[string]*DownloadPackageState `json:"packages"`
 }
 
 // FileHook enables dual logging: structured JSON to file, readable text to stdout
@@ -176,6 +189,57 @@ func setupLogger(logLevel logrus.Level, jsonLogFilePath string, verbose bool) er
 	return nil
 }
 
+func loadDownloadManifest(path string) (*DownloadManifest, error) {
+	if path == "" {
+		return nil, nil // No download manifest configured
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			log.Debugf("download manifest not found at %s", path)
+			return nil, nil // File doesn't exist, that's ok
+		}
+		return nil, errors.Wrapf(err, "failed to read download manifest %s", path)
+	}
+
+	var manifest DownloadManifest
+	if err := json.Unmarshal(data, &manifest); err != nil {
+		return nil, errors.Wrapf(err, "failed to unmarshal download manifest %s", path)
+	}
+
+	if manifest.Packages == nil {
+		manifest.Packages = make(map[string]*DownloadPackageState)
+	}
+
+	log.Debugf("loaded download manifest from %s with %d packages", path, len(manifest.Packages))
+	return &manifest, nil
+}
+
+func getVersionFromDownloadManifest(downloadManifest *DownloadManifest, packageName, repoType string) (string, bool) {
+	if downloadManifest == nil {
+		return "", false
+	}
+
+	// Check if manifest is for the same repo type
+	if downloadManifest.RepoType != repoType {
+		log.Debugf("download manifest repo type mismatch: expected %s, got %s", repoType, downloadManifest.RepoType)
+		return "", false
+	}
+
+	pkgState, exists := downloadManifest.Packages[packageName]
+	if !exists {
+		return "", false
+	}
+
+	// Only use version if package was successfully processed and has a version
+	if pkgState.Status == "downloaded" && pkgState.LatestVersion != "" {
+		return pkgState.LatestVersion, true
+	}
+
+	return "", false
+}
+
 // normalizeVersion handles version strings with more than 3 dot-separated parts
 func normalizeVersion(version string) (string, error) {
 	if version == "" {
@@ -243,8 +307,19 @@ func saveManifest(manifest *PackageManifest) error {
 	return os.WriteFile(manifest.path, data, 0644)
 }
 
-func fetchLatestVersion(ctx context.Context, packageName, repoType string) (version string, statusCode int, err error) {
+func fetchLatestVersion(ctx context.Context, packageName, repoType string, downloadManifest *DownloadManifest) (version string, statusCode int, err error) {
 	l := log.WithFields(logrus.Fields{"package": packageName, "action": "api_lookup"})
+
+	// First, try to get version from download manifest
+	if downloadManifest != nil {
+		if manifestVersion, found := getVersionFromDownloadManifest(downloadManifest, packageName, repoType); found {
+			l.Debugf("✅ found version in download manifest: %s", manifestVersion)
+			return manifestVersion, 200, nil // Return 200 to indicate success
+		}
+		l.Debug("version not found in download manifest, falling back to api call")
+	} else {
+		l.Debug("no download manifest available, using api call")
+	}
 
 	var apiURL string
 	if repoType == "theme" {
@@ -284,7 +359,7 @@ func fetchLatestVersion(ctx context.Context, packageName, repoType string) (vers
 		return "", resp.StatusCode, fmt.Errorf("api response has no version. body: %s", string(bodyBytes))
 	}
 
-	l.Debugf("✅ fetched version: %s", apiResp.Version)
+	l.Debugf("✅ fetched version from api: %s", apiResp.Version)
 	return apiResp.Version, resp.StatusCode, nil
 }
 
@@ -557,7 +632,7 @@ func migratePackage(ctx context.Context, pkgInfo *PackageInfo, manifest *Package
 	return result
 }
 
-func processPackage(ctx context.Context, svnRepoPath, repoType, packageName string, config *Config) (*PackageInfo, *PackageManifest, error) {
+func processPackage(ctx context.Context, svnRepoPath, repoType, packageName string, config *Config, downloadManifest *DownloadManifest) (*PackageInfo, *PackageManifest, error) {
 	l := log.WithFields(logrus.Fields{
 		"package": packageName,
 		"type":    repoType,
@@ -644,7 +719,7 @@ func processPackage(ctx context.Context, svnRepoPath, repoType, packageName stri
 
 	if shouldFetchApi && !config.DryRun {
 		l.Info("🔍 fetching latest version from wordpress api")
-		latestVersion, statusCode, apiErr := fetchLatestVersion(ctx, packageName, repoType)
+		latestVersion, statusCode, apiErr := fetchLatestVersion(ctx, packageName, repoType, downloadManifest)
 		manifest.ApiLookupDone = true
 
 		if apiErr != nil {
@@ -694,7 +769,7 @@ func processPackage(ctx context.Context, svnRepoPath, repoType, packageName stri
 	return pkgInfo, manifest, nil
 }
 
-func worker(ctx context.Context, jobs <-chan string, results chan<- *MigrationResult, svnRepoPath string, config *Config, wg *sync.WaitGroup) {
+func worker(ctx context.Context, jobs <-chan string, results chan<- *MigrationResult, svnRepoPath string, config *Config, downloadManifest *DownloadManifest, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	for packageName := range jobs {
@@ -708,7 +783,7 @@ func worker(ctx context.Context, jobs <-chan string, results chan<- *MigrationRe
 		default:
 			workerLogger.Info("👷 worker processing package")
 
-			pkgInfo, manifest, err := processPackage(ctx, svnRepoPath, config.RepoType, packageName, config)
+			pkgInfo, manifest, err := processPackage(ctx, svnRepoPath, config.RepoType, packageName, config, downloadManifest)
 			if err != nil {
 				workerLogger.WithError(err).Error("❌ critical error during package processing")
 				results <- &MigrationResult{PackageName: packageName, Error: err}
@@ -762,6 +837,12 @@ func runMigrate(cmd *cobra.Command, args []string) error {
 	config.Verbose, _ = cmd.Flags().GetBool("verbose")
 	config.WpmPath, _ = cmd.Flags().GetString("wpm-path")
 	config.LogPath, _ = cmd.Flags().GetString("log-path")
+	config.DownloadManifestPath, _ = cmd.Flags().GetString("download-manifest-path")
+
+	if err := validateConfig(config); err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "validation error: %v\n", err)
+		return err
+	}
 
 	logLevel := logrus.InfoLevel
 	if config.Verbose {
@@ -777,18 +858,35 @@ func runMigrate(cmd *cobra.Command, args []string) error {
 	mainLogger.Info("🚀 wordpress migration tool started")
 
 	mainLogger.WithFields(logrus.Fields{
-		"repo_path": config.RepoPath,
-		"repo_type": config.RepoType,
-		"workers":   config.MaxWorkers,
-		"timeout":   config.TagTimeout,
-		"dry_run":   config.DryRun,
-		"verbose":   config.Verbose,
-		"wpm_path":  config.WpmPath,
-		"log_path":  config.LogPath,
+		"repo_path":              config.RepoPath,
+		"repo_type":              config.RepoType,
+		"workers":                config.MaxWorkers,
+		"timeout":                config.TagTimeout,
+		"dry_run":                config.DryRun,
+		"verbose":                config.Verbose,
+		"wpm_path":               config.WpmPath,
+		"log_path":               config.LogPath,
+		"download_manifest_path": config.DownloadManifestPath,
 	}).Debug("configuration loaded")
 
-	if err := validateConfig(config); err != nil {
-		return err
+	// Load download manifest if available
+	var downloadManifest *DownloadManifest
+	if config.DownloadManifestPath != "" {
+		var err error
+		downloadManifest, err = loadDownloadManifest(config.DownloadManifestPath)
+		if err != nil {
+			mainLogger.WithError(err).Warn("⚠️ failed to load download manifest, will use api calls only")
+			downloadManifest = nil
+		} else if downloadManifest != nil {
+			mainLogger.Infof("✅ loaded download manifest with %d packages", len(downloadManifest.Packages))
+			if downloadManifest.RepoType != config.RepoType {
+				mainLogger.Warnf("⚠️ download manifest repo type mismatch: expected %s, got %s", config.RepoType, downloadManifest.RepoType)
+			}
+		} else {
+			mainLogger.Info("📄 download manifest not found, will use api calls only")
+		}
+	} else {
+		mainLogger.Debug("no download manifest path specified, will use api calls only")
 	}
 
 	repoDirEntries, err := os.ReadDir(config.RepoPath)
@@ -848,7 +946,7 @@ func runMigrate(cmd *cobra.Command, args []string) error {
 	// Start workers
 	for i := 0; i < numWorkers; i++ {
 		wg.Add(1)
-		go worker(ctx, jobs, resultsChan, config.RepoPath, config, &wg)
+		go worker(ctx, jobs, resultsChan, config.RepoPath, config, downloadManifest, &wg)
 	}
 
 	// Feed jobs
@@ -1041,6 +1139,11 @@ func validateConfig(config *Config) error {
 		config.TagTimeout = defaultTagTimeout
 	}
 
+	if config.LogPath == "" {
+		config.LogPath = globalLogFileName
+		log.Infof("📝 no log path specified, using default: %s", config.LogPath)
+	}
+
 	if config.LogPath != "" {
 		absLogPath, err := filepath.Abs(config.LogPath)
 		if err != nil {
@@ -1059,8 +1162,24 @@ func validateConfig(config *Config) error {
 				}
 			}
 		}
-	} else {
-		config.LogPath = globalLogFileName
+	}
+
+	if config.DownloadManifestPath == "" {
+		config.DownloadManifestPath = defaultDownloadManifestFile
+		log.Infof("📄 no download manifest path specified, using default: %s", config.DownloadManifestPath)
+	}
+
+	if config.DownloadManifestPath != "" {
+		absDownloadManifestPath, err := filepath.Abs(config.DownloadManifestPath)
+		if err != nil {
+			return fmt.Errorf("invalid download manifest path: %w", err)
+		}
+		config.DownloadManifestPath = absDownloadManifestPath
+
+		// Check if file exists and is readable (optional, so don't error if not found)
+		if _, err := os.Stat(config.DownloadManifestPath); err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("cannot access download manifest path %s: %w", config.DownloadManifestPath, err)
+		}
 	}
 
 	return nil
@@ -1074,6 +1193,7 @@ func init() {
 	rootCmd.Flags().BoolP("verbose", "v", false, "enable verbose (debug) logging")
 	rootCmd.Flags().String("wpm-path", "", "path to wpm binary (if not in PATH)")
 	rootCmd.Flags().String("log-path", "", fmt.Sprintf("path to json log file (default: ./%s)", globalLogFileName))
+	rootCmd.Flags().String("download-manifest-path", "", fmt.Sprintf("path to download manifest file to read versions from (default: ./%s)", defaultDownloadManifestFile))
 
 	if err := rootCmd.MarkFlagRequired("type"); err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "failed to mark 'type' flag as required: %v\n", err)

@@ -238,6 +238,7 @@ func listSVNPackages(ctx context.Context, svnRepoURL string, limit int) ([]strin
 	var packageNames []string
 	scanner := bufio.NewScanner(stdout)
 	count := 0
+	limitReached := false
 
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
@@ -248,20 +249,44 @@ func listSVNPackages(ctx context.Context, svnRepoURL string, limit int) ([]strin
 				count++
 				if limit > 0 && count >= limit {
 					l.Infof("📊 reached limit of %d packages from svn list", limit)
+					limitReached = true
 					break
 				}
 			}
 		}
 	}
 
+	// If we reached the limit, kill the command to prevent hanging
+	if limitReached {
+		l.Debug("terminating svn command after reaching limit")
+		if err := cmd.Process.Kill(); err != nil {
+			l.WithError(err).Debug("failed to kill svn process, will wait normally")
+		}
+
+		// Drain remaining output to prevent blocking
+		go func() {
+			_, _ = io.Copy(io.Discard, stdout)
+		}()
+		go func() {
+			_, _ = io.Copy(io.Discard, stderr)
+		}()
+	}
+
 	var svnErrOutput strings.Builder
-	if _, err := io.Copy(&svnErrOutput, stderr); err != nil {
-		l.WithError(err).Warn("could not read from svn list stderr pipe")
+	if !limitReached {
+		if _, err := io.Copy(&svnErrOutput, stderr); err != nil {
+			l.WithError(err).Warn("could not read from svn list stderr pipe")
+		}
 	}
 
 	if err := cmd.Wait(); err != nil {
-		l.Errorf("❌ svn list command failed. stderr: %s", svnErrOutput.String())
-		return nil, errors.Wrapf(err, "svn list command failed for %s. stderr: %s", svnRepoURL, svnErrOutput.String())
+		// If we killed the process due to limit, don't treat it as an error
+		if limitReached {
+			l.Debug("svn command terminated after reaching limit (expected)")
+		} else {
+			l.Errorf("❌ svn list command failed. stderr: %s", svnErrOutput.String())
+			return nil, errors.Wrapf(err, "svn list command failed for %s. stderr: %s", svnRepoURL, svnErrOutput.String())
+		}
 	}
 
 	if err := scanner.Err(); err != nil {
@@ -359,15 +384,15 @@ func checkoutSVNPackage(ctx context.Context, svnBaseRepoURL, packageName, packag
 		"action":  "svn_checkout",
 	})
 
-	var packageSvnURL, localCheckoutPath string
+	var packageSvnURL string
 
 	if packageType == "theme" {
 		packageSvnURL = fmt.Sprintf("%s/%s", strings.TrimRight(svnBaseRepoURL, "/"), packageName)
-		localCheckoutPath = filepath.Join(outputDir, packageName)
 	} else {
 		packageSvnURL = fmt.Sprintf("%s/%s/tags", strings.TrimRight(svnBaseRepoURL, "/"), packageName)
-		localCheckoutPath = filepath.Join(outputDir, packageName, "tags")
 	}
+
+	localCheckoutPath := filepath.Join(outputDir, packageName)
 
 	parentDirForCheckout := filepath.Dir(localCheckoutPath)
 	if err := os.MkdirAll(parentDirForCheckout, 0755); err != nil {
@@ -582,6 +607,11 @@ func runDownload(cmd *cobra.Command, args []string) error {
 	cfg.Verbose, _ = cmd.Flags().GetBool("verbose")
 	cfg.LogPath, _ = cmd.Flags().GetString("log-path")
 
+	if err := validateConfig(&cfg); err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "validation error: %v\n", err)
+		return err
+	}
+
 	logLevel := logrus.InfoLevel
 	if cfg.Verbose {
 		logLevel = logrus.DebugLevel
@@ -603,11 +633,6 @@ func runDownload(cmd *cobra.Command, args []string) error {
 		"verbose":      cfg.Verbose,
 		"log_path":     cfg.LogPath,
 	}).Debug("configuration loaded")
-
-	if err := validateConfig(&cfg); err != nil {
-		mainLogger.WithError(err).Error("❌ invalid configuration")
-		return err
-	}
 
 	mainLogger.Infof("📄 using manifest file: %s", cfg.ManifestPath)
 	manifest, err := loadDownloaderManifest(cfg.ManifestPath)
@@ -849,7 +874,12 @@ func validateConfig(config *DownloaderConfig) error {
 	if err := os.WriteFile(testManifest, []byte("{}"), 0644); err != nil {
 		return errors.Wrapf(err, "no write permission for manifest path: %s", config.ManifestPath)
 	}
-	os.Remove(testManifest) // Clean up test file
+	os.Remove(testManifest)
+
+	if config.LogPath == "" {
+		config.LogPath = globalLogFileName
+		log.Infof("📝 no log path specified, using default: %s", config.LogPath)
+	}
 
 	// Validate and setup log path
 	if config.LogPath != "" {
@@ -877,8 +907,6 @@ func validateConfig(config *DownloaderConfig) error {
 			return errors.Wrapf(err, "no write permission for log path: %s", config.LogPath)
 		}
 		os.Remove(testLog) // Clean up test file
-	} else {
-		config.LogPath = globalLogFileName
 	}
 
 	return nil
