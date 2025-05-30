@@ -265,10 +265,10 @@ func listSVNPackages(ctx context.Context, svnRepoURL string, limit int) ([]strin
 
 		// Drain remaining output to prevent blocking
 		go func() {
-			io.Copy(io.Discard, stdout)
+			_, _ = io.Copy(io.Discard, stdout)
 		}()
 		go func() {
-			io.Copy(io.Discard, stderr)
+			_, _ = io.Copy(io.Discard, stderr)
 		}()
 	}
 
