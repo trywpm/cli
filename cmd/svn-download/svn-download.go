@@ -238,6 +238,7 @@ func listSVNPackages(ctx context.Context, svnRepoURL string, limit int) ([]strin
 	var packageNames []string
 	scanner := bufio.NewScanner(stdout)
 	count := 0
+	limitReached := false
 
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
@@ -248,20 +249,44 @@ func listSVNPackages(ctx context.Context, svnRepoURL string, limit int) ([]strin
 				count++
 				if limit > 0 && count >= limit {
 					l.Infof("📊 reached limit of %d packages from svn list", limit)
+					limitReached = true
 					break
 				}
 			}
 		}
 	}
 
+	// If we reached the limit, kill the command to prevent hanging
+	if limitReached {
+		l.Debug("terminating svn command after reaching limit")
+		if err := cmd.Process.Kill(); err != nil {
+			l.WithError(err).Debug("failed to kill svn process, will wait normally")
+		}
+
+		// Drain remaining output to prevent blocking
+		go func() {
+			io.Copy(io.Discard, stdout)
+		}()
+		go func() {
+			io.Copy(io.Discard, stderr)
+		}()
+	}
+
 	var svnErrOutput strings.Builder
-	if _, err := io.Copy(&svnErrOutput, stderr); err != nil {
-		l.WithError(err).Warn("could not read from svn list stderr pipe")
+	if !limitReached {
+		if _, err := io.Copy(&svnErrOutput, stderr); err != nil {
+			l.WithError(err).Warn("could not read from svn list stderr pipe")
+		}
 	}
 
 	if err := cmd.Wait(); err != nil {
-		l.Errorf("❌ svn list command failed. stderr: %s", svnErrOutput.String())
-		return nil, errors.Wrapf(err, "svn list command failed for %s. stderr: %s", svnRepoURL, svnErrOutput.String())
+		// If we killed the process due to limit, don't treat it as an error
+		if limitReached {
+			l.Debug("svn command terminated after reaching limit (expected)")
+		} else {
+			l.Errorf("❌ svn list command failed. stderr: %s", svnErrOutput.String())
+			return nil, errors.Wrapf(err, "svn list command failed for %s. stderr: %s", svnRepoURL, svnErrOutput.String())
+		}
 	}
 
 	if err := scanner.Err(); err != nil {
