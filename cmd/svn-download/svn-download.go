@@ -607,6 +607,11 @@ func runDownload(cmd *cobra.Command, args []string) error {
 	cfg.Verbose, _ = cmd.Flags().GetBool("verbose")
 	cfg.LogPath, _ = cmd.Flags().GetString("log-path")
 
+	if err := validateConfig(&cfg); err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "validation error: %v\n", err)
+		return err
+	}
+
 	logLevel := logrus.InfoLevel
 	if cfg.Verbose {
 		logLevel = logrus.DebugLevel
@@ -628,11 +633,6 @@ func runDownload(cmd *cobra.Command, args []string) error {
 		"verbose":      cfg.Verbose,
 		"log_path":     cfg.LogPath,
 	}).Debug("configuration loaded")
-
-	if err := validateConfig(&cfg); err != nil {
-		mainLogger.WithError(err).Error("❌ invalid configuration")
-		return err
-	}
 
 	mainLogger.Infof("📄 using manifest file: %s", cfg.ManifestPath)
 	manifest, err := loadDownloaderManifest(cfg.ManifestPath)
@@ -874,7 +874,12 @@ func validateConfig(config *DownloaderConfig) error {
 	if err := os.WriteFile(testManifest, []byte("{}"), 0644); err != nil {
 		return errors.Wrapf(err, "no write permission for manifest path: %s", config.ManifestPath)
 	}
-	os.Remove(testManifest) // Clean up test file
+	os.Remove(testManifest)
+
+	if config.LogPath == "" {
+		config.LogPath = globalLogFileName
+		log.Infof("📝 no log path specified, using default: %s", config.LogPath)
+	}
 
 	// Validate and setup log path
 	if config.LogPath != "" {
@@ -902,8 +907,6 @@ func validateConfig(config *DownloaderConfig) error {
 			return errors.Wrapf(err, "no write permission for log path: %s", config.LogPath)
 		}
 		os.Remove(testLog) // Clean up test file
-	} else {
-		config.LogPath = globalLogFileName
 	}
 
 	return nil
