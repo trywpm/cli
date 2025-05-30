@@ -359,15 +359,15 @@ func checkoutSVNPackage(ctx context.Context, svnBaseRepoURL, packageName, packag
 		"action":  "svn_checkout",
 	})
 
-	var packageSvnURL, localCheckoutPath string
+	var packageSvnURL string
 
 	if packageType == "theme" {
 		packageSvnURL = fmt.Sprintf("%s/%s", strings.TrimRight(svnBaseRepoURL, "/"), packageName)
-		localCheckoutPath = filepath.Join(outputDir, packageName)
 	} else {
 		packageSvnURL = fmt.Sprintf("%s/%s/tags", strings.TrimRight(svnBaseRepoURL, "/"), packageName)
-		localCheckoutPath = filepath.Join(outputDir, packageName, "tags")
 	}
+
+	localCheckoutPath := filepath.Join(outputDir, packageName)
 
 	parentDirForCheckout := filepath.Dir(localCheckoutPath)
 	if err := os.MkdirAll(parentDirForCheckout, 0755); err != nil {
