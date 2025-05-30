@@ -1139,9 +1139,9 @@ func validateConfig(config *Config) error {
 		config.TagTimeout = defaultTagTimeout
 	}
 
-	// Validate log path if provided
 	if config.LogPath == "" {
-		config.LogPath = globalLogFileName // Default to current directory
+		config.LogPath = globalLogFileName
+		log.Infof("📝 no log path specified, using default: %s", config.LogPath)
 	}
 
 	if config.LogPath != "" {
@@ -1164,9 +1164,9 @@ func validateConfig(config *Config) error {
 		}
 	}
 
-	// Validate download manifest path if provided
 	if config.DownloadManifestPath == "" {
 		config.DownloadManifestPath = defaultDownloadManifestFile
+		log.Infof("📄 no download manifest path specified, using default: %s", config.DownloadManifestPath)
 	}
 
 	if config.DownloadManifestPath != "" {
