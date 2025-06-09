@@ -12,6 +12,7 @@ import (
 	"wpm/pkg/config"
 
 	"github.com/henvic/httpretty"
+	"github.com/klauspost/compress/zstd"
 	"github.com/sirupsen/logrus"
 	"github.com/thlib/go-timezone-local/tzlocal"
 	"golang.org/x/text/transform"
@@ -45,7 +46,6 @@ func NewHTTPClient(opts ClientOptions) (*http.Client, error) {
 	}
 
 	transport := http.DefaultTransport
-	transport = newSanitizerRoundTripper(transport)
 
 	if opts.CacheDir == "" {
 		opts.CacheDir = config.CacheDir()
@@ -53,10 +53,10 @@ func NewHTTPClient(opts ClientOptions) (*http.Client, error) {
 
 	if opts.EnableCache && opts.CacheTTL == 0 {
 		opts.CacheTTL = time.Hour * 24
-	}
 
-	c := cache{dir: opts.CacheDir, ttl: opts.CacheTTL}
-	transport = c.RoundTripper(transport)
+		c := cache{dir: opts.CacheDir, ttl: opts.CacheTTL}
+		transport = c.RoundTripper(transport)
+	}
 
 	if opts.Log != nil && logrus.GetLevel() == logrus.DebugLevel {
 		opts.LogVerboseHTTP = true
@@ -88,6 +88,8 @@ func NewHTTPClient(opts ClientOptions) (*http.Client, error) {
 	}
 
 	transport = newHeaderRoundTripper(opts.Host, opts.AuthToken, opts.Headers, transport)
+	transport = newDecompressingRoundTripper(transport)
+	transport = newSanitizerRoundTripper(transport)
 
 	return &http.Client{Transport: transport, Timeout: opts.Timeout}, nil
 }
@@ -140,6 +142,9 @@ func newHeaderRoundTripper(host string, authToken string, headers map[string]str
 }
 
 func (hrt headerRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	// In wpm, we always request zstd compressed responses.
+	req.Header.Set("Accept-Encoding", "zstd")
+
 	for k, v := range hrt.headers {
 		// If the authorization header has been set and the request
 		// host is not in the same domain that was specified in the ClientOptions
@@ -179,6 +184,37 @@ func (srt sanitizerRoundTripper) RoundTrip(req *http.Request) (*http.Response, e
 	}
 	resp.Body = sanitizedReadCloser
 	return resp, err
+}
+
+// NEW RoundTripper for decompression
+type decompressingRoundTripper struct {
+	rt http.RoundTripper
+}
+
+func newDecompressingRoundTripper(rt http.RoundTripper) http.RoundTripper {
+	return &decompressingRoundTripper{rt: rt}
+}
+
+func (d decompressingRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	resp, err := d.rt.RoundTrip(req)
+	if err != nil {
+		return nil, err
+	}
+
+	// support for zstd compressed responses
+	if resp.Header.Get("Content-Encoding") == "zstd" {
+		reader, err := zstd.NewReader(resp.Body)
+		if err != nil {
+			resp.Body.Close()
+			return nil, fmt.Errorf("failed to create zstd reader: %w", err)
+		}
+
+		resp.Body = &readCloser{Reader: reader, Closer: resp.Body}
+		resp.Header.Del("Content-Encoding")
+		resp.Header.Del("Content-Length")
+	}
+
+	return resp, nil
 }
 
 func currentTimeZone() string {
