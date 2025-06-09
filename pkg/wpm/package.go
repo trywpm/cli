@@ -31,7 +31,6 @@ type Meta struct {
 	Dist       Dist   `json:"dist"`
 	Wpm        string `json:"_wpm"`
 	Visibility string `json:"visibility"`
-	Attachment string `json:"attachment"`
 	Readme     string `json:"readme,omitempty"`
 }
 
