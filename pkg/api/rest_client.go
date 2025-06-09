@@ -44,14 +44,29 @@ func NewRESTClient(opts ClientOptions) (*RESTClient, error) {
 	}, nil
 }
 
+// RequestOption is a function that can modify an http.Request.
+type RequestOption func(*http.Request)
+
+// WithHeader returns a RequestOption that adds a header to the request.
+func WithHeader(key, value string) RequestOption {
+	return func(req *http.Request) {
+		req.Header.Set(key, value)
+	}
+}
+
 // DoWithContext issues a request with type specified by method to the
 // specified path with the specified body.
 // The response is populated into the response argument.
-func (c *RESTClient) DoWithContext(ctx context.Context, method string, path string, body io.Reader, response interface{}) error {
+func (c *RESTClient) DoWithContext(ctx context.Context, method string, path string, body io.Reader, response interface{}, opts ...RequestOption) error {
 	url := restURL(c.host, path)
 	req, err := http.NewRequestWithContext(ctx, method, url, body)
 	if err != nil {
 		return err
+	}
+
+	// Set any additional headers from options
+	for _, opt := range opts {
+		opt(req)
 	}
 
 	resp, err := c.client.Do(req)
@@ -84,38 +99,38 @@ func (c *RESTClient) DoWithContext(ctx context.Context, method string, path stri
 }
 
 // Do wraps DoWithContext with context.Background.
-func (c *RESTClient) Do(method string, path string, body io.Reader, response interface{}) error {
-	return c.DoWithContext(context.Background(), method, path, body, response)
+func (c *RESTClient) Do(method string, path string, body io.Reader, response interface{}, opts ...RequestOption) error {
+	return c.DoWithContext(context.Background(), method, path, body, response, opts...)
 }
 
 // Delete issues a DELETE request to the specified path.
 // The response is populated into the response argument.
-func (c *RESTClient) Delete(path string, resp interface{}) error {
-	return c.Do(http.MethodDelete, path, nil, resp)
+func (c *RESTClient) Delete(path string, resp interface{}, opts ...RequestOption) error {
+	return c.Do(http.MethodDelete, path, nil, resp, opts...)
 }
 
 // Get issues a GET request to the specified path.
 // The response is populated into the response argument.
-func (c *RESTClient) Get(path string, resp interface{}) error {
-	return c.Do(http.MethodGet, path, nil, resp)
+func (c *RESTClient) Get(path string, resp interface{}, opts ...RequestOption) error {
+	return c.Do(http.MethodGet, path, nil, resp, opts...)
 }
 
 // Patch issues a PATCH request to the specified path with the specified body.
 // The response is populated into the response argument.
-func (c *RESTClient) Patch(path string, body io.Reader, resp interface{}) error {
-	return c.Do(http.MethodPatch, path, body, resp)
+func (c *RESTClient) Patch(path string, body io.Reader, resp interface{}, opts ...RequestOption) error {
+	return c.Do(http.MethodPatch, path, body, resp, opts...)
 }
 
 // Post issues a POST request to the specified path with the specified body.
 // The response is populated into the response argument.
-func (c *RESTClient) Post(path string, body io.Reader, resp interface{}) error {
-	return c.Do(http.MethodPost, path, body, resp)
+func (c *RESTClient) Post(path string, body io.Reader, resp interface{}, opts ...RequestOption) error {
+	return c.Do(http.MethodPost, path, body, resp, opts...)
 }
 
 // Put issues a PUT request to the specified path with the specified body.
 // The response is populated into the response argument.
-func (c *RESTClient) Put(path string, body io.Reader, resp interface{}) error {
-	return c.Do(http.MethodPut, path, body, resp)
+func (c *RESTClient) Put(path string, body io.Reader, resp interface{}, opts ...RequestOption) error {
+	return c.Do(http.MethodPut, path, body, resp, opts...)
 }
 
 func restURL(hostname string, pathOrURL string) string {

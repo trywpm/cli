@@ -1,10 +1,9 @@
 package publish
 
 import (
-	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/base64"
-	"encoding/hex"
 	"fmt"
 	"io"
 	"os"
@@ -12,13 +11,14 @@ import (
 
 	"wpm/cli"
 	"wpm/cli/command"
+	"wpm/cli/registry/client"
 	"wpm/cli/version"
 	"wpm/pkg/archive"
 	"wpm/pkg/wpm"
 
 	"github.com/docker/go-units"
+	"github.com/moby/sys/sequential"
 	"github.com/morikuni/aec"
-	"github.com/opencontainers/go-digest"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 )
@@ -50,7 +50,7 @@ func NewPublishCommand(wpmCli command.Cli) *cobra.Command {
 	return cmd
 }
 
-func pack(dst io.Writer, path string, opts publishOptions) (*archive.Tarballer, error) {
+func pack(stdOut io.Writer, path string, opts publishOptions) (*archive.Tarballer, error) {
 	ignorePatterns, err := wpm.ReadWpmIgnore(path)
 	if err != nil {
 		return nil, err
@@ -59,7 +59,7 @@ func pack(dst io.Writer, path string, opts publishOptions) (*archive.Tarballer, 
 	tar, err := archive.Tar(path, &archive.TarOptions{
 		ShowInfo:        opts.verbose,
 		ExcludePatterns: ignorePatterns,
-	}, dst)
+	}, stdOut)
 	if err != nil {
 		return nil, err
 	}
@@ -91,6 +91,16 @@ func readme(path string) (string, error) {
 	return "", nil
 }
 
+// tarballSizeCounter is an io.Writer that counts bytes.
+type tarballSizeCounter struct {
+	total int64
+}
+
+func (c *tarballSizeCounter) Write(p []byte) (n int, err error) {
+	c.total += int64(len(p))
+	return len(p), nil
+}
+
 func runPublish(wpmCli command.Cli, opts publishOptions) error {
 	cwd := wpmCli.Options().Cwd
 
@@ -114,35 +124,52 @@ func runPublish(wpmCli command.Cli, opts publishOptions) error {
 
 	fmt.Fprintf(wpmCli.Err(), aec.CyanF.Apply("📦 preparing %s@%s for publishing 📦\n\n"), wpmJson.Name, wpmJson.Version)
 
-	tarball, err := pack(wpmCli.Err(), cwd, opts)
+	tempFile, err := sequential.CreateTemp("", "wpm-tarball-*.tar.zst")
 	if err != nil {
-		return err
+		return errors.Wrap(err, "failed to create temporary tarball")
+	}
+	defer os.Remove(tempFile.Name())
+	defer tempFile.Close()
+
+	tarballer, err := pack(wpmCli.Err(), cwd, opts)
+	if err != nil {
+		return errors.Wrap(err, "failed to pack the package into a tarball")
 	}
 
-	buf := new(bytes.Buffer)
-	tarReader := tarball.Reader()
-	_, err = io.Copy(buf, tarReader)
-	if err != nil {
-		return err
-	}
-	tarReader.Close()
+	tarReader := tarballer.Reader()
 
-	digest := digest.FromBytes(buf.Bytes())
-	digestBytes, err := hex.DecodeString(digest.Hex())
-	if err != nil {
-		return errors.Wrap(err, "failed to decode digest")
+	if _, err := io.Copy(tempFile, tarReader); err != nil {
+		return errors.Wrap(err, "failed to write temporary tarball")
 	}
 
-	digestBase64 := "sha256:" + base64.StdEncoding.EncodeToString(digestBytes)
+	if err := tempFile.Close(); err != nil {
+		return errors.Wrap(err, "failed to close temporary tarball")
+	}
+
+	tempTarball, err := sequential.Open(tempFile.Name())
+	if err != nil {
+		return errors.Wrap(err, "failed to open tarball for reading")
+	}
+	defer tempTarball.Close()
+
+	hasher := sha256.New()
+	counter := &tarballSizeCounter{}
+	teeReader := io.TeeReader(tempTarball, io.MultiWriter(hasher, counter))
+
+	if _, err := io.Copy(io.Discard, teeReader); err != nil {
+		return errors.Wrap(err, "failed to process tarball")
+	}
+
+	digest := base64.StdEncoding.EncodeToString(hasher.Sum(nil))
 
 	if opts.verbose {
-		fmt.Fprint(wpmCli.Err(), "\n") // add a newline after the tarball progress
+		fmt.Fprint(wpmCli.Err(), "\n")
 	}
 
-	fmt.Fprintf(wpmCli.Err(), "%s: %d\n", aec.LightBlueF.Apply("total files"), tarball.FileCount())
-	fmt.Fprintf(wpmCli.Err(), "%s: %s\n", aec.LightBlueF.Apply("digest"), digestBase64)
-	fmt.Fprintf(wpmCli.Err(), "%s: %s\n", aec.LightBlueF.Apply("unpacked size"), units.HumanSize(float64(tarball.UnpackedSize())))
-	fmt.Fprintf(wpmCli.Err(), "%s: %s\n", aec.LightBlueF.Apply("packed size"), units.HumanSize(float64(buf.Len())))
+	fmt.Fprintf(wpmCli.Err(), "%s: %d\n", aec.LightBlueF.Apply("total files"), tarballer.FileCount())
+	fmt.Fprintf(wpmCli.Err(), "%s: %s\n", aec.LightBlueF.Apply("digest"), digest)
+	fmt.Fprintf(wpmCli.Err(), "%s: %s\n", aec.LightBlueF.Apply("unpacked size"), units.HumanSize(float64(tarballer.UnpackedSize())))
+	fmt.Fprintf(wpmCli.Err(), "%s: %s\n", aec.LightBlueF.Apply("packed size"), units.HumanSize(float64(counter.total)))
 	fmt.Fprintf(wpmCli.Err(), "%s: %s\n", aec.LightBlueF.Apply("tag"), opts.tag)
 	fmt.Fprintf(wpmCli.Err(), "%s: %s\n", aec.LightBlueF.Apply("access"), opts.access)
 	fmt.Fprint(wpmCli.Err(), "\n")
@@ -152,9 +179,8 @@ func runPublish(wpmCli command.Cli, opts publishOptions) error {
 		return nil
 	}
 
-	readme, err := readme(cwd)
-	if err != nil {
-		return err
+	if _, err := tempTarball.Seek(0, io.SeekStart); err != nil {
+		return errors.Wrap(err, "failed to seek to the start of the tarball")
 	}
 
 	registryClient, err := wpmCli.RegistryClient()
@@ -162,9 +188,34 @@ func runPublish(wpmCli command.Cli, opts publishOptions) error {
 		return err
 	}
 
-	ver := version.Version
-	if ver == "unknown-version" {
-		ver = "0.1.0-dev"
+	var reqId string
+	err = wpmCli.Progress().RunWithProgress(
+		"uploading tarball to registry",
+		func() error {
+			upload, err := registryClient.UploadTarball(context.TODO(), tempTarball, client.UploadTarballOptions{
+				Acl:     opts.access,
+				Name:    wpmJson.Name,
+				Version: wpmJson.Version,
+				Digest:  digest,
+			})
+			if err != nil {
+				return err
+			}
+			if upload.ID == "" {
+				return errors.New("failed to get request id from upload response")
+			}
+			reqId = upload.ID
+			return nil
+		},
+		wpmCli.Err(),
+	)
+	if err != nil {
+		return errors.Wrap(err, "failed to upload tarball to registry")
+	}
+
+	readmeText, err := readme(cwd)
+	if err != nil {
+		return errors.Wrap(err, "failed to read readme file")
 	}
 
 	newPackageData := &wpm.Package{
@@ -184,24 +235,23 @@ func runPublish(wpmCli command.Cli, opts publishOptions) error {
 		},
 		Meta: wpm.Meta{
 			Dist: wpm.Dist{
-				PackedSize:   buf.Len(),
-				TotalFiles:   tarball.FileCount(),
-				UnpackedSize: tarball.UnpackedSize(),
-				Digest:       digestBase64,
+				PackedSize:   int(counter.total),
+				TotalFiles:   tarballer.FileCount(),
+				UnpackedSize: tarballer.UnpackedSize(),
+				Digest:       "sha256:" + digest,
 			},
 			Tag:        opts.tag,
 			Visibility: opts.access,
-			Attachment: base64.StdEncoding.EncodeToString(buf.Bytes()),
-			Readme:     readme,
-			Wpm:        ver,
+			Readme:     readmeText,
+			Wpm:        version.Version,
 		},
 	}
 
 	var message string
 	err = wpmCli.Progress().RunWithProgress(
-		"adding package to publish queue",
+		"publishing package to registry",
 		func() error {
-			message, err = registryClient.PutPackage(context.TODO(), newPackageData)
+			message, err = registryClient.PublishPackage(context.TODO(), newPackageData, reqId)
 			return err
 		},
 		wpmCli.Err(),
