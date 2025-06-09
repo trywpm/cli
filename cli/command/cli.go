@@ -55,9 +55,7 @@ func NewWpmCli(ops ...CLIOption) (*WpmCli, error) {
 	}
 	ops = append(defaultOps, ops...)
 
-	cli := &WpmCli{
-		registry: "dev-registry.wpm.so",
-	}
+	cli := &WpmCli{}
 	if err := cli.Apply(ops...); err != nil {
 		return nil, err
 	}
@@ -143,6 +141,7 @@ func (cli *WpmCli) Initialize(opts *cliflags.ClientOptions, ops ...CLIOption) er
 	}
 
 	cli.options = opts
+	cli.registry = opts.Registry
 	cli.configFile = config.LoadDefaultConfigFile(cli.err)
 
 	return nil
