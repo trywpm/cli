@@ -64,6 +64,11 @@ func (c *RESTClient) DoWithContext(ctx context.Context, method string, path stri
 		return err
 	}
 
+	// Set any additional headers from options
+	for _, opt := range opts {
+		opt(req)
+	}
+
 	resp, err := c.client.Do(req)
 	if err != nil {
 		return err
