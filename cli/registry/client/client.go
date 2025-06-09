@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 
 	"wpm/pkg/api"
@@ -64,7 +65,7 @@ type UploadTarballResponse struct {
 func (c *client) UploadTarball(ctx context.Context, body io.Reader, opts UploadTarballOptions) (UploadTarballResponse, error) {
 	response := UploadTarballResponse{}
 	err := c.restClient.Put(
-		"/"+opts.Name+"/"+opts.Version,
+		fmt.Sprintf("/-/upload/%s/%s", opts.Name, opts.Version),
 		body,
 		&response,
 		api.WithHeader("x-wpm-acl", opts.Acl),
