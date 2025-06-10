@@ -123,7 +123,7 @@ func runPublish(wpmCli command.Cli, opts publishOptions) error {
 
 	fmt.Fprintf(wpmCli.Err(), aec.CyanF.Apply("📦 preparing %s@%s for publishing 📦\n\n"), wpmJson.Name, wpmJson.Version)
 
-	tempFile, err := io.CreateTemp("", "wpm-tarball-*.tar.zst")
+	tempFile, err := os.CreateTemp("", "wpm-tarball-*.tar.zst")
 	if err != nil {
 		return errors.Wrap(err, "failed to create temporary tarball")
 	}
@@ -145,7 +145,7 @@ func runPublish(wpmCli command.Cli, opts publishOptions) error {
 		return errors.Wrap(err, "failed to close temporary tarball")
 	}
 
-	tempTarball, err := io.Open(tempFile.Name())
+	tempTarball, err := os.Open(tempFile.Name())
 	if err != nil {
 		return errors.Wrap(err, "failed to open tarball for reading")
 	}
