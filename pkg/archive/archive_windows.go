@@ -1,7 +1,6 @@
 package archive
 
 import (
-	"os"
 	"strings"
 )
 
@@ -21,16 +20,6 @@ func addLongPathPrefix(srcPath string) string {
 		return longPathPrefix + `UNC` + srcPath[1:]
 	}
 	return longPathPrefix + srcPath
-}
-
-// chmodTarEntry is used to adjust the file permissions used in tar header based
-// on the platform the archival is done.
-func chmodTarEntry(perm os.FileMode) os.FileMode {
-	// Remove group- and world-writable bits.
-	perm &= ^os.FileMode(0o022)
-
-	// Add the x bit: make everything +x on Windows
-	return perm | 0o111
 }
 
 func getInodeFromStat(stat interface{}) (inode uint64, err error) {
