@@ -8,6 +8,13 @@ type Dist struct {
 	UnpackedSize int    `json:"unpackedSize"`
 }
 
+// PackageConfig struct to define the package configuration
+type PackageConfig struct {
+	BinDir         string `json:"bin-dir,omitempty"`
+	ContentDir     string `json:"content-dir,omitempty"`
+	PlatformStrict bool   `json:"platform-strict,omitempty"` // If set to true, wpm will refuse to install the package if the platform requirements are not met.
+}
+
 // Config struct to define the wpm.json schema
 type Config struct {
 	Name            string            `json:"name" validate:"required,min=3,max=164,package_name_regex"`
@@ -23,6 +30,7 @@ type Config struct {
 	Dependencies    map[string]string `json:"dependencies,omitempty" validate:"omitempty,package_dependencies"`
 	DevDependencies map[string]string `json:"devDependencies,omitempty" validate:"omitempty,package_dependencies"`
 	Scripts         map[string]string `json:"scripts,omitempty"`
+	Config          PackageConfig     `json:"config,omitempty" validate:"omitempty"`
 }
 
 // Meta struct to define the package metadata
