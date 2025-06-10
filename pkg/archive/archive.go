@@ -170,6 +170,17 @@ func FileInfoHeader(name string, fi os.FileInfo, link string) (*tar.Header, erro
 		return nil, err
 	}
 
+	var newPerms os.FileMode
+	if fi.IsDir() {
+		newPerms = ImpliedDirectoryMode
+	} else if fi.Mode().IsRegular() {
+		newPerms = 0o644
+	}
+
+	if newPerms != 0 {
+		hdr.Mode = (hdr.Mode &^ int64(os.ModePerm)) | int64(newPerms)
+	}
+
 	// Disable gid, uid, uname, gname, access time, change time for portable tar files.
 	hdr.Uid = 0
 	hdr.Gid = 0
@@ -180,7 +191,6 @@ func FileInfoHeader(name string, fi os.FileInfo, link string) (*tar.Header, erro
 	hdr.ChangeTime = time.Time{}
 	hdr.Name = canonicalTarName(name, fi.IsDir())
 	hdr.ModTime = hdr.ModTime.Truncate(time.Second)
-	hdr.Mode = int64(chmodTarEntry(os.FileMode(hdr.Mode)))
 
 	return hdr, nil
 }
