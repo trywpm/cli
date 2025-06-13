@@ -54,7 +54,7 @@ type UploadTarballOptions struct {
 	Acl     string // must be one of "public" or "private"
 	Digest  string // base64 encoded digest of the package
 	Version string // package version
-	Type    string // package type, e.g., "theme", "plugin" and "mu-plugin"
+	Type    string // package type, e.g., "theme", "plugin" or "mu-plugin"
 }
 
 // UploadTarballResponse defines the response structure for uploading a package.
