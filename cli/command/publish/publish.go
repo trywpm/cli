@@ -196,6 +196,7 @@ func runPublish(wpmCli command.Cli, opts publishOptions) error {
 				Name:    wpmJson.Name,
 				Version: wpmJson.Version,
 				Digest:  digest,
+				Type:    wpmJson.Type,
 			})
 			if err != nil {
 				return err
