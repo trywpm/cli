@@ -111,6 +111,11 @@ func validateDependencies(fl validator.FieldLevel) bool {
 				return false
 			}
 		default:
+			// if version is wildcard, it is valid
+			if v == "*" {
+				continue
+			}
+
 			_, err := semver.NewVersion(v)
 			if err != nil {
 				return false
