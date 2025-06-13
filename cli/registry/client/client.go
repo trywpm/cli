@@ -54,6 +54,7 @@ type UploadTarballOptions struct {
 	Acl     string // must be one of "public" or "private"
 	Digest  string // base64 encoded digest of the package
 	Version string // package version
+	Type    string // package type, e.g., "theme", "plugin" and "mu-plugin"
 }
 
 // UploadTarballResponse defines the response structure for uploading a package.
@@ -69,6 +70,7 @@ func (c *client) UploadTarball(ctx context.Context, body io.Reader, opts UploadT
 		body,
 		&response,
 		api.WithHeader("x-wpm-acl", opts.Acl),
+		api.WithHeader("x-wpm-package-type", opts.Type),
 		api.WithHeader("x-wpm-checksum-sha256", opts.Digest),
 		api.WithHeader("Content-Type", "application/octet-stream"),
 	)
