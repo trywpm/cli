@@ -16,7 +16,7 @@ type Config struct {
 	Type            string            `json:"type" validate:"required,oneof=plugin theme mu-plugin"`
 	Version         string            `json:"version" validate:"required,package_semver,max=64"`
 	License         string            `json:"license" validate:"omitempty"`
-	Homepage        string            `json:"homepage,omitempty" validate:"omitempty,url"`
+	Homepage        string            `json:"homepage,omitempty" validate:"omitempty,http_url"`
 	Tags            []string          `json:"tags,omitempty" validate:"max=5"`
 	Team            []string          `json:"team,omitempty"`
 	Bin             map[string]string `json:"bin,omitempty"`
@@ -48,7 +48,7 @@ var PackageFieldDescriptions = map[string]string{
 	"Type":            "must be one of: 'plugin', or 'theme'. (required)",
 	"Version":         "must be a valid semantic version (semver) and less than 64 characters. (required)",
 	"License":         "must be a string. (optional)",
-	"Homepage":        "must be a valid url. (optional)",
+	"Homepage":        "must be a valid http url. (optional)",
 	"Tags":            "must be an array of strings with a maximum of 5 tags. (optional)",
 	"Team":            "must be an array of strings. (optional)",
 	"Bin":             "must be an object with string values. (optional)",
