@@ -417,7 +417,7 @@ func buildWPMConfig(
 		}
 
 		if h.ThemeURI != "" {
-			if err := ve.Var(h.ThemeURI, "url"); err == nil {
+			if err := ve.Var(h.ThemeURI, "http_url"); err == nil {
 				cfg.Homepage = h.ThemeURI
 			}
 		}
@@ -451,7 +451,7 @@ func buildWPMConfig(
 		}
 
 		if h.PluginURI != "" {
-			if err := ve.Var(h.PluginURI, "url"); err == nil {
+			if err := ve.Var(h.PluginURI, "http_url"); err == nil {
 				cfg.Homepage = h.PluginURI
 			}
 		}
