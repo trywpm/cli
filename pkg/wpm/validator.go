@@ -23,6 +23,12 @@ func NewValidator() (*validator.Validate, error) {
 		return nil, err
 	}
 
+	// Semver constraint validation.
+	err = validator.RegisterValidation("package_semver_constraint", validateSemverConstraint)
+	if err != nil {
+		return nil, err
+	}
+
 	// Constraint validation.
 	err = validator.RegisterValidation("package_constraint", validateConstraint)
 	if err != nil {
@@ -67,6 +73,18 @@ func validateSemver(fl validator.FieldLevel) bool {
 	}
 
 	_, err := semver.StrictNewVersion(value)
+
+	return err == nil
+}
+
+// validateSemverConstraint validates the semver constraint field.
+func validateSemverConstraint(fl validator.FieldLevel) bool {
+	value := fl.Field().String()
+	if value == "" {
+		return false
+	}
+
+	_, err := semver.NewConstraint(value)
 
 	return err == nil
 }
