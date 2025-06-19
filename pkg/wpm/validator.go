@@ -117,27 +117,14 @@ func validateDependencies(fl validator.FieldLevel) bool {
 			return false
 		}
 
-		switch k {
-		case "wp":
-			_, err := semver.NewConstraint(v)
-			if err != nil {
-				return false
-			}
-		case "php":
-			_, err := semver.NewConstraint(v)
-			if err != nil {
-				return false
-			}
-		default:
-			// if version is wildcard, it is valid
-			if v == "*" {
-				continue
-			}
+		// if version is wildcard, it is valid
+		if v == "*" {
+			continue
+		}
 
-			_, err := semver.NewVersion(v)
-			if err != nil {
-				return false
-			}
+		_, err := semver.NewVersion(v)
+		if err != nil {
+			return false
 		}
 	}
 
