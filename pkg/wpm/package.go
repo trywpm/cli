@@ -62,6 +62,7 @@ var PackageFieldDescriptions = map[string]string{
 	"Private":         "must be a boolean. (optional)",
 	"Type":            "must be one of: 'plugin', or 'theme'. (required)",
 	"Version":         "must be a valid semantic version (semver) and less than 64 characters. (required)",
+	"Platform":        "must be an object with 'php' and 'wp' fields, both of which must be valid semantic version constraints. (optional)",
 	"License":         "must be a string. (optional)",
 	"Homepage":        "must be a valid http url. (optional)",
 	"Tags":            "must be an array of strings with a maximum of 5 tags. (optional)",
