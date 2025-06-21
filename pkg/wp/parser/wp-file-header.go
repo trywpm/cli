@@ -137,6 +137,7 @@ func GetPluginHeaders(filePath string) (PluginFileHeaders, error) {
 	}
 
 	headers := PluginFileHeaders{}
+	headers.Name = rawHeaders["Name"]
 	headers.Author = rawHeaders["Author"]
 	headers.Description = rawHeaders["Description"]
 	headers.License = rawHeaders["License"]
@@ -161,6 +162,7 @@ func GetThemeHeaders(filePath string) (ThemeFileHeaders, error) {
 	}
 
 	headers := ThemeFileHeaders{}
+	headers.Name = rawHeaders["Name"]
 	headers.Author = rawHeaders["Author"]
 	headers.Description = rawHeaders["Description"]
 	headers.License = rawHeaders["License"]
