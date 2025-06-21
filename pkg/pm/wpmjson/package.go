@@ -1,4 +1,4 @@
-package wpm
+package wpmjson
 
 // Dist struct to define the distribution metadata
 type Dist struct {
@@ -28,8 +28,8 @@ type Config struct {
 	Private         bool              `json:"private,omitempty"`
 	Type            string            `json:"type" validate:"required,oneof=plugin theme mu-plugin"`
 	Version         string            `json:"version" validate:"required,package_semver,max=64"`
-	Platform        Platform          `json:"platform,omitempty"`
-	License         string            `json:"license"`
+	Platform        *Platform         `json:"platform,omitempty"`
+	License         string            `json:"license,omitempty"`
 	Homepage        string            `json:"homepage,omitempty" validate:"omitempty,http_url"`
 	Tags            []string          `json:"tags,omitempty" validate:"omitempty,max=5"`
 	Team            []string          `json:"team,omitempty"`
@@ -37,7 +37,7 @@ type Config struct {
 	Dependencies    map[string]string `json:"dependencies,omitempty" validate:"omitempty,package_dependencies"`
 	DevDependencies map[string]string `json:"devDependencies,omitempty" validate:"omitempty,package_dependencies"`
 	Scripts         map[string]string `json:"scripts,omitempty"`
-	Config          PackageConfig     `json:"config,omitempty"`
+	Config          *PackageConfig    `json:"config,omitempty"`
 }
 
 // Meta struct to define the package metadata

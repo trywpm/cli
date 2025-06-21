@@ -8,9 +8,9 @@ import (
 	"io"
 
 	"wpm/pkg/api"
+	"wpm/pkg/pm/wpmjson"
 	"wpm/pkg/streams"
 	wpmTerm "wpm/pkg/term"
-	"wpm/pkg/wpm"
 
 	"github.com/moby/term"
 )
@@ -22,7 +22,7 @@ type client struct {
 // RegistryClient is a client used to communicate with a wpm distribution
 // registry
 type RegistryClient interface {
-	PublishPackage(ctx context.Context, data *wpm.Package, requestId string) (string, error)
+	PublishPackage(ctx context.Context, data *wpmjson.Package, requestId string) (string, error)
 	UploadTarball(ctx context.Context, body io.Reader, opts UploadTarballOptions) (UploadTarballResponse, error)
 }
 
@@ -83,7 +83,7 @@ func (c *client) UploadTarball(ctx context.Context, body io.Reader, opts UploadT
 
 // PublishPackage publishes a package to the registry.
 // It requires the package data and a request ID from the upload tarball request.
-func (c *client) PublishPackage(ctx context.Context, data *wpm.Package, requestId string) (string, error) {
+func (c *client) PublishPackage(ctx context.Context, data *wpmjson.Package, requestId string) (string, error) {
 	bodyBytes, err := json.Marshal(data)
 	if err != nil {
 		return "", err

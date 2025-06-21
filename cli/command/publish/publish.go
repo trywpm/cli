@@ -14,7 +14,8 @@ import (
 	"wpm/cli/registry/client"
 	"wpm/cli/version"
 	"wpm/pkg/archive"
-	"wpm/pkg/wpm"
+	"wpm/pkg/pm/wpmignore"
+	"wpm/pkg/pm/wpmjson"
 
 	"github.com/docker/go-units"
 	"github.com/morikuni/aec"
@@ -50,7 +51,7 @@ func NewPublishCommand(wpmCli command.Cli) *cobra.Command {
 }
 
 func pack(stdOut io.Writer, path string, opts publishOptions) (*archive.Tarballer, error) {
-	ignorePatterns, err := wpm.ReadWpmIgnore(path)
+	ignorePatterns, err := wpmignore.ReadWpmIgnore(path)
 	if err != nil {
 		return nil, err
 	}
@@ -101,7 +102,10 @@ func (c *tarballSizeCounter) Write(p []byte) (n int, err error) {
 }
 
 func runPublish(wpmCli command.Cli, opts publishOptions) error {
-	cwd := wpmCli.Options().Cwd
+	cwd, err := os.Getwd()
+	if err != nil {
+		return errors.Wrap(err, "failed to get current working directory")
+	}
 
 	if opts.access != "public" && opts.access != "private" {
 		return errors.New("access must be either public or private")
@@ -112,7 +116,7 @@ func runPublish(wpmCli command.Cli, opts publishOptions) error {
 		return errors.New("user must be logged in to perform this action")
 	}
 
-	wpmJson, err := wpm.ReadAndValidateWpmJson(cwd)
+	wpmJson, err := wpmjson.ReadAndValidateWpmJson(cwd)
 	if err != nil {
 		return err
 	}
@@ -218,8 +222,8 @@ func runPublish(wpmCli command.Cli, opts publishOptions) error {
 		return errors.Wrap(err, "failed to read readme file")
 	}
 
-	newPackageData := &wpm.Package{
-		Config: wpm.Config{
+	newPackageData := &wpmjson.Package{
+		Config: wpmjson.Config{
 			Name:            wpmJson.Name,
 			Description:     wpmJson.Description,
 			Type:            wpmJson.Type,
@@ -234,8 +238,8 @@ func runPublish(wpmCli command.Cli, opts publishOptions) error {
 			DevDependencies: wpmJson.DevDependencies,
 			Scripts:         wpmJson.Scripts,
 		},
-		Meta: wpm.Meta{
-			Dist: wpm.Dist{
+		Meta: wpmjson.Meta{
+			Dist: wpmjson.Dist{
 				PackedSize:   int(counter.total),
 				TotalFiles:   tarballer.FileCount(),
 				UnpackedSize: tarballer.UnpackedSize(),
