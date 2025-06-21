@@ -15,6 +15,7 @@ const (
 )
 
 type PluginFileHeaders struct {
+	Name            string
 	Author          string
 	Description     string
 	License         string
@@ -27,6 +28,7 @@ type PluginFileHeaders struct {
 }
 
 var pluginFileHeaders = map[string]string{
+	"Name":            "Plugin Name",
 	"Author":          "Author",
 	"Description":     "Description",
 	"License":         "License",
@@ -39,6 +41,7 @@ var pluginFileHeaders = map[string]string{
 }
 
 type ThemeFileHeaders struct {
+	Name        string
 	Author      string
 	Description string
 	License     string
@@ -50,6 +53,7 @@ type ThemeFileHeaders struct {
 }
 
 var themeFileHeaders = map[string]string{
+	"Name":        "Theme Name",
 	"Author":      "Author",
 	"Description": "Description",
 	"License":     "License",
