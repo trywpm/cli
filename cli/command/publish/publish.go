@@ -224,6 +224,7 @@ func runPublish(wpmCli command.Cli, opts publishOptions) error {
 			Description:     wpmJson.Description,
 			Type:            wpmJson.Type,
 			Version:         wpmJson.Version,
+			Platform:        wpmJson.Platform,
 			License:         wpmJson.License,
 			Homepage:        wpmJson.Homepage,
 			Tags:            wpmJson.Tags,

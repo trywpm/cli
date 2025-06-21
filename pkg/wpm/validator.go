@@ -23,6 +23,12 @@ func NewValidator() (*validator.Validate, error) {
 		return nil, err
 	}
 
+	// Semver constraint validation.
+	err = validator.RegisterValidation("package_semver_constraint", validateSemverConstraint)
+	if err != nil {
+		return nil, err
+	}
+
 	// Constraint validation.
 	err = validator.RegisterValidation("package_constraint", validateConstraint)
 	if err != nil {
@@ -71,6 +77,18 @@ func validateSemver(fl validator.FieldLevel) bool {
 	return err == nil
 }
 
+// validateSemverConstraint validates the semver constraint field.
+func validateSemverConstraint(fl validator.FieldLevel) bool {
+	value := fl.Field().String()
+	if value == "" {
+		return false
+	}
+
+	_, err := semver.NewConstraint(value)
+
+	return err == nil
+}
+
 // validateConstraint validates the version constraint field.
 func validateConstraint(fl validator.FieldLevel) bool {
 	value := fl.Field().String()
@@ -99,27 +117,14 @@ func validateDependencies(fl validator.FieldLevel) bool {
 			return false
 		}
 
-		switch k {
-		case "wp":
-			_, err := semver.NewConstraint(v)
-			if err != nil {
-				return false
-			}
-		case "php":
-			_, err := semver.NewConstraint(v)
-			if err != nil {
-				return false
-			}
-		default:
-			// if version is wildcard, it is valid
-			if v == "*" {
-				continue
-			}
+		// if version is wildcard, it is valid
+		if v == "*" {
+			continue
+		}
 
-			_, err := semver.NewVersion(v)
-			if err != nil {
-				return false
-			}
+		_, err := semver.NewVersion(v)
+		if err != nil {
+			return false
 		}
 	}
 

@@ -8,21 +8,36 @@ type Dist struct {
 	UnpackedSize int    `json:"unpackedSize"`
 }
 
+// PackageConfig struct to define the package configuration
+type PackageConfig struct {
+	BinDir         string `json:"bin-dir,omitempty"`
+	ContentDir     string `json:"content-dir,omitempty"`
+	PlatformStrict bool   `json:"platform-strict,omitempty"` // If set to true, wpm will refuse to install the package if the platform requirements are not met.
+}
+
+// Platform holds the php and wp version constraints for a package.
+type Platform struct {
+	PHP string `json:"php,omitempty" validate:"omitempty,package_semver_constraint"`
+	WP  string `json:"wp,omitempty" validate:"omitempty,package_semver_constraint"`
+}
+
 // Config struct to define the wpm.json schema
 type Config struct {
 	Name            string            `json:"name" validate:"required,min=3,max=164,package_name_regex"`
 	Description     string            `json:"description,omitempty"`
-	Private         bool              `json:"private,omitempty" validate:"boolean,omitempty"`
+	Private         bool              `json:"private,omitempty"`
 	Type            string            `json:"type" validate:"required,oneof=plugin theme mu-plugin"`
 	Version         string            `json:"version" validate:"required,package_semver,max=64"`
-	License         string            `json:"license" validate:"omitempty"`
+	Platform        Platform          `json:"platform,omitempty"`
+	License         string            `json:"license"`
 	Homepage        string            `json:"homepage,omitempty" validate:"omitempty,http_url"`
-	Tags            []string          `json:"tags,omitempty" validate:"max=5"`
+	Tags            []string          `json:"tags,omitempty" validate:"omitempty,max=5"`
 	Team            []string          `json:"team,omitempty"`
 	Bin             map[string]string `json:"bin,omitempty"`
 	Dependencies    map[string]string `json:"dependencies,omitempty" validate:"omitempty,package_dependencies"`
 	DevDependencies map[string]string `json:"devDependencies,omitempty" validate:"omitempty,package_dependencies"`
 	Scripts         map[string]string `json:"scripts,omitempty"`
+	Config          PackageConfig     `json:"config,omitempty"`
 }
 
 // Meta struct to define the package metadata
@@ -47,6 +62,7 @@ var PackageFieldDescriptions = map[string]string{
 	"Private":         "must be a boolean. (optional)",
 	"Type":            "must be one of: 'plugin', or 'theme'. (required)",
 	"Version":         "must be a valid semantic version (semver) and less than 64 characters. (required)",
+	"Platform":        "must be an object with 'php' and 'wp' fields, both of which must be valid semantic version constraints. (optional)",
 	"License":         "must be a string. (optional)",
 	"Homepage":        "must be a valid http url. (optional)",
 	"Tags":            "must be an array of strings with a maximum of 5 tags. (optional)",
