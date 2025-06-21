@@ -29,7 +29,7 @@ type Config struct {
 	Type            string            `json:"type" validate:"required,oneof=plugin theme mu-plugin"`
 	Version         string            `json:"version" validate:"required,package_semver,max=64"`
 	Platform        Platform          `json:"platform,omitempty"`
-	License         string            `json:"license"`
+	License         string            `json:"license,omitempty"`
 	Homepage        string            `json:"homepage,omitempty" validate:"omitempty,http_url"`
 	Tags            []string          `json:"tags,omitempty" validate:"omitempty,max=5"`
 	Team            []string          `json:"team,omitempty"`
