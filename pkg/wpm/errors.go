@@ -24,10 +24,6 @@ func (err *validatorError) Error() string {
 	message := fmt.Sprintf("%s\n", "config validation failed")
 
 	for _, e := range err.Errors {
-		if e.FailedField == "DevDependencies" {
-			e.FailedField = "dev_dependencies"
-		}
-
 		message += fmt.Sprintf("  - \"%s\" %s", strings.ToLower(e.FailedField), e.Message)
 		if e != err.Errors[len(err.Errors)-1] {
 			message += "\n"
