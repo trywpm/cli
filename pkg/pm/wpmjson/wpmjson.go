@@ -13,10 +13,15 @@ import (
 
 const ConfigFile = "wpm.json"
 
+// NewConfig returns a new instance of wpm.json config
+func NewConfig() *Config {
+	return &Config{}
+}
+
 // ReadWpmJson reads the wpm.json file from the passed path and
 // returns the list of paths to exclude
 func ReadWpmJson(path string) (*Config, error) {
-	f, err := os.Open(filepath.Join(path, "wpm.json"))
+	f, err := os.Open(filepath.Join(path, ConfigFile))
 	switch {
 	case os.IsNotExist(err):
 		return nil, fmt.Errorf("wpm.json file not found")
@@ -39,7 +44,7 @@ func ReadWpmJson(path string) (*Config, error) {
 }
 
 func WriteWpmJson(pkg *Config, path string) error {
-	file, err := os.Create(filepath.Join(path, "wpm.json"))
+	file, err := os.Create(filepath.Join(path, ConfigFile))
 	if err != nil {
 		return err
 	}
