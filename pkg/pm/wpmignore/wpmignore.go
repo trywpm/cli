@@ -1,4 +1,4 @@
-package wpm
+package wpmignore
 
 import (
 	"fmt"

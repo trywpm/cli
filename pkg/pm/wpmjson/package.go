@@ -1,4 +1,4 @@
-package wpm
+package wpmjson
 
 // Dist struct to define the distribution metadata
 type Dist struct {

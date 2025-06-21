@@ -1,4 +1,4 @@
-package wpm
+package wpmjson
 
 import (
 	"regexp"
