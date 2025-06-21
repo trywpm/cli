@@ -10,8 +10,8 @@ import (
 	"unicode"
 
 	"wpm/cli/command"
+	"wpm/pkg/pm/wpmjson"
 	"wpm/pkg/wp/parser"
-	"wpm/pkg/wpm"
 
 	"github.com/Masterminds/semver/v3"
 	"github.com/morikuni/aec"
@@ -31,7 +31,7 @@ type initOptions struct {
 	yes         bool
 	name        string
 	version     string
-	migrate     bool
+	existing    bool
 	license     string
 	packageType string
 }
@@ -55,7 +55,7 @@ func NewInitCommand(wpmCli command.Cli) *cobra.Command {
 		Short: "Initialize a new WordPress package or migrate an existing one",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if opts.migrate {
+			if opts.existing {
 				return runMigrate(cmd.Context(), wpmCli, &opts)
 			}
 			return runInit(cmd.Context(), wpmCli, opts)
@@ -64,42 +64,39 @@ func NewInitCommand(wpmCli command.Cli) *cobra.Command {
 
 	flags := cmd.Flags()
 	flags.BoolVarP(&opts.yes, "yes", "y", false, "Skip prompts and use default values")
-	flags.StringVar(&opts.name, "name", "", "Name of the package (for -y, or --migrate)")
-	flags.BoolVarP(&opts.migrate, "migrate", "m", false, "Migrate existing theme or plugin to wpm.json format")
-	flags.StringVar(&opts.license, "license", defaultLicense, "License of the package (default: GPL-2.0-or-later)")
-	flags.StringVar(&opts.version, "version", "", "Version of the package (default: 1.0.0 for init; required for --migrate)")
-	flags.StringVar(&opts.packageType, "type", "", "Type of the package (plugin, theme, mu-plugin). Auto-detected for --migrate if not set.")
+	flags.BoolVar(&opts.existing, "existing", false, "Init wpm.json for an existing project")
+	flags.StringVar(&opts.name, "name", "", "Package name")
+	flags.StringVar(&opts.version, "version", "", "Semver-compliant version")
+	flags.StringVar(&opts.license, "license", "", "Package license")
+	flags.StringVar(&opts.packageType, "type", "", "Package type (plugin, theme, mu-plugin)")
 
 	return cmd
 }
 
 func runInit(ctx context.Context, wpmCli command.Cli, opts initOptions) error {
-	cwd := wpmCli.Options().Cwd
+	cwd, err := os.Getwd()
+	if err != nil {
+		return errors.Wrap(err, "failed to get current working directory")
+	}
 
-	wpmConfigFilePath := filepath.Join(cwd, wpm.ConfigFile)
+	wpmConfigFilePath := filepath.Join(cwd, wpmjson.ConfigFile)
 	if _, err := os.Stat(wpmConfigFilePath); err == nil {
-		return errors.Errorf("%s already exists in %s", wpm.ConfigFile, cwd)
+		return errors.Errorf("%s already exists in %s", wpmjson.ConfigFile, cwd)
 	} else if !os.IsNotExist(err) {
-		return errors.Wrapf(err, "failed to check for existing %s", wpm.ConfigFile)
+		return errors.Wrapf(err, "failed to check for existing %s", wpmjson.ConfigFile)
 	}
 
-	basecwd := filepath.Base(cwd)
-	wpmJsonInitData := &wpm.Config{
-		Name:    basecwd,
-		Version: defaultVersion,
-		License: defaultLicense,
-		Type:    defaultType,
-		Tags:    []string{},
-	}
+	defaultName := filepath.Base(cwd)
+	wpmJsonInitData := wpmjson.NewConfig()
 
-	ve, err := wpm.NewValidator()
+	ve, err := wpmjson.NewValidator()
 	if err != nil {
 		return errors.Wrap(err, "failed to initialize validator")
 	}
 
 	if opts.yes {
 		if opts.name == "" {
-			opts.name = basecwd
+			opts.name = defaultName
 		}
 		if errs := ve.Var(opts.name, "required,min=3,max=164,package_name_regex"); errs != nil {
 			return errors.Errorf("invalid package name: \"%s\"", aec.Bold.Apply(opts.name))
@@ -115,7 +112,7 @@ func runInit(ctx context.Context, wpmCli command.Cli, opts initOptions) error {
 		if opts.packageType == "" {
 			opts.packageType = defaultType
 		}
-		if errs := ve.Var(opts.packageType, "required,oneof=plugin theme mu-plugin drop-in"); errs != nil {
+		if errs := ve.Var(opts.packageType, "required,oneof=plugin theme mu-plugin"); errs != nil {
 			return errors.Errorf("invalid type: \"%s\"", aec.Bold.Apply(opts.packageType))
 		}
 
@@ -136,10 +133,10 @@ func runInit(ctx context.Context, wpmCli command.Cli, opts initOptions) error {
 				"name",
 				prompt{
 					"package name",
-					basecwd,
+					defaultName,
 					func(val string) error {
 						if val == "" {
-							val = basecwd
+							val = defaultName
 						}
 
 						errs := ve.Var(val, "required,min=3,max=164,package_name_regex")
@@ -200,7 +197,7 @@ func runInit(ctx context.Context, wpmCli command.Cli, opts initOptions) error {
 							val = defaultType
 						}
 
-						errs := ve.Var(val, "required,oneof=plugin theme mu-plugin drop-in")
+						errs := ve.Var(val, "required,oneof=plugin theme mu-plugin")
 						if errs != nil {
 							return errors.Errorf("invalid type: \"%s\"", aec.Bold.Apply(val))
 						}
@@ -233,7 +230,7 @@ func runInit(ctx context.Context, wpmCli command.Cli, opts initOptions) error {
 		}
 	}
 
-	if err := wpm.WriteWpmJson(wpmJsonInitData, cwd); err != nil {
+	if err := wpmjson.WriteWpmJson(wpmJsonInitData, cwd); err != nil {
 		return errors.Wrap(err, "failed to write wpm.json")
 	}
 
@@ -242,14 +239,14 @@ func runInit(ctx context.Context, wpmCli command.Cli, opts initOptions) error {
 	return nil
 }
 
-type migrationBaseFiles struct {
+type existingProjectBaseFiles struct {
 	readmeTxt string
 	readmeMd  string
 	wpmJson   string
 }
 
-func findMigrationBaseFiles(cwd string) (migrationBaseFiles, error) {
-	var paths migrationBaseFiles
+func findExistingProjectBaseFiles(cwd string) (existingProjectBaseFiles, error) {
+	var paths existingProjectBaseFiles
 	files, err := os.ReadDir(cwd)
 	if err != nil {
 		return paths, errors.Wrap(err, "failed to read current directory")
@@ -268,7 +265,7 @@ func findMigrationBaseFiles(cwd string) (migrationBaseFiles, error) {
 			paths.readmeTxt = fullPath
 		case "readme.md":
 			paths.readmeMd = fullPath
-		case strings.ToLower(wpm.ConfigFile):
+		case strings.ToLower(wpmjson.ConfigFile):
 			paths.wpmJson = fullPath
 		}
 	}
@@ -301,7 +298,7 @@ func generateReadme(wpmCli command.Cli, readmeTxtPath, readmeMdPath string) (*pa
 	return p, nil
 }
 
-func findMainPluginFile(cwd string, targetVersion string, files []os.DirEntry) (string, parser.PluginFileHeaders, error) {
+func findMainPluginFile(cwd string, files []os.DirEntry) (string, parser.PluginFileHeaders, error) {
 	for _, file := range files {
 		if file.IsDir() || !strings.HasSuffix(strings.ToLower(file.Name()), ".php") {
 			continue
@@ -313,7 +310,7 @@ func findMainPluginFile(cwd string, targetVersion string, files []os.DirEntry) (
 			continue
 		}
 
-		if headers.Version == targetVersion {
+		if headers.Name != "" {
 			return filePath, headers, nil
 		}
 	}
@@ -321,7 +318,7 @@ func findMainPluginFile(cwd string, targetVersion string, files []os.DirEntry) (
 	return "", parser.PluginFileHeaders{}, errors.New("no main plugin file with valid plugin headers found")
 }
 
-func getMetaString(meta map[string]interface{}, key string, defaultValue string) string {
+func getMetaString(meta map[string]any, key string, defaultValue string) string {
 	if val, ok := meta[key]; ok {
 		if strVal, ok := val.(string); ok && strVal != "" {
 			return strVal
@@ -330,7 +327,7 @@ func getMetaString(meta map[string]interface{}, key string, defaultValue string)
 	return defaultValue
 }
 
-func getMetaStringSlice(meta map[string]interface{}, key string) []string {
+func getMetaStringSlice(meta map[string]any, key string) []string {
 	if val, ok := meta[key]; ok {
 		if sliceVal, ok := val.([]string); ok {
 			return sliceVal
@@ -365,21 +362,18 @@ func isMeaningfulText(s string) bool {
 func buildWPMConfig(
 	opts initOptions,
 	pkgType string,
-	mainFileHeaders interface{},
-	readmeMeta map[string]interface{},
-) *wpm.Config {
-	ve, err := wpm.NewValidator()
+	mainFileHeaders any,
+	readmeMeta map[string]any,
+) *wpmjson.Config {
+	cfg := wpmjson.NewConfig()
+	ve, err := wpmjson.NewValidator()
 	if err != nil {
-		return &wpm.Config{}
+		return cfg
 	}
 
-	cfg := &wpm.Config{
-		Name:        opts.name,
-		Version:     opts.version,
-		Type:        pkgType,
-		License:     getMetaString(readmeMeta, "license", ""),
-		Description: getMetaString(readmeMeta, "meta_description", ""),
-	}
+	cfg.Type = pkgType
+	cfg.License = getMetaString(readmeMeta, "license", opts.license)
+	cfg.Description = getMetaString(readmeMeta, "meta_description", "")
 
 	tags := getMetaStringSlice(readmeMeta, "tags")
 	if len(tags) > 5 {
@@ -388,9 +382,9 @@ func buildWPMConfig(
 		cfg.Tags = tags
 	}
 
-	cfg.Team = getMetaStringSlice(readmeMeta, "contributors")
-
+	platform := &wpmjson.Platform{}
 	dependencies := make(map[string]string)
+	cfg.Team = getMetaStringSlice(readmeMeta, "contributors")
 	wpRequires := getMetaString(readmeMeta, "requires", "")
 	phpRequires := getMetaString(readmeMeta, "requires_php", "")
 
@@ -473,19 +467,24 @@ func buildWPMConfig(
 	}
 
 	if wpRequires != "" {
-		v, err := semver.NewVersion(wpRequires)
+		_, err := semver.NewConstraint(wpRequires)
 		if err == nil {
-			dependencies["wp"] = v.String()
+			platform.WP = "^" + wpRequires
 		}
 	}
 	if phpRequires != "" {
-		v, err := semver.NewVersion(phpRequires)
+		_, err := semver.NewConstraint(phpRequires)
 		if err == nil {
-			dependencies["php"] = v.String()
+			platform.PHP = "^" + phpRequires
 		}
 	}
+
 	if len(dependencies) > 0 {
 		cfg.Dependencies = dependencies
+	}
+
+	if platform.PHP != "" || platform.WP != "" {
+		cfg.Platform = platform
 	}
 
 	return cfg
@@ -511,6 +510,25 @@ func normalizeVersion(version string) (string, error) {
 		version = fmt.Sprintf("%s.%s.%s-%s", major, minor, patch, prerelease)
 	}
 
+	// If version part start with 0, we remove it
+	// Example:
+	// 01.0.0 -> 1.0.0
+	// 1.01.0 -> 1.1.0
+	// 1.0.01 -> 1.0.1
+	// 1.0.01-beta -> 1.0.1-beta
+	parts = strings.Split(version, ".")
+	for i, part := range parts {
+		if len(part) > 1 && part[0] == '0' {
+			// Remove leading zero
+			parts[i] = strings.TrimLeft(part, "0")
+			if parts[i] == "" {
+				// If the part becomes empty, set it to "0"
+				parts[i] = "0"
+			}
+		}
+	}
+	version = strings.Join(parts, ".")
+
 	v, err := semver.NewVersion(version)
 	if err != nil {
 		return "", errors.Wrapf(err, "invalid version format: %s", version)
@@ -519,15 +537,34 @@ func normalizeVersion(version string) (string, error) {
 	return v.String(), nil
 }
 
-func runMigrationProcess(wpmCli command.Cli, opts initOptions, cwd string) error {
-	baseFiles, err := findMigrationBaseFiles(cwd)
+func getMigrateType(cwd string) string {
+	if _, err := os.Stat(filepath.Join(cwd, "style.css")); err == nil {
+		return "theme"
+	}
+
+	return "plugin"
+}
+
+func runMigrate(ctx context.Context, wpmCli command.Cli, opts *initOptions) error {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return errors.Wrap(err, "failed to get current working directory")
+	}
+
+	baseFiles, err := findExistingProjectBaseFiles(cwd)
 	if err != nil {
 		return err
 	}
 
 	if baseFiles.wpmJson != "" {
-		_, _ = fmt.Fprintf(wpmCli.Out(), "%s already exists at %s, skipping migration.\n", wpm.ConfigFile, baseFiles.wpmJson)
+		_, _ = fmt.Fprintf(wpmCli.Out(), "%s already exists at %s, skipping migration.\n", wpmjson.ConfigFile, baseFiles.wpmJson)
 		return nil
+	}
+
+	if opts.packageType == "" {
+		opts.packageType = getMigrateType(cwd)
+
+		_, _ = fmt.Fprintf(wpmCli.Out(), "using package type: %s\n", opts.packageType)
 	}
 
 	readmeParser, err := generateReadme(wpmCli, baseFiles.readmeTxt, baseFiles.readmeMd)
@@ -537,8 +574,9 @@ func runMigrationProcess(wpmCli command.Cli, opts initOptions, cwd string) error
 
 	readmeMetadata := readmeParser.GetMetadata()
 
+	var version string
 	var mainFilePath string
-	var mainFileHeaders interface{}
+	var mainFileHeaders any
 	var mainFileNameForMsg string // style.css for themes, main plugin file for plugins
 
 	switch opts.packageType {
@@ -556,37 +594,44 @@ func runMigrationProcess(wpmCli command.Cli, opts initOptions, cwd string) error
 		if parseErr != nil {
 			return errors.Wrapf(parseErr, "failed to parse theme headers from %s", mainFileNameForMsg)
 		}
-		if headers.Version != opts.version {
-			return errors.Errorf("version in %s (%s) does not match specified version %s", mainFileNameForMsg, headers.Version, opts.version)
-		}
 
 		mainFileHeaders = headers
+		version = headers.Version
 	case "plugin":
 		dirEntries, readDirErr := os.ReadDir(cwd)
 		if readDirErr != nil {
 			return errors.Wrap(readDirErr, "failed to read current directory for plugin files")
 		}
 
-		foundPath, parsedHeaders, findErr := findMainPluginFile(cwd, opts.version, dirEntries)
+		foundPath, parsedHeaders, findErr := findMainPluginFile(cwd, dirEntries)
 		if findErr != nil {
 			return errors.Wrap(findErr, "failed to identify main plugin file")
 		}
 
-		mainFilePath = foundPath
-		mainFileNameForMsg = filepath.Base(mainFilePath)
-		if parsedHeaders.Version != opts.version { // findMainPluginFile might return a non-matching version if no exact match found
-			return errors.Errorf("version in %s (%s) does not match specified version --version %s", mainFileNameForMsg, parsedHeaders.Version, opts.version)
-		}
+		_, _ = fmt.Fprintf(wpmCli.Out(), "main plugin file found: %s\n", foundPath)
 
 		mainFileHeaders = parsedHeaders
+		version = parsedHeaders.Version
 	default:
 		return errors.Errorf("unsupported package type for migration: %s", opts.packageType)
 	}
 
-	wpmJsonData := buildWPMConfig(opts, opts.packageType, mainFileHeaders, readmeMetadata)
+	wpmJsonData := buildWPMConfig(*opts, opts.packageType, mainFileHeaders, readmeMetadata)
 
-	if wpmJsonData.Name == "" || wpmJsonData.Version == "" || wpmJsonData.Type == "" {
-		return errors.New("failed to build wpm.json data; name, version, and type are required")
+	if opts.name != "" {
+		wpmJsonData.Name = opts.name
+	} else {
+		wpmJsonData.Name = filepath.Base(cwd)
+	}
+
+	if opts.version != "" {
+		wpmJsonData.Version = opts.version
+	} else {
+		if version == "" {
+			return errors.New("unable to determine version; please specify it with --version")
+		}
+
+		wpmJsonData.Version = version
 	}
 
 	v, err := normalizeVersion(wpmJsonData.Version)
@@ -596,54 +641,20 @@ func runMigrationProcess(wpmCli command.Cli, opts initOptions, cwd string) error
 
 	wpmJsonData.Version = v
 
-	if err := wpm.WriteWpmJson(wpmJsonData, cwd); err != nil {
-		return errors.Wrapf(err, "failed to write %s", wpm.ConfigFile)
+	ve, err := wpmjson.NewValidator()
+	if err != nil {
+		return errors.Wrap(err, "failed to initialize validator")
 	}
 
-	_, _ = fmt.Fprintf(wpmCli.Out(), "%s created at %s\n", wpm.ConfigFile, filepath.Join(cwd, wpm.ConfigFile))
+	if errs := wpmjson.ValidateWpmJson(ve, wpmJsonData); errs != nil {
+		return errors.Errorf("wpm.json validation failed: %s", errs)
+	}
+
+	if err := wpmjson.WriteWpmJson(wpmJsonData, cwd); err != nil {
+		return errors.Wrapf(err, "failed to write %s", wpmjson.ConfigFile)
+	}
+
+	_, _ = fmt.Fprintf(wpmCli.Out(), "%s created at %s\n", wpmjson.ConfigFile, filepath.Join(cwd, wpmjson.ConfigFile))
 
 	return nil
-}
-
-func getMigrateType(cwd string) string {
-	if _, err := os.Stat(filepath.Join(cwd, "style.css")); err == nil {
-		return "theme"
-	}
-
-	return "plugin"
-}
-
-func runMigrate(ctx context.Context, wpmCli command.Cli, opts *initOptions) error {
-	cwd := wpmCli.Options().Cwd
-
-	if opts.name == "" {
-		return errors.Errorf("package --name is required for migration (e.g., --name=amp)")
-	}
-
-	if opts.version == "" {
-		return errors.New("package --version is required for migration (e.g., --version=1.0.0)")
-	}
-
-	if opts.packageType == "" {
-		opts.packageType = getMigrateType(cwd)
-
-		_, _ = fmt.Fprintf(wpmCli.Out(), "auto-detected package type: %s\n", opts.packageType)
-	}
-
-	if opts.packageType != "theme" && opts.packageType != "plugin" {
-		return errors.Errorf("invalid package type '%s' specified for migration; must be 'theme' or 'plugin'", opts.packageType)
-	}
-
-	ve, err := wpm.NewValidator()
-	if err != nil {
-		return errors.Wrap(err, "failed to initialize validator for migration")
-	}
-	if errs := ve.Var(opts.name, "required,min=3,max=164,package_name_regex"); errs != nil {
-		return errors.Errorf("invalid --name for migration: \"%s\"", aec.Bold.Apply(opts.name))
-	}
-	if errs := ve.Var(opts.version, "required,max=64"); errs != nil {
-		return errors.Errorf("invalid --version for migration: \"%s\"", aec.Bold.Apply(opts.version))
-	}
-
-	return runMigrationProcess(wpmCli, *opts, cwd)
 }
