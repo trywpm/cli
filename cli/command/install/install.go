@@ -2,11 +2,13 @@ package install
 
 import (
 	"context"
+	"os"
 
 	"wpm/cli"
 	"wpm/cli/command"
-	"wpm/pkg/wpm"
+	"wpm/pkg/pm/wpmjson"
 
+	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 )
 
@@ -37,10 +39,13 @@ func NewInstallCommand(wpmCli command.Cli) *cobra.Command {
 }
 
 func runInstall(ctx context.Context, wpmCli command.Cli, opts installOptions) error {
-	cwd := wpmCli.Options().Cwd
+	cwd, err := os.Getwd()
+	if err != nil {
+		return errors.Wrap(err, "failed to get current working directory")
+	}
 
 	// @todo: complete the install command
-	_, err := wpm.ReadAndValidateWpmJson(cwd)
+	_, err = wpmjson.ReadAndValidateWpmJson(cwd)
 	if err != nil {
 		return err
 	}
