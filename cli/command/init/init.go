@@ -231,7 +231,7 @@ func runExistingInit(wpmCli command.Cli, opts *initOptions) error {
 	// Normalize and validate version
 	v, err := normalizeVersion(wpmJsonData.Version)
 	if err != nil {
-		return errors.Wrapf(err, "invalid version %s; must be a valid semantic version", wpmJsonData.Version)
+		return errors.New("invalid version format: " + err.Error())
 	}
 	wpmJsonData.Version = v
 
@@ -647,7 +647,7 @@ func normalizeVersion(version string) (string, error) {
 
 	v, err := semver.NewVersion(version)
 	if err != nil {
-		return "", errors.Wrapf(err, "invalid version format: %s", version)
+		return "", err
 	}
 
 	return v.String(), nil
