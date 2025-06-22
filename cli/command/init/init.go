@@ -219,7 +219,7 @@ func runExistingInit(wpmCli command.Cli, opts *initOptions) error {
 		wpmJsonData.Version = opts.version
 
 		if extractedVersion != "" && extractedVersion != opts.version {
-			_, _ = fmt.Fprintf(wpmCli.Err(), aec.YellowB.Apply("provided version (%s) differs from version in headers (%s)\n"), opts.version, extractedVersion)
+			_, _ = fmt.Fprintf(wpmCli.Err(), aec.YellowF.Apply("provided version (%s) differs from version in headers (%s)\n"), opts.version, extractedVersion)
 		}
 	} else {
 		if extractedVersion == "" {
@@ -240,8 +240,8 @@ func runExistingInit(wpmCli command.Cli, opts *initOptions) error {
 		return errors.Wrap(err, "failed to initialize validator")
 	}
 
-	if errs := wpmjson.ValidateWpmJson(ve, wpmJsonData); errs != nil {
-		return errors.Errorf("wpm.json validation failed: %s", errs)
+	if err = wpmjson.ValidateWpmJson(ve, wpmJsonData); err != nil {
+		return err
 	}
 
 	// create wpm.json file
