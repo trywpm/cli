@@ -159,25 +159,30 @@ func runExistingInit(wpmCli command.Cli, opts *initOptions) error {
 	}
 
 	// Extract package info based on type
-	var version string
+	var extractedVersion string
 	var mainFileHeaders any
 
 	switch opts.packageType {
 	case "theme":
 		mainFilePath := filepath.Join(cwd, "style.css")
 		if _, err := os.Stat(mainFilePath); err != nil {
-			if os.IsNotExist(err) {
+			if os.IsNotExist(err) && opts.version == "" {
 				return errors.Errorf("style.css not found in %s", cwd)
 			}
-			return errors.Wrapf(err, "failed to stat style.css")
+			if !os.IsNotExist(err) {
+				return errors.Wrapf(err, "failed to stat style.css")
+			}
+		} else {
+			headers, err := parser.GetThemeHeaders(mainFilePath)
+			if err != nil {
+				if opts.version == "" {
+					return errors.Wrapf(err, "failed to parse theme headers from style.css")
+				}
+			} else {
+				mainFileHeaders = headers
+				extractedVersion = headers.Version
+			}
 		}
-
-		headers, err := parser.GetThemeHeaders(mainFilePath)
-		if err != nil {
-			return errors.Wrapf(err, "failed to parse theme headers from style.css")
-		}
-		mainFileHeaders = headers
-		version = headers.Version
 
 	case "plugin":
 		dirEntries, err := os.ReadDir(cwd)
@@ -187,11 +192,14 @@ func runExistingInit(wpmCli command.Cli, opts *initOptions) error {
 
 		foundPath, headers, err := findMainPluginFile(cwd, dirEntries)
 		if err != nil {
-			return errors.Wrap(err, "failed to identify main plugin file")
+			if opts.version == "" {
+				return errors.Wrap(err, "failed to identify main plugin file")
+			}
+		} else {
+			_, _ = fmt.Fprintf(wpmCli.Out(), "main plugin file found: %s\n", foundPath)
+			mainFileHeaders = headers
+			extractedVersion = headers.Version
 		}
-		_, _ = fmt.Fprintf(wpmCli.Out(), "main plugin file found: %s\n", foundPath)
-		mainFileHeaders = headers
-		version = headers.Version
 
 	default:
 		return errors.Errorf("unsupported package type for existing project init: %s", opts.packageType)
@@ -207,20 +215,23 @@ func runExistingInit(wpmCli command.Cli, opts *initOptions) error {
 		wpmJsonData.Name = filepath.Base(cwd)
 	}
 
-	// Set version
 	if opts.version != "" {
 		wpmJsonData.Version = opts.version
+
+		if extractedVersion != "" && extractedVersion != opts.version {
+			_, _ = fmt.Fprintf(wpmCli.Err(), aec.YellowF.Apply("provided version (%s) differs from version in headers (%s)\n"), opts.version, extractedVersion)
+		}
 	} else {
-		if version == "" {
+		if extractedVersion == "" {
 			return errors.New("unable to determine version; please specify it with --version")
 		}
-		wpmJsonData.Version = version
+		wpmJsonData.Version = extractedVersion
 	}
 
 	// Normalize and validate version
 	v, err := normalizeVersion(wpmJsonData.Version)
 	if err != nil {
-		return errors.Wrapf(err, "invalid version %s; must be a valid semantic version", wpmJsonData.Version)
+		return errors.New("invalid version format: " + err.Error())
 	}
 	wpmJsonData.Version = v
 
@@ -229,8 +240,8 @@ func runExistingInit(wpmCli command.Cli, opts *initOptions) error {
 		return errors.Wrap(err, "failed to initialize validator")
 	}
 
-	if errs := wpmjson.ValidateWpmJson(ve, wpmJsonData); errs != nil {
-		return errors.Errorf("wpm.json validation failed: %s", errs)
+	if err = wpmjson.ValidateWpmJson(ve, wpmJsonData); err != nil {
+		return err
 	}
 
 	// create wpm.json file
@@ -636,7 +647,7 @@ func normalizeVersion(version string) (string, error) {
 
 	v, err := semver.NewVersion(version)
 	if err != nil {
-		return "", errors.Wrapf(err, "invalid version format: %s", version)
+		return "", err
 	}
 
 	return v.String(), nil
