@@ -29,6 +29,7 @@ go.work.sum
 # wpm files
 wpm
 !pkg/wpm
+!cmd/wpm
 wpm.json
 .wpmignore
 
