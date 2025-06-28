@@ -49,7 +49,7 @@ func getExitCode(err error) int {
 		return 0
 	}
 	var stErr cli.StatusError
-	if errors.As(err, &stErr) && stErr.StatusCode != 0 { // FIXME(thaJeztah): StatusCode should never be used with a zero status-code. Check if we do this anywhere.
+	if errors.As(err, &stErr) && stErr.StatusCode != 0 {
 		return stErr.StatusCode
 	}
 
