@@ -7,7 +7,7 @@ toolchain go1.24.1
 require (
 	github.com/Masterminds/semver/v3 v3.3.1
 	github.com/briandowns/spinner v1.23.2
-	github.com/docker/docker v28.1.1+incompatible
+	github.com/docker/docker v28.3.0+incompatible
 	github.com/docker/go-units v0.5.0
 	github.com/fvbommel/sortorder v1.1.0
 	github.com/go-playground/validator/v10 v10.26.0
@@ -28,6 +28,7 @@ require (
 
 require (
 	github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c // indirect
+	github.com/containerd/errdefs v1.0.0 // indirect
 	github.com/fatih/color v1.7.0 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.8 // indirect
 	github.com/go-playground/locales v0.14.1 // indirect
