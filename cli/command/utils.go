@@ -3,7 +3,6 @@ package command
 import (
 	"bufio"
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -11,11 +10,18 @@ import (
 	"strings"
 	"wpm/pkg/streams"
 
-	"github.com/docker/docker/errdefs"
 	"github.com/moby/term"
 )
 
-var ErrPromptTerminated = errdefs.Cancelled(errors.New("prompt terminated"))
+type cancelledErr string
+
+func (e cancelledErr) Error() string {
+	return string(e)
+}
+
+func (cancelledErr) Cancelled() {}
+
+var ErrPromptTerminated = cancelledErr("prompt terminated")
 
 // DisableInputEcho disables input echo on the provided streams.In.
 // This is useful when the user provides sensitive information like passwords.

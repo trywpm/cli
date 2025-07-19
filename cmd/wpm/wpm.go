@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"syscall"
 
 	"wpm/cli"
 	"wpm/cli/command"
@@ -14,22 +15,62 @@ import (
 	"wpm/cli/version"
 	platformsignals "wpm/cmd/wpm/internal/signals"
 
-	"github.com/docker/docker/errdefs"
+	"github.com/containerd/errdefs"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
+type errCtxSignalTerminated struct {
+	signal os.Signal
+}
+
+func (errCtxSignalTerminated) Error() string {
+	return ""
+}
+
 func main() {
 	err := wpmMain(context.Background())
-	if err != nil && !errdefs.IsCancelled(err) {
-		_, _ = fmt.Fprintln(os.Stderr, err)
+	if errors.As(err, &errCtxSignalTerminated{}) {
+		os.Exit(getExitCode(err))
+	}
+
+	if err != nil && !errdefs.IsCanceled(err) {
+		if err.Error() != "" {
+			_, _ = fmt.Fprintln(os.Stderr, err)
+		}
 		os.Exit(getExitCode(err))
 	}
 }
 
+func notifyContext(ctx context.Context, signals ...os.Signal) (context.Context, context.CancelFunc) {
+	ch := make(chan os.Signal, 1)
+	signal.Notify(ch, signals...)
+
+	ctxCause, cancel := context.WithCancelCause(ctx)
+
+	go func() {
+		select {
+		case <-ctx.Done():
+			signal.Stop(ch)
+			return
+		case sig := <-ch:
+			cancel(errCtxSignalTerminated{
+				signal: sig,
+			})
+			signal.Stop(ch)
+			return
+		}
+	}()
+
+	return ctxCause, func() {
+		signal.Stop(ch)
+		cancel(nil)
+	}
+}
+
 func wpmMain(ctx context.Context) error {
-	ctx, cancelNotify := signal.NotifyContext(ctx, platformsignals.TerminationSignals...)
+	ctx, cancelNotify := notifyContext(ctx, platformsignals.TerminationSignals...)
 	defer cancelNotify()
 
 	wpmCli, err := command.NewWpmCli()
@@ -48,6 +89,16 @@ func getExitCode(err error) int {
 	if err == nil {
 		return 0
 	}
+
+	var userTerminatedErr errCtxSignalTerminated
+	if errors.As(err, &userTerminatedErr) {
+		s, ok := userTerminatedErr.signal.(syscall.Signal)
+		if !ok {
+			return 1
+		}
+		return 128 + int(s)
+	}
+
 	var stErr cli.StatusError
 	if errors.As(err, &stErr) && stErr.StatusCode != 0 {
 		return stErr.StatusCode
