@@ -196,11 +196,12 @@ func runPublish(wpmCli command.Cli, opts publishOptions) error {
 		"uploading tarball to registry",
 		func() error {
 			upload, err := registryClient.UploadTarball(context.TODO(), tempTarball, client.UploadTarballOptions{
-				Acl:     opts.access,
-				Name:    wpmJson.Name,
-				Version: wpmJson.Version,
-				Digest:  digest,
-				Type:    wpmJson.Type,
+				Acl:           opts.access,
+				Name:          wpmJson.Name,
+				Version:       wpmJson.Version,
+				Digest:        digest,
+				Type:          wpmJson.Type,
+				ContentLength: counter.total,
 			})
 			if err != nil {
 				return err

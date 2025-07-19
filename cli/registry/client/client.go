@@ -50,11 +50,12 @@ func NewRegistryClient(host string, authToken string, userAgent string, out *str
 
 // UploadTarballOptions defines the options for uploading a tarball to the registry.
 type UploadTarballOptions struct {
-	Name    string // package name
-	Acl     string // must be one of "public" or "private"
-	Digest  string // base64 encoded digest of the package
-	Version string // package version
-	Type    string // package type, e.g., "theme", "plugin" or "mu-plugin"
+	Name          string // package name
+	Acl           string // must be one of "public" or "private"
+	Digest        string // base64 encoded digest of the package
+	Version       string // package version
+	Type          string // package type, e.g., "theme", "plugin" or "mu-plugin"
+	ContentLength int64  // length of the content being uploaded
 }
 
 // UploadTarballResponse defines the response structure for uploading a package.
@@ -73,6 +74,7 @@ func (c *client) UploadTarball(ctx context.Context, body io.Reader, opts UploadT
 		api.WithHeader("x-wpm-package-type", opts.Type),
 		api.WithHeader("x-wpm-checksum-sha256", opts.Digest),
 		api.WithHeader("Content-Type", "application/octet-stream"),
+		api.WithHeader("x-wpm-content-length", fmt.Sprintf("%d", opts.ContentLength)),
 	)
 	if err != nil {
 		return UploadTarballResponse{}, err
