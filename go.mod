@@ -23,7 +23,7 @@ require (
 	github.com/spf13/pflag v1.0.7
 	github.com/thlib/go-timezone-local v0.0.7
 	golang.org/x/sys v0.34.0
-	golang.org/x/text v0.27.0
+	golang.org/x/text v0.28.0
 )
 
 require (
