@@ -282,16 +282,16 @@ func setDefaults(opts *initOptions, defaultName string) error {
 }
 
 func validateOptions(opts *initOptions, ve *validator.Validate) error {
-	if errs := ve.Var(opts.name, "required,min=3,max=164,package_name_regex"); errs != nil {
+	if errs := ve.Var(opts.name, "required,wpm_name"); errs != nil {
 		return errors.Errorf("invalid package name: \"%s\"", aec.Bold.Apply(opts.name))
 	}
-	if errs := ve.Var(opts.version, "required,package_semver,max=64"); errs != nil {
+	if errs := ve.Var(opts.version, "required,wpm_semver"); errs != nil {
 		return errors.Errorf("invalid version: \"%s\"", aec.Bold.Apply(opts.version))
 	}
 	if errs := ve.Var(opts.packageType, "required,oneof=plugin theme mu-plugin"); errs != nil {
 		return errors.Errorf("invalid type: \"%s\"", aec.Bold.Apply(opts.packageType))
 	}
-	if errs := ve.Var(opts.license, "required,min=1,max=128"); errs != nil {
+	if errs := ve.Var(opts.license, "required,min=3,max=100"); errs != nil {
 		return errors.Errorf("invalid license: \"%s\"", aec.Bold.Apply(opts.license))
 	}
 	return nil
@@ -315,7 +315,7 @@ func promptForConfig(ctx context.Context, wpmCli command.Cli, config *wpmjson.Co
 					if val == "" {
 						val = defaultName
 					}
-					if errs := ve.Var(val, "required,min=3,max=164,package_name_regex"); errs != nil {
+					if errs := ve.Var(val, "required,wpm_name"); errs != nil {
 						return errors.Errorf("invalid package name: \"%s\"", aec.Bold.Apply(val))
 					}
 					config.Name = val
@@ -332,7 +332,7 @@ func promptForConfig(ctx context.Context, wpmCli command.Cli, config *wpmjson.Co
 					if val == "" {
 						val = defaultVersion
 					}
-					if errs := ve.Var(val, "required,package_semver,max=64"); errs != nil {
+					if errs := ve.Var(val, "required,wpm_semver"); errs != nil {
 						return errors.Errorf("invalid version: \"%s\"", aec.Bold.Apply(val))
 					}
 					config.Version = val
@@ -526,7 +526,7 @@ func buildWPMConfig(opts initOptions, pkgType string, mainFileHeaders any, readm
 		}
 
 		if h.ThemeURI != "" {
-			if err := ve.Var(h.ThemeURI, "http_url"); err == nil {
+			if err := ve.Var(h.ThemeURI, "url,wpm_http_url,min=10,max=200"); err == nil {
 				cfg.Homepage = h.ThemeURI
 			}
 		}
@@ -561,7 +561,7 @@ func buildWPMConfig(opts initOptions, pkgType string, mainFileHeaders any, readm
 		}
 
 		if h.PluginURI != "" {
-			if err := ve.Var(h.PluginURI, "http_url"); err == nil {
+			if err := ve.Var(h.PluginURI, "url,wpm_http_url,min=10,max=200"); err == nil {
 				cfg.Homepage = h.PluginURI
 			}
 		}
