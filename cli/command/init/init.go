@@ -498,7 +498,7 @@ func buildWPMConfig(opts initOptions, pkgType string, mainFileHeaders any, readm
 	}
 
 	platform := &wpmjson.Platform{}
-	dependencies := make(map[string]string)
+	dependencies := make(wpmjson.Dependencies)
 	cfg.Team = getMetaStringSlice(readmeMeta, "contributors")
 	wpRequires := getMetaString(readmeMeta, "requires", "")
 	phpRequires := getMetaString(readmeMeta, "requires_php", "")
@@ -596,7 +596,7 @@ func buildWPMConfig(opts initOptions, pkgType string, mainFileHeaders any, readm
 	}
 
 	if len(dependencies) > 0 {
-		cfg.Dependencies = dependencies
+		cfg.Dependencies = &dependencies
 	}
 
 	if platform.PHP != "" || platform.WP != "" {
