@@ -169,6 +169,14 @@ func runPublish(wpmCli command.Cli, opts publishOptions) error {
 		fmt.Fprint(wpmCli.Err(), "\n")
 	}
 
+	// bail if tarball size is zero or greater than 128mb
+	switch {
+	case counter.total == 0:
+		return errors.New("tarball size is zero, cannot publish empty package")
+	case counter.total > 128*1024*1024:
+		return errors.New("tarball size exceeds 128mb, cannot publish package")
+	}
+
 	fmt.Fprintf(wpmCli.Err(), "%s: %d\n", aec.LightBlueF.Apply("total files"), tarballer.FileCount())
 	fmt.Fprintf(wpmCli.Err(), "%s: %s\n", aec.LightBlueF.Apply("digest"), digest)
 	fmt.Fprintf(wpmCli.Err(), "%s: %s\n", aec.LightBlueF.Apply("unpacked size"), units.HumanSize(float64(tarballer.UnpackedSize())))
@@ -223,6 +231,12 @@ func runPublish(wpmCli command.Cli, opts publishOptions) error {
 		return errors.Wrap(err, "failed to read readme file")
 	}
 
+	// trim readme to 100kb with warning
+	if len(readmeText) > 100*1024 {
+		fmt.Fprint(wpmCli.Err(), aec.YellowF.Apply("⚠️  readme file is larger than 100kb, trimming to 100kb ⚠️ \n"))
+		readmeText = readmeText[:100*1024]
+	}
+
 	newPackageData := &wpmjson.Package{
 		Config: wpmjson.Config{
 			Name:            wpmJson.Name,
@@ -234,10 +248,8 @@ func runPublish(wpmCli command.Cli, opts publishOptions) error {
 			Homepage:        wpmJson.Homepage,
 			Tags:            wpmJson.Tags,
 			Team:            wpmJson.Team,
-			Bin:             wpmJson.Bin,
 			Dependencies:    wpmJson.Dependencies,
 			DevDependencies: wpmJson.DevDependencies,
-			Scripts:         wpmJson.Scripts,
 		},
 		Meta: wpmjson.Meta{
 			Dist: wpmjson.Dist{
