@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"strings"
 
@@ -112,7 +113,7 @@ func runPublish(wpmCli command.Cli, opts publishOptions) error {
 	}
 
 	cfg := wpmCli.ConfigFile()
-	if cfg.AuthToken == "" {
+	if cfg.AuthToken == "" || cfg.DefaultTId == "" {
 		return errors.New("user must be logged in to perform this action")
 	}
 
@@ -199,25 +200,55 @@ func runPublish(wpmCli command.Cli, opts publishOptions) error {
 		return err
 	}
 
+	rawIdempotencyKey := sha256.Sum256([]byte(wpmJson.Name + ":" + wpmJson.Version + ":" + cfg.DefaultTId))
+	idempotencyKey := base64.StdEncoding.EncodeToString(rawIdempotencyKey[:])
+
 	var reqId string
 	err = wpmCli.Progress().RunWithProgress(
 		"uploading tarball to registry",
 		func() error {
-			upload, err := registryClient.UploadTarball(context.TODO(), tempTarball, client.UploadTarballOptions{
-				Acl:           opts.access,
-				Name:          wpmJson.Name,
-				Version:       wpmJson.Version,
-				Digest:        digest,
-				Type:          wpmJson.Type,
-				ContentLength: counter.total,
+			resp, err := registryClient.GetUploadTarballUrl(context.TODO(), client.UploadTarballOptions{
+				Acl:            opts.access,
+				Name:           wpmJson.Name,
+				Version:        wpmJson.Version,
+				Digest:         digest,
+				Type:           wpmJson.Type,
+				ContentLength:  counter.total,
+				IdempotencyKey: idempotencyKey,
 			})
 			if err != nil {
 				return err
 			}
-			if upload.ID == "" {
+			if resp.Id == "" {
 				return errors.New("failed to get request id from upload response")
 			}
-			reqId = upload.ID
+			reqId = resp.Id
+
+			if resp.Url != "" {
+				req, err := http.NewRequestWithContext(context.Background(), http.MethodPut, resp.Url, tempTarball)
+				if err != nil {
+					return err
+				}
+
+				req.ContentLength = counter.total
+				req.Header.Set("x-amz-checksum-sha256", digest)
+				req.Header.Set("x-amz-meta-request-id", reqId)
+				req.Header.Set("x-amz-sdk-checksum-algorithm", "SHA256")
+				req.Header.Set("Content-Type", "application/octet-stream")
+				req.Header.Set("x-amz-meta-idempotency-key", idempotencyKey)
+
+				client := &http.Client{}
+				uploadResp, err := client.Do(req)
+				if err != nil {
+					return err
+				}
+				defer uploadResp.Body.Close()
+
+				if uploadResp.StatusCode != http.StatusOK {
+					return fmt.Errorf("failed to upload tarball, status code: %d", uploadResp.StatusCode)
+				}
+			}
+
 			return nil
 		},
 		wpmCli.Err(),
@@ -253,10 +284,10 @@ func runPublish(wpmCli command.Cli, opts publishOptions) error {
 		},
 		Meta: wpmjson.Meta{
 			Dist: wpmjson.Dist{
+				Digest:       digest,
 				PackedSize:   int64(counter.total),
 				TotalFiles:   tarballer.FileCount(),
 				UnpackedSize: int64(tarballer.UnpackedSize()),
-				Digest:       "sha256:" + digest,
 			},
 			Tag:        opts.tag,
 			Visibility: opts.access,
@@ -269,7 +300,12 @@ func runPublish(wpmCli command.Cli, opts publishOptions) error {
 	err = wpmCli.Progress().RunWithProgress(
 		"publishing package to registry",
 		func() error {
-			message, err = registryClient.PublishPackage(context.TODO(), newPackageData, reqId)
+			message, err = registryClient.PublishPackage(context.TODO(), newPackageData, client.PublishPackageOptions{
+				Name:           wpmJson.Name,
+				Version:        wpmJson.Version,
+				RequestId:      reqId,
+				IdempotencyKey: idempotencyKey,
+			})
 			return err
 		},
 		wpmCli.Err(),

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strconv"
 	"wpm/cli"
 	"wpm/cli/command"
 	"wpm/pkg/api"
@@ -72,8 +73,8 @@ func tokenStdinPrompt(ctx context.Context, wpmCli command.Cli, opts *loginOption
 }
 
 type AuthResponse struct {
-	Uid      string `json:"uid"`
-	Tid      string `json:"tid"`
+	Uid      int    `json:"uid"`
+	Tid      int    `json:"tid"`
 	Username string `json:"username"`
 }
 
@@ -113,15 +114,15 @@ func runLogin(ctx context.Context, wpmCli command.Cli, opts loginOptions) error 
 	if err != nil {
 		return err
 	}
-	if resp == nil || resp.Username == "" || resp.Tid == "" || resp.Uid == "" {
+	if resp == nil || resp.Username == "" || resp.Tid == 0 || resp.Uid == 0 {
 		return errors.New(aec.RedF.Apply("unable to resolve identity from token"))
 	}
 
 	cfg := wpmCli.ConfigFile()
 	cfg.AuthToken = opts.token
 	cfg.DefaultUser = resp.Username
-	cfg.DefaultUId = resp.Uid
-	cfg.DefaultTId = resp.Tid
+	cfg.DefaultUId = strconv.Itoa(resp.Uid)
+	cfg.DefaultTId = strconv.Itoa(resp.Tid)
 
 	if err := cfg.Save(); err != nil {
 		return err
