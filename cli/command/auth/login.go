@@ -71,7 +71,13 @@ func tokenStdinPrompt(ctx context.Context, wpmCli command.Cli, opts *loginOption
 	return nil
 }
 
-func validateToken(wpmCli command.Cli, token string) (string, error) {
+type AuthResponse struct {
+	Uid      string `json:"uid"`
+	Tid      string `json:"tid"`
+	Username string `json:"username"`
+}
+
+func validateToken(wpmCli command.Cli, token string) (*AuthResponse, error) {
 	client, err := api.NewRESTClient(api.ClientOptions{
 		Log:         wpmCli.Err(),
 		AuthToken:   token,
@@ -80,19 +86,16 @@ func validateToken(wpmCli command.Cli, token string) (string, error) {
 		LogColorize: !wpmTerm.IsColorDisabled() && term.IsTerminal(wpmCli.Err().FD()),
 	})
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	response := struct {
-		Username string `json:"username"`
-	}{}
-
+	var response AuthResponse
 	err = wpmCli.Progress().RunWithProgress("validating token", func() error { return client.Get("/-/whoami", &response) }, wpmCli.Err())
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	return response.Username, nil
+	return &response, nil
 }
 
 func runLogin(ctx context.Context, wpmCli command.Cli, opts loginOptions) error {
@@ -106,23 +109,25 @@ func runLogin(ctx context.Context, wpmCli command.Cli, opts loginOptions) error 
 		}
 	}
 
-	username, err := validateToken(wpmCli, opts.token)
+	resp, err := validateToken(wpmCli, opts.token)
 	if err != nil {
 		return err
 	}
-	if username == "" {
+	if resp == nil || resp.Username == "" || resp.Tid == "" || resp.Uid == "" {
 		return errors.New(aec.RedF.Apply("unable to resolve identity from token"))
 	}
 
 	cfg := wpmCli.ConfigFile()
 	cfg.AuthToken = opts.token
-	cfg.DefaultUser = username
+	cfg.DefaultUser = resp.Username
+	cfg.DefaultUId = resp.Uid
+	cfg.DefaultTId = resp.Tid
 
 	if err := cfg.Save(); err != nil {
 		return err
 	}
 
-	_, _ = fmt.Fprintf(wpmCli.Out(), "welcome %s!\n", username)
+	fmt.Fprintf(wpmCli.Out(), "welcome %s!\n", resp.Username)
 
 	return nil
 }
