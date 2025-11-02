@@ -284,10 +284,10 @@ func runPublish(wpmCli command.Cli, opts publishOptions) error {
 		},
 		Meta: wpmjson.Meta{
 			Dist: wpmjson.Dist{
-				Digest:       digest,
-				PackedSize:   int64(counter.total),
+				Digest:       "sha256:" + digest,
+				PackedSize:   counter.total,
 				TotalFiles:   tarballer.FileCount(),
-				UnpackedSize: int64(tarballer.UnpackedSize()),
+				UnpackedSize: tarballer.UnpackedSize(),
 			},
 			Tag:        opts.tag,
 			Visibility: opts.access,

@@ -17,7 +17,7 @@ const (
 // Dist struct to define the distribution metadata
 type Dist struct {
 	Digest       string `json:"digest"`
-	TotalFiles   int    `json:"totalFiles"`
+	TotalFiles   int64  `json:"totalFiles"`
 	PackedSize   int64  `json:"packedSize"`
 	UnpackedSize int64  `json:"unpackedSize"`
 }
