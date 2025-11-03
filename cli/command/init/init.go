@@ -536,7 +536,7 @@ func buildWPMConfig(opts initOptions, pkgType string, mainFileHeaders any, readm
 		}
 
 		if cfg.Description == "" || !isMeaningfulText(cfg.Description) {
-			cfg.Description = trimMeaningfully(h.Description, 512)
+			cfg.Description = h.Description
 		}
 
 		if len(cfg.Team) == 0 && h.Author != "" {
@@ -571,7 +571,7 @@ func buildWPMConfig(opts initOptions, pkgType string, mainFileHeaders any, readm
 		}
 
 		if cfg.Description == "" || !isMeaningfulText(cfg.Description) {
-			cfg.Description = trimMeaningfully(h.Description, 512)
+			cfg.Description = h.Description
 		}
 
 		if len(cfg.Team) == 0 && h.Author != "" {
@@ -611,6 +611,11 @@ func buildWPMConfig(opts initOptions, pkgType string, mainFileHeaders any, readm
 	// Trim team to max 10 members
 	if len(cfg.Team) > 10 {
 		cfg.Team = cfg.Team[:10]
+	}
+
+	// Trim description to max 512 characters
+	if len(cfg.Description) > 512 {
+		cfg.Description = trimMeaningfully(cfg.Description, 512)
 	}
 
 	if wpRequires != "" {
