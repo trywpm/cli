@@ -47,8 +47,8 @@ type Config struct {
 	Platform        *Platform          `json:"platform,omitempty" validate:"omitempty"`
 	License         string             `json:"license,omitempty" validate:"omitempty,min=3,max=100"`
 	Homepage        string             `json:"homepage,omitempty" validate:"omitempty,url,wpm_http_url,min=10,max=200"`
-	Tags            []string           `json:"tags,omitempty" validate:"omitempty,max=5,dive,min=3,max=64"`
-	Team            []string           `json:"team,omitempty" validate:"omitempty,max=10,dive,min=3,max=100"`
+	Tags            []string           `json:"tags,omitempty" validate:"omitempty,max=5,dive,min=2,max=64"`
+	Team            []string           `json:"team,omitempty" validate:"omitempty,max=10,dive,min=2,max=100"`
 	Bin             *map[string]string `json:"bin,omitempty"`
 	Dependencies    *Dependencies      `json:"dependencies,omitempty" validate:"omitempty,max=16,dive,keys,wpm_name,endkeys,wpm_dependency_version"`
 	DevDependencies *Dependencies      `json:"devDependencies,omitempty" validate:"omitempty,max=16,dive,keys,wpm_name,endkeys,wpm_dependency_version"`
