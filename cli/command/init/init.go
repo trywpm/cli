@@ -601,11 +601,13 @@ func buildWPMConfig(opts initOptions, pkgType string, mainFileHeaders any, readm
 	// Trim tags to max 5
 	if len(cfg.Tags) > 5 {
 		cfg.Tags = cfg.Tags[:5]
+	}
 
+	if len(cfg.Tags) > 0 {
 		// pop tags having minimum 3 and maximum 64 characters
 		validTags := []string{}
 		for _, tag := range cfg.Tags {
-			if len(tag) >= 3 && len(tag) <= 64 {
+			if len(tag) >= 2 && len(tag) <= 64 {
 				validTags = append(validTags, tag)
 			}
 		}
@@ -616,11 +618,13 @@ func buildWPMConfig(opts initOptions, pkgType string, mainFileHeaders any, readm
 	// Trim team to max 10 members
 	if len(cfg.Team) > 10 {
 		cfg.Team = cfg.Team[:10]
+	}
 
+	if len(cfg.Team) > 0 {
 		// pop team members having minimum 3 and maximum 100 characters
 		validTeam := []string{}
 		for _, member := range cfg.Team {
-			if len(member) >= 3 && len(member) <= 100 {
+			if len(member) >= 2 && len(member) <= 100 {
 				validTeam = append(validTeam, member)
 			}
 		}
