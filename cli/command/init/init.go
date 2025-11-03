@@ -517,9 +517,7 @@ func buildWPMConfig(opts initOptions, pkgType string, mainFileHeaders any, readm
 	cfg.Description = getMetaString(readmeMeta, "meta_description", "")
 
 	tags := getMetaStringSlice(readmeMeta, "tags")
-	if len(tags) > 5 {
-		cfg.Tags = tags[:5]
-	} else {
+	if len(tags) > 0 {
 		cfg.Tags = tags
 	}
 
@@ -544,11 +542,7 @@ func buildWPMConfig(opts initOptions, pkgType string, mainFileHeaders any, readm
 		}
 
 		if len(tags) == 0 && len(h.Tags) > 0 {
-			if len(h.Tags) > 5 {
-				cfg.Tags = h.Tags[:5]
-			} else {
-				cfg.Tags = h.Tags
-			}
+			cfg.Tags = h.Tags
 		}
 
 		if h.ThemeURI != "" {
@@ -579,11 +573,7 @@ func buildWPMConfig(opts initOptions, pkgType string, mainFileHeaders any, readm
 		}
 
 		if len(tags) == 0 && len(h.Tags) > 0 {
-			if len(h.Tags) > 5 {
-				cfg.Tags = h.Tags[:5]
-			} else {
-				cfg.Tags = h.Tags
-			}
+			cfg.Tags = h.Tags
 		}
 
 		if h.PluginURI != "" {
@@ -608,14 +598,44 @@ func buildWPMConfig(opts initOptions, pkgType string, mainFileHeaders any, readm
 		}
 	}
 
+	// Trim tags to max 5
+	if len(cfg.Tags) > 5 {
+		cfg.Tags = cfg.Tags[:5]
+
+		// pop tags having minimum 3 and maximum 64 characters
+		validTags := []string{}
+		for _, tag := range cfg.Tags {
+			if len(tag) >= 3 && len(tag) <= 64 {
+				validTags = append(validTags, tag)
+			}
+		}
+
+		cfg.Tags = validTags
+	}
+
 	// Trim team to max 10 members
 	if len(cfg.Team) > 10 {
 		cfg.Team = cfg.Team[:10]
+
+		// pop team members having minimum 3 and maximum 100 characters
+		validTeam := []string{}
+		for _, member := range cfg.Team {
+			if len(member) >= 3 && len(member) <= 100 {
+				validTeam = append(validTeam, member)
+			}
+		}
+
+		cfg.Team = validTeam
 	}
 
 	// Trim description to max 512 characters
 	if len(cfg.Description) > 512 {
 		cfg.Description = trimMeaningfully(cfg.Description, 512)
+	}
+
+	// Mark as UNLICENSED if license having less than 3 and more than 100 characters
+	if len(cfg.License) < 3 || len(cfg.License) > 100 {
+		cfg.License = "UNLICENSED"
 	}
 
 	if wpRequires != "" {
