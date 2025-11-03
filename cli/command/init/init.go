@@ -479,6 +479,32 @@ func isMeaningfulText(s string) bool {
 	return len(words) > 0
 }
 
+func trimMeaningfully(s string, limit int) string {
+	if s == "" {
+		return s
+	}
+
+	if limit <= 0 {
+		return ""
+	}
+
+	// Two words are not meaningful
+	if len(s) < 3 {
+		return ""
+	}
+
+	if len(s) <= limit {
+		return s
+	}
+
+	truncated := s[:limit]
+	lastDotIndex := strings.LastIndex(truncated, ".")
+	if lastDotIndex != -1 {
+		return truncated[:lastDotIndex+1]
+	}
+	return truncated
+}
+
 func buildWPMConfig(opts initOptions, pkgType string, mainFileHeaders any, readmeMeta map[string]any) *wpmjson.Config {
 	cfg := wpmjson.NewConfig()
 	ve, err := wpmjson.NewValidator()
@@ -510,7 +536,7 @@ func buildWPMConfig(opts initOptions, pkgType string, mainFileHeaders any, readm
 		}
 
 		if cfg.Description == "" || !isMeaningfulText(cfg.Description) {
-			cfg.Description = h.Description
+			cfg.Description = trimMeaningfully(h.Description, 512)
 		}
 
 		if len(cfg.Team) == 0 && h.Author != "" {
@@ -545,7 +571,7 @@ func buildWPMConfig(opts initOptions, pkgType string, mainFileHeaders any, readm
 		}
 
 		if cfg.Description == "" || !isMeaningfulText(cfg.Description) {
-			cfg.Description = h.Description
+			cfg.Description = trimMeaningfully(h.Description, 512)
 		}
 
 		if len(cfg.Team) == 0 && h.Author != "" {
@@ -580,6 +606,11 @@ func buildWPMConfig(opts initOptions, pkgType string, mainFileHeaders any, readm
 				dependencies[reqPlugin] = "*"
 			}
 		}
+	}
+
+	// Trim team to max 10 members
+	if len(cfg.Team) > 10 {
+		cfg.Team = cfg.Team[:10]
 	}
 
 	if wpRequires != "" {
