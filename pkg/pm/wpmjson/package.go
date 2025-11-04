@@ -73,7 +73,7 @@ type Package struct {
 
 // Description of package fields.
 var PackageFieldDescriptions = map[string]string{
-	"Name":            "must contain only lowercase letters and hyphens with a length between 3 and 164 characters. (required)",
+	"Name":            "must contain only lowercase letters, numbers, and hyphens with a length between 3 and 164 characters. (required)",
 	"Description":     "should be a string. (optional)",
 	"Private":         "must be a boolean. (optional)",
 	"Type":            "must be one of: 'plugin', 'theme', or 'mu-plugin'. (required)",
@@ -82,7 +82,7 @@ var PackageFieldDescriptions = map[string]string{
 	"License":         "must be a string. (optional)",
 	"Homepage":        "must be a valid http url. (optional)",
 	"Tags":            "must be an array of strings with a maximum of 5 tags. (optional)",
-	"Team":            "must be an array of strings with a maximum of 10 team members. (optional)",
+	"Team":            "must be an array of strings with a maximum of 100 team members. (optional)",
 	"Bin":             "must be an object with string values. (optional)",
 	"Dependencies":    "must be an object with string values. (optional)",
 	"DevDependencies": "must be an object with string values. (optional)",

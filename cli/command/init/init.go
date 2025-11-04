@@ -488,7 +488,7 @@ func trimMeaningfully(s string, limit int) string {
 		return ""
 	}
 
-	// Two words are not meaningful
+	// String must be at least 3 characters
 	if len(s) < 3 {
 		return ""
 	}
@@ -604,7 +604,7 @@ func buildWPMConfig(opts initOptions, pkgType string, mainFileHeaders any, readm
 	}
 
 	if len(cfg.Tags) > 0 {
-		// pop tags having minimum 3 and maximum 64 characters
+		// pop tags having minimum 2 and maximum 64 characters
 		validTags := []string{}
 		for _, tag := range cfg.Tags {
 			if len(tag) >= 2 && len(tag) <= 64 {
@@ -621,7 +621,7 @@ func buildWPMConfig(opts initOptions, pkgType string, mainFileHeaders any, readm
 	}
 
 	if len(cfg.Team) > 0 {
-		// pop team members having minimum 3 and maximum 100 characters
+		// pop team members having minimum 2 and maximum 100 characters
 		validTeam := []string{}
 		for _, member := range cfg.Team {
 			if len(member) >= 2 && len(member) <= 100 {
