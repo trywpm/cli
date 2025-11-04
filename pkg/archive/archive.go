@@ -437,13 +437,13 @@ func (t *Tarballer) Reader() io.ReadCloser {
 }
 
 // FileCount returns the number of files added to the tarball.
-func (t *Tarballer) FileCount() int {
-	return int(t.fileCount.Load())
+func (t *Tarballer) FileCount() int64 {
+	return t.fileCount.Load()
 }
 
 // UnpackedSize returns the total size of the files added to the tarball.
-func (t *Tarballer) UnpackedSize() int {
-	return int(t.unpackedSize.Load())
+func (t *Tarballer) UnpackedSize() int64 {
+	return t.unpackedSize.Load()
 }
 
 // Do performs the archiving operation in the background. The resulting archive

@@ -24,6 +24,8 @@ type ConfigFile struct {
 	Filename         string                       `json:"-"` // Note: for internal use only
 	AuthToken        string                       `json:"authToken,omitempty"`
 	DefaultUser      string                       `json:"defaultUser,omitempty"`
+	DefaultUId       string                       `json:"defaultUid,omitempty"`
+	DefaultTId       string                       `json:"defaultTid,omitempty"`
 	UsersAuthTokens  map[string]UsersAuthConfig   `json:"usersAuthTokens,omitempty"`
 	PluginsAuthToken map[string]PluginsAuthConfig `json:"pluginsAuthToken,omitempty"`
 }

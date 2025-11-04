@@ -282,16 +282,16 @@ func setDefaults(opts *initOptions, defaultName string) error {
 }
 
 func validateOptions(opts *initOptions, ve *validator.Validate) error {
-	if errs := ve.Var(opts.name, "required,min=3,max=164,package_name_regex"); errs != nil {
+	if errs := ve.Var(opts.name, "required,wpm_name"); errs != nil {
 		return errors.Errorf("invalid package name: \"%s\"", aec.Bold.Apply(opts.name))
 	}
-	if errs := ve.Var(opts.version, "required,package_semver,max=64"); errs != nil {
+	if errs := ve.Var(opts.version, "required,wpm_semver"); errs != nil {
 		return errors.Errorf("invalid version: \"%s\"", aec.Bold.Apply(opts.version))
 	}
 	if errs := ve.Var(opts.packageType, "required,oneof=plugin theme mu-plugin"); errs != nil {
 		return errors.Errorf("invalid type: \"%s\"", aec.Bold.Apply(opts.packageType))
 	}
-	if errs := ve.Var(opts.license, "required,min=1,max=128"); errs != nil {
+	if errs := ve.Var(opts.license, "required,min=3,max=100"); errs != nil {
 		return errors.Errorf("invalid license: \"%s\"", aec.Bold.Apply(opts.license))
 	}
 	return nil
@@ -315,7 +315,7 @@ func promptForConfig(ctx context.Context, wpmCli command.Cli, config *wpmjson.Co
 					if val == "" {
 						val = defaultName
 					}
-					if errs := ve.Var(val, "required,min=3,max=164,package_name_regex"); errs != nil {
+					if errs := ve.Var(val, "required,wpm_name"); errs != nil {
 						return errors.Errorf("invalid package name: \"%s\"", aec.Bold.Apply(val))
 					}
 					config.Name = val
@@ -332,7 +332,7 @@ func promptForConfig(ctx context.Context, wpmCli command.Cli, config *wpmjson.Co
 					if val == "" {
 						val = defaultVersion
 					}
-					if errs := ve.Var(val, "required,package_semver,max=64"); errs != nil {
+					if errs := ve.Var(val, "required,wpm_semver"); errs != nil {
 						return errors.Errorf("invalid version: \"%s\"", aec.Bold.Apply(val))
 					}
 					config.Version = val
@@ -479,6 +479,32 @@ func isMeaningfulText(s string) bool {
 	return len(words) > 0
 }
 
+func trimMeaningfully(s string, limit int) string {
+	if s == "" {
+		return s
+	}
+
+	if limit <= 0 {
+		return ""
+	}
+
+	// String must be at least 3 characters
+	if len(s) < 3 {
+		return ""
+	}
+
+	if len(s) <= limit {
+		return s
+	}
+
+	truncated := s[:limit]
+	lastDotIndex := strings.LastIndex(truncated, ".")
+	if lastDotIndex != -1 {
+		return truncated[:lastDotIndex+1]
+	}
+	return truncated
+}
+
 func buildWPMConfig(opts initOptions, pkgType string, mainFileHeaders any, readmeMeta map[string]any) *wpmjson.Config {
 	cfg := wpmjson.NewConfig()
 	ve, err := wpmjson.NewValidator()
@@ -491,14 +517,12 @@ func buildWPMConfig(opts initOptions, pkgType string, mainFileHeaders any, readm
 	cfg.Description = getMetaString(readmeMeta, "meta_description", "")
 
 	tags := getMetaStringSlice(readmeMeta, "tags")
-	if len(tags) > 5 {
-		cfg.Tags = tags[:5]
-	} else {
+	if len(tags) > 0 {
 		cfg.Tags = tags
 	}
 
 	platform := &wpmjson.Platform{}
-	dependencies := make(map[string]string)
+	dependencies := make(wpmjson.Dependencies)
 	cfg.Team = getMetaStringSlice(readmeMeta, "contributors")
 	wpRequires := getMetaString(readmeMeta, "requires", "")
 	phpRequires := getMetaString(readmeMeta, "requires_php", "")
@@ -518,15 +542,11 @@ func buildWPMConfig(opts initOptions, pkgType string, mainFileHeaders any, readm
 		}
 
 		if len(tags) == 0 && len(h.Tags) > 0 {
-			if len(h.Tags) > 5 {
-				cfg.Tags = h.Tags[:5]
-			} else {
-				cfg.Tags = h.Tags
-			}
+			cfg.Tags = h.Tags
 		}
 
 		if h.ThemeURI != "" {
-			if err := ve.Var(h.ThemeURI, "http_url"); err == nil {
+			if err := ve.Var(h.ThemeURI, "url,wpm_http_url,min=10,max=200"); err == nil {
 				cfg.Homepage = h.ThemeURI
 			}
 		}
@@ -553,15 +573,11 @@ func buildWPMConfig(opts initOptions, pkgType string, mainFileHeaders any, readm
 		}
 
 		if len(tags) == 0 && len(h.Tags) > 0 {
-			if len(h.Tags) > 5 {
-				cfg.Tags = h.Tags[:5]
-			} else {
-				cfg.Tags = h.Tags
-			}
+			cfg.Tags = h.Tags
 		}
 
 		if h.PluginURI != "" {
-			if err := ve.Var(h.PluginURI, "http_url"); err == nil {
+			if err := ve.Var(h.PluginURI, "url,wpm_http_url,min=10,max=200"); err == nil {
 				cfg.Homepage = h.PluginURI
 			}
 		}
@@ -582,6 +598,50 @@ func buildWPMConfig(opts initOptions, pkgType string, mainFileHeaders any, readm
 		}
 	}
 
+	// Trim tags to max 5
+	if len(cfg.Tags) > 5 {
+		cfg.Tags = cfg.Tags[:5]
+	}
+
+	if len(cfg.Tags) > 0 {
+		// pop tags having minimum 2 and maximum 64 characters
+		validTags := []string{}
+		for _, tag := range cfg.Tags {
+			if len(tag) >= 2 && len(tag) <= 64 {
+				validTags = append(validTags, tag)
+			}
+		}
+
+		cfg.Tags = validTags
+	}
+
+	// Trim team to max 100 members
+	if len(cfg.Team) > 100 {
+		cfg.Team = cfg.Team[:100]
+	}
+
+	if len(cfg.Team) > 0 {
+		// pop team members having minimum 2 and maximum 100 characters
+		validTeam := []string{}
+		for _, member := range cfg.Team {
+			if len(member) >= 2 && len(member) <= 100 {
+				validTeam = append(validTeam, member)
+			}
+		}
+
+		cfg.Team = validTeam
+	}
+
+	// Trim description to max 512 characters
+	if len(cfg.Description) > 512 {
+		cfg.Description = trimMeaningfully(cfg.Description, 512)
+	}
+
+	// Validate license length, and set to empty if invalid
+	if len(cfg.License) < 3 || len(cfg.License) > 100 {
+		cfg.License = ""
+	}
+
 	if wpRequires != "" {
 		_, err := semver.NewConstraint(wpRequires)
 		if err == nil {
@@ -596,7 +656,7 @@ func buildWPMConfig(opts initOptions, pkgType string, mainFileHeaders any, readm
 	}
 
 	if len(dependencies) > 0 {
-		cfg.Dependencies = dependencies
+		cfg.Dependencies = &dependencies
 	}
 
 	if platform.PHP != "" || platform.WP != "" {
