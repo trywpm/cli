@@ -615,9 +615,9 @@ func buildWPMConfig(opts initOptions, pkgType string, mainFileHeaders any, readm
 		cfg.Tags = validTags
 	}
 
-	// Trim team to max 10 members
-	if len(cfg.Team) > 10 {
-		cfg.Team = cfg.Team[:10]
+	// Trim team to max 100 members
+	if len(cfg.Team) > 100 {
+		cfg.Team = cfg.Team[:100]
 	}
 
 	if len(cfg.Team) > 0 {
@@ -637,9 +637,9 @@ func buildWPMConfig(opts initOptions, pkgType string, mainFileHeaders any, readm
 		cfg.Description = trimMeaningfully(cfg.Description, 512)
 	}
 
-	// Mark as UNLICENSED if license having less than 3 and more than 100 characters
+	// Validate license length, and set to empty if invalid
 	if len(cfg.License) < 3 || len(cfg.License) > 100 {
-		cfg.License = "UNLICENSED"
+		cfg.License = ""
 	}
 
 	if wpRequires != "" {
