@@ -23,10 +23,6 @@ ARG TARGETPLATFORM
 # gcc is installed for libgcc only
 RUN xx-apk add --no-cache musl-dev gcc
 
-FROM build-base-debian AS build-debian
-ARG TARGETPLATFORM
-RUN xx-apt-get install --no-install-recommends -y libc6-dev libgcc-12-dev pkgconf
-
 FROM build-base-alpine AS goversioninfo
 ARG GOVERSIONINFO_VERSION
 RUN --mount=type=cache,target=/root/.cache/go-build \
