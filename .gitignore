@@ -8,6 +8,7 @@
 !.editorconfig
 !README.md
 !docker-bake.hcl
+!Dockerfile
 
 # directories
 !cli
