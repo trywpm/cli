@@ -104,7 +104,7 @@ jobs:
 
       - name: s3 upload
         if: ${{ github.ref_type == 'branch' && github.actor != 'dependabot[bot]' }}
-        run: aws s3 cp build/wpm-* s3://wpm-cli-builds/${{ github.event.number && github.event.number != null && github.event.number || 'latest' }}/ --recursive --endpoint-url ${{ secrets.S3_ENDPOINT_URL }} --region auto --checksum-algorithm CRC32
+        run: aws s3 cp build/wpm-${{ env.PLATFORM_PAIR }} s3://wpm-cli-builds/${{ github.event.number && github.event.number != null && github.event.number || 'latest' }}/ --recursive --endpoint-url ${{ secrets.S3_ENDPOINT_URL }} --region auto --checksum-algorithm CRC32
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
