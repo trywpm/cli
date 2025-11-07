@@ -44,7 +44,7 @@ cat > ./cmd/wpm/winresources/versioninfo.json <<EOL
     "FileDescription": "wpm cli",
     "FileVersion": "${VERSION}",
     "InternalName": "",
-    "LegalCopyright": "Copyright © 2015-$(date +'%Y') wpm",
+    "LegalCopyright": "Copyright © 2025-$(date +'%Y') wpm",
     "LegalTrademarks": "",
     "OriginalFilename": "$(basename "${TARGET}")",
     "PrivateBuild": "",

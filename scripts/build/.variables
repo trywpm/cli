@@ -14,7 +14,7 @@ VERSION=${VERSION:-$(git describe --match 'v[0-9]*' --dirty='.m' --always --tags
 GITCOMMIT=${GITCOMMIT:-$(git rev-parse --short HEAD 2> /dev/null || true)}
 
 if [ "$(uname)" = "Darwin" ]; then
-  # Using BSD date (macOS), which doesn't suppoort the --date option
+  # Using BSD date (macOS), which doesn't support the --date option
   # date -jf "<input format>" "<input value>" +"<output format>" (https://unix.stackexchange.com/a/86510)
   BUILDTIME=${BUILDTIME:-$(TZ=UTC date -jf "%s" "${SOURCE_DATE_EPOCH:-$(date +%s)}" +"%Y-%m-%dT%H:%M:%SZ")}
 else
