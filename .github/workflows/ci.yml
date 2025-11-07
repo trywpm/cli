@@ -28,7 +28,7 @@ jobs:
       - name: determine build platforms
         id: platforms
         run: |
-          echo matrix=$(docker buildx bake binary-cross --print | jq -cr '.target."binary-cross".platforms') >> $GITHUB_OUTPUT
+          echo platforms=$(docker buildx bake binary-cross --print | jq -cr '.target."binary-cross".platforms') >> $GITHUB_OUTPUT
 
       - name: print platforms
         run: echo ${{ steps.platforms.outputs.platforms }}
