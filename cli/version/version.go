@@ -4,7 +4,7 @@ package version
 // These values are overridden via ldflags
 var (
 	PlatformName = ""
-	Version      = "1.0.0-test" // Test version for local development
+	Version      = "unknown-version"
 	GitCommit    = "unknown-commit"
 	BuildTime    = "unknown-buildtime"
 )
