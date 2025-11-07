@@ -4,11 +4,6 @@ variable "GO_VERSION" {
 variable "VERSION" {
 	default = ""
 }
-variable "IMAGE_NAME" {
-	default = "wpm-cli"
-}
-
-# Sets the name of the company that produced the windows binary.
 variable "PACKAGER_NAME" {
 	default = "wpm team"
 }
