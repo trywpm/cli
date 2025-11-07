@@ -60,8 +60,11 @@ type UploadTarballOptions struct {
 
 // UploadTarballResponse defines the response structure for uploading a package.
 type UploadTarballResponse struct {
-	Id  string `json:"id"`
-	Url string `json:"url"`
+	Id  *string `json:"id"`
+	Url *string `json:"url"`
+
+	// In case of idempotent requests, the message field may contain information.
+	Message *string `json:"message,omitempty"`
 }
 
 func (c *client) GetUploadTarballUrl(ctx context.Context, opts UploadTarballOptions) (UploadTarballResponse, error) {

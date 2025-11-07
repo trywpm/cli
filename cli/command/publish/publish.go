@@ -97,6 +97,14 @@ type tarballSizeCounter struct {
 	total int64
 }
 
+type idempotencyRespError struct {
+	message string
+}
+
+func (e *idempotencyRespError) Error() string {
+	return e.message
+}
+
 func (c *tarballSizeCounter) Write(p []byte) (n int, err error) {
 	c.total += int64(len(p))
 	return len(p), nil
@@ -219,13 +227,17 @@ func runPublish(wpmCli command.Cli, opts publishOptions) error {
 			if err != nil {
 				return err
 			}
-			if resp.Id == "" {
+			if resp.Message != nil {
+				return &idempotencyRespError{message: *resp.Message}
+			}
+
+			if resp.Id == nil {
 				return errors.New("failed to get request id from upload response")
 			}
-			reqId = resp.Id
+			reqId = *resp.Id
 
-			if resp.Url != "" {
-				req, err := http.NewRequestWithContext(context.Background(), http.MethodPut, resp.Url, tempTarball)
+			if resp.Url != nil {
+				req, err := http.NewRequestWithContext(context.Background(), http.MethodPut, *resp.Url, tempTarball)
 				if err != nil {
 					return err
 				}
@@ -254,7 +266,12 @@ func runPublish(wpmCli command.Cli, opts publishOptions) error {
 		wpmCli.Err(),
 	)
 	if err != nil {
-		return errors.Wrap(err, "failed to upload tarball to registry")
+		if _, ok := err.(*idempotencyRespError); ok {
+			fmt.Fprintf(wpmCli.Err(), "🚀 %s 🚀\n", aec.GreenF.Apply(err.Error()))
+			return nil
+		}
+
+		return err
 	}
 
 	readmeText, err := readme(cwd)
