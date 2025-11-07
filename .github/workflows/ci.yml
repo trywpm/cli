@@ -22,20 +22,16 @@ jobs:
     outputs:
       platforms: ${{ steps.platforms.outputs.platforms }}
     steps:
-      - name: platforms matrix
+      - name: checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: determine build platforms
         id: platforms
         run: |
-          platforms="[
-            {\"os\": \"darwin\", \"arch\": \"amd64\"},
-            {\"os\": \"darwin\", \"arch\": \"arm64\"},
-            {\"os\": \"linux\", \"arch\": \"amd64\"},
-            {\"os\": \"linux\", \"arch\": \"arm64\"},
-            {\"os\": \"linux\", \"arch\": \"arm\", \"arm\": \"6\"},
-            {\"os\": \"linux\", \"arch\": \"arm\", \"arm\": \"7\"},
-            {\"os\": \"windows\", \"arch\": \"amd64\"},
-            {\"os\": \"windows\", \"arch\": \"arm64\"}
-          ]"
-          echo "platforms=$(echo $platforms | jq -c .)" >> $GITHUB_OUTPUT
+          echo platforms=$(docker buildx bake binary-cross --print | jq -cr '.target."binary-cross".platforms') >> $GITHUB_OUTPUT
+
+      - name: print platforms
+        run: echo ${{ steps.platforms.outputs.platforms }}
 
   lint:
     runs-on: ubuntu-latest
@@ -50,7 +46,7 @@ jobs:
       - name: setup go
         uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
         with:
-          go-version: "^1.23"
+          go-version: "^1.25"
 
       - name: check dependencies
         run: |
@@ -66,18 +62,35 @@ jobs:
     strategy:
       matrix:
         platform: ${{fromJson(needs.prepare.outputs.platforms)}}
+      fail-fast: false
     permissions:
       contents: read
     steps:
       - name: checkout
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
 
-      - name: build
-        uses: ./.github/actions/build-wpm
+      - name: set platform pair
+        run: |
+          platform=${MATRIX_PLATFORM}
+          echo "PLATFORM_PAIR=${platform//\//-}" >> $GITHUB_ENV
+        env:
+          MATRIX_PLATFORM: ${{ matrix.platform }}
+
+      - name: setup qemu
+        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
+
+      - name: setup buildx
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
+
+      - name: list
+        uses: docker/bake-action@3acf805d94d93a86cce4ca44798a76464a75b88c # v6.9.0
         with:
-          go-os: ${{ matrix.platform.os }}
-          go-arm: ${{ matrix.platform.arm }}
-          go-arch: ${{ matrix.platform.arch }}
+          source: .
+          targets: binary-cross
+          set: |
+            *.platform=${{ matrix.platform }}
+            *.cache-from=type=gha,scope=binary-${{ env.PLATFORM_PAIR }}
+            *.cache-to=type=gha,scope=binary-${{ env.PLATFORM_PAIR }},mode=max
 
       - name: list artifacts
         run: ls -alh ./build
@@ -85,14 +98,13 @@ jobs:
       - name: upload artifacts
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
-          # see $TARGET in .github/actions/build-wpm/scripts/.variables
-          name: wpm-${{ matrix.platform.os }}-${{ matrix.platform.arch }}${{ matrix.platform.arm && '-v'}}${{ matrix.platform.arm }}
-          path: ./build/*
+          name: wpm-${{ env.PLATFORM_PAIR }}
+          path: ./build/wpm-*
           if-no-files-found: error
 
       - name: s3 upload
         if: ${{ github.ref_type == 'branch' && github.actor != 'dependabot[bot]' }}
-        run: aws s3 cp build/ s3://wpm-cli-builds/${{ github.event.number && github.event.number != null && github.event.number || 'latest' }}/ --recursive --endpoint-url ${{ secrets.S3_ENDPOINT_URL }} --region auto --checksum-algorithm CRC32
+        run: aws s3 cp build/ s3://wpm-cli-builds/${{ github.event.number && github.event.number != null && github.event.number || 'latest' }}/ --exclude "*" --include "wpm-*" --recursive --endpoint-url ${{ secrets.S3_ENDPOINT_URL }} --region auto --checksum-algorithm CRC32
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -122,11 +134,12 @@ jobs:
         with:
           script: |
             const platforms = JSON.parse(${{ toJson(needs.prepare.outputs.platforms) }})
-            const builds = platforms.map(({ os, arm, arch }) => {
-              const buildPath = `wpm-${os}-${arch}${arm ? `-v${arm}` : ''}`
-              const buildUrl = `https://pub-bea4f3d05c4f49e0b54ccf1dad0da103.r2.dev/${{ github.event.number }}/${buildPath}${os === 'windows' ? '.exe' : ''}`
-              const spec = `${os}/${arch}${arm ? `/v${arm}` : ''}`
-              return `- \`${spec}\` - [\`build\`](${buildUrl}) [\`checksum\`](${buildUrl}.sha256)`
+            const builds = platforms.map((platform) => {
+              const platformPair = platform.split('/')
+              const buildPath = `wpm-${platformPair[0]}-${platformPair[1]}${platformPair[2] ? `-v${platformPair[2]}` : ''}`
+              const buildUrl = `https://pub-bea4f3d05c4f49e0b54ccf1dad0da103.r2.dev/${{ github.event.number }}/${buildPath}${platformPair[0] === 'windows' ? '.exe' : ''}`
+              const spec = `${platformPair[0]}/${platformPair[1]}${platformPair[2] ? `/${platformPair[2]}` : ''}`
+              return `- \`${spec}\` - [\`build\`](${buildUrl})`
             }).join('\n')
             return `:package: wpm cli builds :package:\n${builds}\n`
 
@@ -168,14 +181,15 @@ jobs:
           pattern: wpm-*
           merge-multiple: true
 
-      - name: checksums.txt
+      - name: generate checksums
         working-directory: ./build
         run: |
-          rm -f checksums.txt
-          for file in *.sha256; do
-            echo "$(cat $file)" >> checksums.txt
+          find . -type f -print0 | sort -z | xargs -r0 shasum -a 256 -b | sed 's# \*\./# *#' > $RUNNER_TEMP/checksums.txt
+          shasum -a 256 -U -c $RUNNER_TEMP/checksums.txt
+          mv $RUNNER_TEMP/checksums.txt .
+          cat checksums.txt | while read sum file; do
+              echo "$sum $file" > ${file#\*}.sha256
           done
-          shasum -a 256 -U -c checksums.txt
 
       - name: create release
         id: create-release

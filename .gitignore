@@ -7,9 +7,12 @@
 !.golangci.yml
 !.editorconfig
 !README.md
+!docker-bake.hcl
+!Dockerfile
 
 # directories
 !cli
 !cmd
 !pkg
 !.github
+!scripts
