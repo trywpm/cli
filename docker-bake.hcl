@@ -45,6 +45,6 @@ target "binary" {
 	}
 }
 
-target "cross" {
+target "binary-cross" {
 	inherits = ["binary", "_platforms"]
 }
