@@ -138,7 +138,7 @@ jobs:
               const platformPair = platform.split('/')
               const buildPath = `wpm-${platformPair[0]}-${platformPair[1]}${platformPair[2] ? `-v${platformPair[2]}` : ''}`
               const buildUrl = `https://pub-bea4f3d05c4f49e0b54ccf1dad0da103.r2.dev/${{ github.event.number }}/${buildPath}${platformPair[0] === 'windows' ? '.exe' : ''}`
-              const spec = `${platformPair[0]}/${platformPair[1]}${platformPair[2] ? `/v${platformPair[2]}` : ''}`
+              const spec = `${platformPair[0]}/${platformPair[1]}${platformPair[2] ? `/${platformPair[2]}` : ''}`
               return `- \`${spec}\` - [\`build\`](${buildUrl})`
             }).join('\n')
             return `:package: wpm cli builds :package:\n${builds}\n`
