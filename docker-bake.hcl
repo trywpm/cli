@@ -30,6 +30,9 @@ target "_platforms" {
 	]
 }
 
+# Special target: https://github.com/docker/metadata-action#bake-definition
+target "meta-helper" {}
+
 group "default" {
 	targets = ["binary"]
 }
@@ -47,4 +50,9 @@ target "binary" {
 
 target "binary-cross" {
 	inherits = ["binary", "_platforms"]
+}
+
+target "image-cross" {
+	inherits = ["meta-helper", "binary-cross"]
+	output = ["type=image"]
 }
