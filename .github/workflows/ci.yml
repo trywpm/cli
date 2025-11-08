@@ -82,25 +82,6 @@ jobs:
       - name: setup buildx
         uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
 
-      - name: docker login
-        if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') }}
-        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
-        with:
-          username: ${{ github.repository_owner }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: generate image meta
-        id: meta
-        if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') }}
-        uses: docker/metadata-action@318604b99e75e41977312d83839a89be02ca4893 # v5.9.0
-        with:
-          images: |
-            ${{ github.repository }}
-          tags: |
-            type=ref,event=tag
-            type=edge
-          bake-target: meta-helper
-
       - name: build binaries
         uses: docker/bake-action@3acf805d94d93a86cce4ca44798a76464a75b88c # v6.9.0
         with:
@@ -110,20 +91,6 @@ jobs:
             *.platform=${{ matrix.platform }}
             *.cache-from=type=gha,scope=binary-${{ env.PLATFORM_PAIR }}
             *.cache-to=type=gha,scope=binary-${{ env.PLATFORM_PAIR }},mode=max
-
-      - name: build and push images
-        if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') }}
-        uses: docker/bake-action@3acf805d94d93a86cce4ca44798a76464a75b88c # v6.9.0
-        with:
-          source: .
-          files: |
-            ./docker-bake.hcl
-            ${{ steps.meta.outputs.bake-file }}
-          targets: image-cross
-          push: true
-          set: |
-            *.cache-from=type=gha,scope=image-${{ env.PLATFORM_PAIR }}
-            *.cache-to=type=gha,scope=image-${{ env.PLATFORM_PAIR }},mode=max
 
       - name: list artifacts
         run: ls -alh ./build
@@ -207,6 +174,45 @@ jobs:
     permissions:
       contents: write
     steps:
+      - name: checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: setup qemu
+        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
+
+      - name: setup buildx
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
+
+      - name: docker login
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
+        with:
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: generate image meta
+        id: meta
+        uses: docker/metadata-action@318604b99e75e41977312d83839a89be02ca4893 # v5.9.0
+        with:
+          images: |
+            ${{ github.repository }}
+          tags: |
+            type=ref,event=tag
+            type=edge
+          bake-target: meta-helper
+
+      - name: build and push images
+        uses: docker/bake-action@3acf805d94d93a86cce4ca44798a76464a75b88c # v6.9.0
+        with:
+          source: .
+          files: |
+            ./docker-bake.hcl
+            ${{ steps.meta.outputs.bake-file }}
+          targets: image-cross
+          push: true
+          set: |
+            *.cache-from=type=gha,scope=wpm-image
+            *.cache-to=type=gha,scope=wpm-image,mode=max
+
       - name: download artifacts
         uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 #v6.0.0
         with:
