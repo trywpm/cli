@@ -53,3 +53,4 @@ RUN --mount=type=bind,target=.,ro \
 
 FROM scratch AS binary
 COPY --from=build /out .
+CMD [ "./wpm" ]
