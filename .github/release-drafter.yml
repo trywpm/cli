@@ -1,0 +1,53 @@
+---
+name-template: 'v$RESOLVED_VERSION'
+tag-template: 'v$RESOLVED_VERSION'
+template: |
+  ## Changelog
+  $CHANGES
+
+  ## Contributors
+  $CONTRIBUTORS
+
+  ## Installation
+  To install wpm v$RESOLVED_VERSION
+
+  **Linux and Mac**
+  ```
+  curl -fsSL https://wpm.so/install | bash
+  ```
+
+  **Windows**
+  ```
+  powershell -c "irm wpm.so/install.ps1|iex"
+  ```
+
+  **Docker**
+  ```
+  docker pull trywpm/cli
+  ```
+
+categories:
+  - title: 'Core'
+    labels:
+      - 'core'
+  - title: 'Commands'
+    labels:
+      - 'command'
+  - title: 'Bug Fixes'
+    labels:
+      - 'bugfix'
+  - title: 'Misc'
+    labels:
+      - 'misc'
+change-template: '- $TITLE (#$NUMBER)'
+version-resolver:
+  major:
+    labels:
+      - 'major'
+  minor:
+    labels:
+      - 'minor'
+  patch:
+    labels:
+      - 'patch'
+  default: patch
