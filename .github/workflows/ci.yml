@@ -172,6 +172,7 @@ jobs:
     if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') }}
     permissions:
       contents: write
+      pull-requests: write
     steps:
       - name: checkout
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
@@ -229,31 +230,18 @@ jobs:
               echo "$sum $file" > ${file#\*}.sha256
           done
 
-      - name: create release
-        id: create-release
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd #v8.0.0
-        with:
-          script: |
-            const tagName = context.ref.replace('refs/tags/', '')
-            const isPreRelease = tagName.includes('-rc');
-            const { data: { upload_url: uploadUrl } } = await github.rest.repos.createRelease({
-              draft: true,
-              name: tagName,
-              tag_name: tagName,
-              repo: context.repo.repo,
-              prerelease: isPreRelease,
-              owner: context.repo.owner,
-              target_commitish: context.sha,
-              body: '> todo: add release notes',
-            });
-            return uploadUrl
+      - name: draft release
+        id: draft-release
+        uses: release-drafter/release-drafter@b1476f6e6eb133afa41ed8589daba6dc69b4d3f5 # v6.1.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: upload release assets
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd #v8.0.0
         with:
           script: |
             const fs = require('fs');
-            let uploadUrl = ${{ steps.create-release.outputs.result }}
+            let uploadUrl = ${{ steps.draft-release.outputs.upload_url }}
             const templateMarkerPos = uploadUrl.indexOf("{");
             if (templateMarkerPos !== -1) {
               uploadUrl = uploadUrl.substring(0, templateMarkerPos);
