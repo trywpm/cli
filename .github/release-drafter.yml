@@ -39,6 +39,9 @@ categories:
   - title: 'Misc'
     labels:
       - 'misc'
+  - title: 'Infrastructure'
+    labels:
+      - 'infrastructure'
   - title: 'Dependencies'
     labels:
       - 'dependencies'
