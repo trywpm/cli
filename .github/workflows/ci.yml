@@ -14,6 +14,9 @@ concurrency:
 
 permissions: {}
 
+env:
+  VERSION: ${{ github.ref }}
+
 jobs:
   prepare:
     runs-on: ubuntu-latest
