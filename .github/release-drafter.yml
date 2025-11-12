@@ -39,6 +39,9 @@ categories:
   - title: 'Misc'
     labels:
       - 'misc'
+  - title: 'Dependencies'
+    labels:
+      - 'dependencies'
 change-template: '- $TITLE (#$NUMBER)'
 version-resolver:
   major:
@@ -51,3 +54,6 @@ version-resolver:
     labels:
       - 'patch'
   default: patch
+exclude-contributors:
+  - 'dependabot'
+  - 'dependabot[bot]'
