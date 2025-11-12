@@ -244,7 +244,7 @@ jobs:
         with:
           script: |
             const fs = require('fs');
-            let uploadUrl = ${{ steps.draft-release.outputs.upload_url }}
+            let uploadUrl = '${{ steps.draft-release.outputs.upload_url }}';
             const templateMarkerPos = uploadUrl.indexOf("{");
             if (templateMarkerPos !== -1) {
               uploadUrl = uploadUrl.substring(0, templateMarkerPos);
