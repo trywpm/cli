@@ -1,4 +1,6 @@
 /*
+/cmd/wpm/winresources/versioninfo.json
+/cmd/wpm/winresources/*.syso
 
 # files
 !go.mod
