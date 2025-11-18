@@ -245,6 +245,7 @@ func runPublish(wpmCli command.Cli, opts publishOptions) error {
 				req.ContentLength = counter.total
 				req.Header.Set("x-amz-checksum-sha256", digest)
 				req.Header.Set("x-amz-meta-request-id", reqId)
+				req.Header.Set("x-amz-tagging", "wpm-upload=true")
 				req.Header.Set("x-amz-sdk-checksum-algorithm", "SHA256")
 				req.Header.Set("Content-Type", "application/octet-stream")
 				req.Header.Set("x-amz-meta-idempotency-key", idempotencyKey)
