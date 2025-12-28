@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"io"
 
@@ -57,7 +58,7 @@ func (c *client) PutPackage(ctx context.Context, data *wpmjson.Package, tarball 
 		"/",
 		tarball,
 		&response,
-		api.WithHeader("x-wpm-manifest", string(manifest)),
+		api.WithHeader("x-wpm-manifest", base64.StdEncoding.EncodeToString(manifest)),
 	); err != nil {
 		return "", err
 	}
