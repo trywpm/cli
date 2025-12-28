@@ -90,6 +90,16 @@ func (c *RESTClient) DoWithContext(ctx context.Context, method string, path stri
 		return err
 	}
 
+	if s, ok := response.(*string); ok {
+		*s = string(b)
+		return nil
+	}
+
+	if bs, ok := response.(*[]byte); ok {
+		*bs = b
+		return nil
+	}
+
 	err = json.Unmarshal(b, &response)
 	if err != nil {
 		return err
