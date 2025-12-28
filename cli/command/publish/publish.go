@@ -196,6 +196,10 @@ func runPublish(ctx context.Context, wpmCli command.Cli, opts publishOptions) er
 	err = wpmCli.Progress().RunWithProgress(
 		"publishing package",
 		func() error {
+			if _, err := tempFile.Seek(0, io.SeekStart); err != nil {
+				return errors.Wrap(err, "failed to seek to beginning of tarball")
+			}
+
 			message, err = registryClient.PutPackage(ctx, manifest, tempFile)
 			return err
 		},
