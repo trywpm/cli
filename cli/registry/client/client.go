@@ -57,6 +57,7 @@ func (c *client) PutPackage(ctx context.Context, data *wpmjson.Package, tarball 
 		"/",
 		tarball,
 		nil,
+		api.WithHeader("Content-Type", "application/octet-stream"),
 		api.WithHeader("x-wpm-manifest", base64.StdEncoding.EncodeToString(manifest)),
 	)
 }
