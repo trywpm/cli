@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
+	"strings"
 	"text/tabwriter"
 
 	"wpm/cli"
@@ -21,6 +23,8 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 )
+
+const maxReadmeSize = 50 * 1024 // 50KB
 
 type publishOptions struct {
 	dryRun  bool
@@ -64,6 +68,39 @@ func pack(stdOut io.Writer, path string, opts publishOptions) (*archive.Tarballe
 	}
 
 	return tar, nil
+}
+
+func getReadme(dirPath string) (string, error) {
+	entries, err := os.ReadDir(dirPath)
+	if err != nil {
+		return "", err
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+
+		if strings.EqualFold(entry.Name(), "readme.md") {
+			fullPath := filepath.Join(dirPath, entry.Name())
+
+			f, err := os.Open(fullPath)
+			if err != nil {
+				return "", err
+			}
+			defer f.Close()
+
+			// Limit readme size to maxReadmeSize i.e. 50KB
+			data, err := io.ReadAll(io.LimitReader(f, maxReadmeSize))
+			if err != nil {
+				return "", err
+			}
+
+			return base64.RawStdEncoding.EncodeToString(data), nil
+		}
+	}
+
+	return "", nil
 }
 
 // tarballSizeCounter is an io.Writer that counts bytes.
@@ -207,6 +244,11 @@ func runPublish(ctx context.Context, wpmCli command.Cli, opts publishOptions) er
 		},
 	}
 
+	readme, err := getReadme(cwd)
+	if err != nil {
+		return errors.Wrap(err, "failed to read readme file")
+	}
+
 	if err = wpmCli.Progress().RunWithProgress(
 		"publishing package",
 		func() error {
@@ -214,7 +256,7 @@ func runPublish(ctx context.Context, wpmCli command.Cli, opts publishOptions) er
 				return errors.Wrap(err, "failed to seek to beginning of tarball")
 			}
 
-			return registryClient.PutPackage(ctx, manifest, tempFile)
+			return registryClient.PutPackage(ctx, manifest, readme, tempFile)
 		},
 		wpmCli.Err(),
 	); err != nil {
