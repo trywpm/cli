@@ -62,7 +62,6 @@ type Meta struct {
 	Dist       Dist   `json:"dist"`
 	Wpm        string `json:"_wpm"`
 	Visibility string `json:"visibility"`
-	Readme     string `json:"readme,omitempty"`
 }
 
 // Package struct to define the package schema

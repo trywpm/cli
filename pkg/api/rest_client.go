@@ -57,7 +57,7 @@ func WithHeader(key, value string) RequestOption {
 // DoWithContext issues a request with type specified by method to the
 // specified path with the specified body.
 // The response is populated into the response argument.
-func (c *RESTClient) DoWithContext(ctx context.Context, method string, path string, body io.Reader, response interface{}, opts ...RequestOption) error {
+func (c *RESTClient) DoWithContext(ctx context.Context, method string, path string, body io.Reader, response any, opts ...RequestOption) error {
 	url := restURL(c.host, path)
 	req, err := http.NewRequestWithContext(ctx, method, url, body)
 	if err != nil {
@@ -73,21 +73,30 @@ func (c *RESTClient) DoWithContext(ctx context.Context, method string, path stri
 	if err != nil {
 		return err
 	}
+	defer resp.Body.Close()
 
 	success := resp.StatusCode >= 200 && resp.StatusCode < 300
 	if !success {
-		defer resp.Body.Close()
 		return HandleHTTPError(resp)
 	}
 
-	if resp.StatusCode == http.StatusNoContent {
+	if resp.StatusCode == http.StatusNoContent || response == nil {
 		return nil
 	}
-	defer resp.Body.Close()
 
 	b, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return err
+	}
+
+	if s, ok := response.(*string); ok {
+		*s = string(b)
+		return nil
+	}
+
+	if bs, ok := response.(*[]byte); ok {
+		*bs = b
+		return nil
 	}
 
 	err = json.Unmarshal(b, &response)
