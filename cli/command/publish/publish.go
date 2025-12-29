@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"text/tabwriter"
 
 	"wpm/cli"
 	"wpm/cli/command"
@@ -93,11 +94,6 @@ func runPublish(ctx context.Context, wpmCli command.Cli, opts publishOptions) er
 		return errors.New("access must be either public or private")
 	}
 
-	cfg := wpmCli.ConfigFile()
-	if cfg.AuthToken == "" || cfg.DefaultTId == "" {
-		return errors.New("user must be logged in to perform this action")
-	}
-
 	wpmJson, err := wpmjson.ReadAndValidateWpmJson(cwd)
 	if err != nil {
 		return err
@@ -107,7 +103,7 @@ func runPublish(ctx context.Context, wpmCli command.Cli, opts publishOptions) er
 		return errors.New("package marked as private cannot be published")
 	}
 
-	fmt.Fprintf(wpmCli.Err(), aec.CyanF.Apply("📦 preparing %s@%s for publishing 📦\n\n"), wpmJson.Name, wpmJson.Version)
+	fmt.Fprintf(wpmCli.Err(), "📦 %s@%s\n\n", wpmJson.Name, wpmJson.Version)
 
 	tempFile, err := os.CreateTemp("", "wpm-tarball-*.tar.zst")
 	if err != nil {
@@ -125,9 +121,17 @@ func runPublish(ctx context.Context, wpmCli command.Cli, opts publishOptions) er
 	counter := &tarballSizeCounter{}
 	multiWriter := io.MultiWriter(tempFile, hasher, counter)
 
-	if _, err := io.Copy(multiWriter, tarballer.Reader()); err != nil {
-		tempFile.Close()
-		return errors.Wrap(err, "failed to process tarball")
+	if err = wpmCli.Progress().RunWithProgress(
+		"packing package tarball",
+		func() error {
+			if _, err := io.Copy(multiWriter, tarballer.Reader()); err != nil {
+				return errors.Wrap(err, "failed to process tarball")
+			}
+			return nil
+		},
+		wpmCli.Err(),
+	); err != nil {
+		return err
 	}
 
 	digest := base64.StdEncoding.EncodeToString(hasher.Sum(nil))
@@ -138,26 +142,37 @@ func runPublish(ctx context.Context, wpmCli command.Cli, opts publishOptions) er
 
 	// bail if tarball size is zero or greater than 128mb
 	if counter.total == 0 {
-		tempFile.Close()
 		return errors.New("tarball size is zero, cannot publish empty package")
 	}
 
 	if counter.total > 128*1024*1024 {
-		tempFile.Close()
 		return errors.New("tarball size exceeds 128mb, cannot publish package")
 	}
 
-	fmt.Fprintf(wpmCli.Err(), "%s: %d\n", aec.LightBlueF.Apply("total files"), tarballer.FileCount())
-	fmt.Fprintf(wpmCli.Err(), "%s: %s\n", aec.LightBlueF.Apply("digest"), digest)
-	fmt.Fprintf(wpmCli.Err(), "%s: %s\n", aec.LightBlueF.Apply("unpacked size"), units.HumanSize(float64(tarballer.UnpackedSize())))
-	fmt.Fprintf(wpmCli.Err(), "%s: %s\n", aec.LightBlueF.Apply("packed size"), units.HumanSize(float64(counter.total)))
-	fmt.Fprintf(wpmCli.Err(), "%s: %s\n", aec.LightBlueF.Apply("tag"), opts.tag)
-	fmt.Fprintf(wpmCli.Err(), "%s: %s\n", aec.LightBlueF.Apply("access"), opts.access)
+	dim := aec.Faint.Apply
+	blue := aec.LightBlueF.Apply
+	w := tabwriter.NewWriter(wpmCli.Err(), 0, 0, 2, ' ', 0)
+
+	packedSize := units.HumanSize(float64(counter.total))
+	unpackedSize := units.HumanSize(float64(tarballer.UnpackedSize()))
+
+	fmt.Fprintf(w, "├─ %s:\t%s\n", blue("Tag"), opts.tag)
+	fmt.Fprintf(w, "├─ %s:\t%s\n", blue("Access"), opts.access)
+	fmt.Fprintf(w, "├─ %s:\t%d\n", blue("Files"), tarballer.FileCount())
+	fmt.Fprintf(w, "├─ %s:\t%s %s\n", blue("Size"), packedSize, dim(fmt.Sprintf("(%s unpacked)", unpackedSize)))
+	fmt.Fprintf(w, "└─ %s:\t%s\n", blue("Digest"), digest)
+
+	w.Flush()
 	fmt.Fprint(wpmCli.Err(), "\n")
 
 	if opts.dryRun {
 		fmt.Fprintf(wpmCli.Err(), "dry run complete, %s@%s is ready to be published\n", wpmJson.Name, wpmJson.Version)
 		return nil
+	}
+
+	cfg := wpmCli.ConfigFile()
+	if cfg.AuthToken == "" || cfg.DefaultTId == "" {
+		return errors.New("user must be logged in to perform this action")
 	}
 
 	registryClient, err := wpmCli.RegistryClient()
@@ -192,7 +207,7 @@ func runPublish(ctx context.Context, wpmCli command.Cli, opts publishOptions) er
 		},
 	}
 
-	err = wpmCli.Progress().RunWithProgress(
+	if err = wpmCli.Progress().RunWithProgress(
 		"publishing package",
 		func() error {
 			if _, err := tempFile.Seek(0, io.SeekStart); err != nil {
@@ -202,12 +217,11 @@ func runPublish(ctx context.Context, wpmCli command.Cli, opts publishOptions) er
 			return registryClient.PutPackage(ctx, manifest, tempFile)
 		},
 		wpmCli.Err(),
-	)
-	if err != nil {
+	); err != nil {
 		return err
 	}
 
-	fmt.Fprintf(wpmCli.Err(), "%s %s\n", aec.GreenF.Apply("✔"), "package published successfully!")
+	fmt.Fprintf(wpmCli.Err(), "%s %s\n", aec.GreenF.Apply("✔"), "published "+wpmJson.Name+"@"+wpmJson.Version)
 
 	return nil
 }
