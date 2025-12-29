@@ -103,17 +103,8 @@ func getReadme(dirPath string) (string, error) {
 	return "", nil
 }
 
-// tarballSizeCounter is an io.Writer that counts bytes.
 type tarballSizeCounter struct {
 	total int64
-}
-
-type idempotencyRespError struct {
-	message string
-}
-
-func (e *idempotencyRespError) Error() string {
-	return e.message
 }
 
 func (c *tarballSizeCounter) Write(p []byte) (n int, err error) {
