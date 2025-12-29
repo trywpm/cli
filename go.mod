@@ -16,7 +16,7 @@ require (
 	github.com/moby/patternmatcher v0.6.0
 	github.com/moby/sys/sequential v0.6.0
 	github.com/moby/term v0.5.2
-	github.com/morikuni/aec v1.0.0
+	github.com/morikuni/aec v1.1.0
 	github.com/pkg/errors v0.9.1
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cobra v1.10.1
