@@ -21,7 +21,7 @@ type client struct {
 // RegistryClient is a client used to communicate with a wpm distribution
 // registry
 type RegistryClient interface {
-	PutPackage(ctx context.Context, data *wpmjson.Package, tarball io.Reader) (string, error)
+	PutPackage(ctx context.Context, data *wpmjson.Package, tarball io.Reader) error
 }
 
 var _ RegistryClient = &client{}
@@ -47,21 +47,16 @@ func NewRegistryClient(host string, authToken string, userAgent string, out *str
 }
 
 // PutPackage uploads a package to the registry
-func (c *client) PutPackage(ctx context.Context, data *wpmjson.Package, tarball io.Reader) (string, error) {
+func (c *client) PutPackage(ctx context.Context, data *wpmjson.Package, tarball io.Reader) error {
 	manifest, err := json.Marshal(data)
 	if err != nil {
-		return "", err
+		return err
 	}
 
-	response := struct{ Message string }{}
-	if err := c.restClient.Put(
+	return c.restClient.Put(
 		"/",
 		tarball,
-		&response,
+		nil,
 		api.WithHeader("x-wpm-manifest", base64.StdEncoding.EncodeToString(manifest)),
-	); err != nil {
-		return "", err
-	}
-
-	return response.Message, nil
+	)
 }

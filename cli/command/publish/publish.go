@@ -192,7 +192,6 @@ func runPublish(ctx context.Context, wpmCli command.Cli, opts publishOptions) er
 		},
 	}
 
-	var message string
 	err = wpmCli.Progress().RunWithProgress(
 		"publishing package",
 		func() error {
@@ -200,8 +199,7 @@ func runPublish(ctx context.Context, wpmCli command.Cli, opts publishOptions) er
 				return errors.Wrap(err, "failed to seek to beginning of tarball")
 			}
 
-			message, err = registryClient.PutPackage(ctx, manifest, tempFile)
-			return err
+			return registryClient.PutPackage(ctx, manifest, tempFile)
 		},
 		wpmCli.Err(),
 	)
@@ -209,7 +207,7 @@ func runPublish(ctx context.Context, wpmCli command.Cli, opts publishOptions) er
 		return err
 	}
 
-	fmt.Fprintf(wpmCli.Err(), "%s %s\n", aec.GreenF.Apply("✔"), message)
+	fmt.Fprintf(wpmCli.Err(), "%s %s\n", aec.GreenF.Apply("✔"), "package published successfully!")
 
 	return nil
 }
