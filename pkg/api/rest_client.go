@@ -73,17 +73,16 @@ func (c *RESTClient) DoWithContext(ctx context.Context, method string, path stri
 	if err != nil {
 		return err
 	}
+	defer resp.Body.Close()
 
 	success := resp.StatusCode >= 200 && resp.StatusCode < 300
 	if !success {
-		defer resp.Body.Close()
 		return HandleHTTPError(resp)
 	}
 
 	if resp.StatusCode == http.StatusNoContent || response == nil {
 		return nil
 	}
-	defer resp.Body.Close()
 
 	b, err := io.ReadAll(resp.Body)
 	if err != nil {
