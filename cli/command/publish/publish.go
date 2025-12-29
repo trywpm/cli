@@ -199,7 +199,7 @@ func runPublish(ctx context.Context, wpmCli command.Cli, opts publishOptions) er
 	}
 
 	cfg := wpmCli.ConfigFile()
-	if cfg.AuthToken == "" || cfg.DefaultTId == "" {
+	if cfg.DefaultUser == "" || cfg.AuthToken == "" {
 		return errors.New("user must be logged in to perform this action")
 	}
 

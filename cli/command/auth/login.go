@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"strconv"
 	"wpm/cli"
 	"wpm/cli/command"
 	"wpm/pkg/api"
@@ -72,13 +71,7 @@ func tokenStdinPrompt(ctx context.Context, wpmCli command.Cli, opts *loginOption
 	return nil
 }
 
-type AuthResponse struct {
-	Uid      int    `json:"uid"`
-	Tid      int    `json:"tid"`
-	Username string `json:"username"`
-}
-
-func validateToken(wpmCli command.Cli, token string) (*AuthResponse, error) {
+func validateToken(wpmCli command.Cli, token string) (string, error) {
 	client, err := api.NewRESTClient(api.ClientOptions{
 		Log:         wpmCli.Err(),
 		AuthToken:   token,
@@ -87,16 +80,16 @@ func validateToken(wpmCli command.Cli, token string) (*AuthResponse, error) {
 		LogColorize: !wpmTerm.IsColorDisabled() && term.IsTerminal(wpmCli.Err().FD()),
 	})
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
-	var response AuthResponse
+	var response string
 	err = wpmCli.Progress().RunWithProgress("validating token", func() error { return client.Get("/-/whoami", &response) }, wpmCli.Err())
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
-	return &response, nil
+	return response, nil
 }
 
 func runLogin(ctx context.Context, wpmCli command.Cli, opts loginOptions) error {
@@ -110,25 +103,23 @@ func runLogin(ctx context.Context, wpmCli command.Cli, opts loginOptions) error 
 		}
 	}
 
-	resp, err := validateToken(wpmCli, opts.token)
+	username, err := validateToken(wpmCli, opts.token)
 	if err != nil {
 		return err
 	}
-	if resp == nil || resp.Username == "" || resp.Tid == 0 || resp.Uid == 0 {
+	if username == "" {
 		return errors.New(aec.RedF.Apply("unable to resolve identity from token"))
 	}
 
 	cfg := wpmCli.ConfigFile()
 	cfg.AuthToken = opts.token
-	cfg.DefaultUser = resp.Username
-	cfg.DefaultUId = strconv.Itoa(resp.Uid)
-	cfg.DefaultTId = strconv.Itoa(resp.Tid)
+	cfg.DefaultUser = username
 
 	if err := cfg.Save(); err != nil {
 		return err
 	}
 
-	_, _ = fmt.Fprintf(wpmCli.Out(), "welcome %s!\n", resp.Username)
+	_, _ = fmt.Fprintf(wpmCli.Out(), "welcome %s!\n", username)
 
 	return nil
 }

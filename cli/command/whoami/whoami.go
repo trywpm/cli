@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"wpm/cli"
 	"wpm/cli/command"
-	"wpm/cli/command/auth"
 	"wpm/pkg/api"
 	"wpm/pkg/config"
 	wpmTerm "wpm/pkg/term"
@@ -26,7 +25,7 @@ func NewWhoamiCommand(wpmCli command.Cli) *cobra.Command {
 	return cmd
 }
 
-func validateToken(wpmCli command.Cli, token string) (*auth.AuthResponse, error) {
+func validateToken(wpmCli command.Cli, token string) (string, error) {
 	client, err := api.NewRESTClient(api.ClientOptions{
 		Log:         wpmCli.Err(),
 		AuthToken:   token,
@@ -38,16 +37,16 @@ func validateToken(wpmCli command.Cli, token string) (*auth.AuthResponse, error)
 		LogColorize: !wpmTerm.IsColorDisabled() && term.IsTerminal(wpmCli.Err().FD()),
 	})
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
-	var response auth.AuthResponse
+	var response string
 	err = client.Get("/-/whoami", &response)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
-	return &response, nil
+	return response, nil
 }
 
 func runWhoami(wpmCli command.Cli) error {
@@ -56,21 +55,20 @@ func runWhoami(wpmCli command.Cli) error {
 		return errors.New("user must be logged in to perform this action")
 	}
 
-	var resp *auth.AuthResponse
+	var username string
 	err := wpmCli.Progress().RunWithProgress("", func() error {
 		var err error
-		resp, err = validateToken(wpmCli, cfg.AuthToken)
+		username, err = validateToken(wpmCli, cfg.AuthToken)
 		return err
 	}, wpmCli.Out())
 
 	if err != nil {
 		return err
 	}
-	if resp.Username == "" {
+	if username == "" {
 		return errors.New(aec.RedF.Apply("unable to resolve identity from token"))
 	}
 
-	_, _ = fmt.Fprintln(wpmCli.Out(), resp.Username)
-
+	_, _ = fmt.Fprintln(wpmCli.Out(), username)
 	return nil
 }
