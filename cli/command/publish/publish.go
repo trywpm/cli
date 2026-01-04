@@ -118,7 +118,8 @@ func runPublish(ctx context.Context, wpmCli command.Cli, opts publishOptions) er
 		return errors.Wrap(err, "failed to get current working directory")
 	}
 
-	if opts.access != "public" && opts.access != "private" {
+	visibility := wpmjson.PackageVisibility(opts.access)
+	if !visibility.Valid() {
 		return errors.New("access must be either public or private")
 	}
 
@@ -208,36 +209,33 @@ func runPublish(ctx context.Context, wpmCli command.Cli, opts publishOptions) er
 		return err
 	}
 
-	manifest := &wpmjson.Package{
-		Config: wpmjson.Config{
-			Name:            wpmJson.Name,
-			Description:     wpmJson.Description,
-			Type:            wpmJson.Type,
-			Version:         wpmJson.Version,
-			Platform:        wpmJson.Platform,
-			License:         wpmJson.License,
-			Homepage:        wpmJson.Homepage,
-			Tags:            wpmJson.Tags,
-			Team:            wpmJson.Team,
-			Dependencies:    wpmJson.Dependencies,
-			DevDependencies: wpmJson.DevDependencies,
-		},
-		Meta: wpmjson.Meta{
-			Dist: wpmjson.Dist{
-				Digest:       "sha256:" + digest,
-				PackedSize:   counter.total,
-				TotalFiles:   tarballer.FileCount(),
-				UnpackedSize: tarballer.UnpackedSize(),
-			},
-			Tag:        opts.tag,
-			Visibility: opts.access,
-			Wpm:        version.Version,
-		},
-	}
-
 	readme, err := getReadme(cwd)
 	if err != nil {
 		return errors.Wrap(err, "failed to read readme file")
+	}
+
+	manifest := &wpmjson.PackageManifest{
+		Name:            wpmJson.Name,
+		Description:     wpmJson.Description,
+		Type:            wpmJson.Type,
+		Version:         wpmJson.Version,
+		Platform:        wpmJson.Platform,
+		License:         wpmJson.License,
+		Homepage:        wpmJson.Homepage,
+		Tags:            wpmJson.Tags,
+		Team:            wpmJson.Team,
+		Dependencies:    wpmJson.Dependencies,
+		DevDependencies: wpmJson.DevDependencies,
+		Tag:             opts.tag,
+		Dist: wpmjson.Dist{
+			Digest:       "sha256:" + digest,
+			PackedSize:   counter.total,
+			TotalFiles:   tarballer.FileCount(),
+			UnpackedSize: tarballer.UnpackedSize(),
+		},
+		Wpm:        version.Version,
+		Visibility: visibility,
+		Readme:     readme,
 	}
 
 	if err = wpmCli.Progress().RunWithProgress(
@@ -247,7 +245,7 @@ func runPublish(ctx context.Context, wpmCli command.Cli, opts publishOptions) er
 				return errors.Wrap(err, "failed to seek to beginning of tarball")
 			}
 
-			return registryClient.PutPackage(ctx, manifest, readme, tempFile)
+			return registryClient.PutPackage(ctx, manifest, tempFile)
 		},
 		wpmCli.Err(),
 	); err != nil {
