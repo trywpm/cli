@@ -301,7 +301,7 @@ func setConfigFromOptions(config *wpmjson.Config, opts *initOptions) {
 	config.Name = opts.name
 	config.License = opts.license
 	config.Version = opts.version
-	config.Type = opts.packageType
+	config.Type = wpmjson.PackageType(opts.packageType)
 }
 
 func promptForConfig(ctx context.Context, wpmCli command.Cli, config *wpmjson.Config, ve *validator.Validate, defaultName string) error {
@@ -366,7 +366,7 @@ func promptForConfig(ctx context.Context, wpmCli command.Cli, config *wpmjson.Co
 					if errs := ve.Var(val, "required,oneof=plugin theme mu-plugin"); errs != nil {
 						return errors.Errorf("invalid type: \"%s\"", aec.Bold.Apply(val))
 					}
-					config.Type = val
+					config.Type = wpmjson.PackageType(val)
 					return nil
 				},
 			},
@@ -512,7 +512,7 @@ func buildWPMConfig(opts initOptions, pkgType string, mainFileHeaders any, readm
 		return cfg
 	}
 
-	cfg.Type = pkgType
+	cfg.Type = wpmjson.PackageType(pkgType)
 	cfg.License = getMetaString(readmeMeta, "license", opts.license)
 	cfg.Description = getMetaString(readmeMeta, "meta_description", "")
 

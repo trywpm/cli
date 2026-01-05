@@ -1,9 +1,34 @@
 package wpmjson
 
-type (
-	PackageType       string
-	PackageVisibility string
-)
+type PackageType string
+
+func (pt PackageType) String() string {
+	return string(pt)
+}
+
+func (pt PackageType) Valid() bool {
+	switch pt {
+	case TypeTheme, TypePlugin, TypeMuPlugin:
+		return true
+	default:
+		return false
+	}
+}
+
+type PackageVisibility string
+
+func (pv PackageVisibility) String() string {
+	return string(pv)
+}
+
+func (pv PackageVisibility) Valid() bool {
+	switch pv {
+	case VisibilityPublic, VisibilityPrivate:
+		return true
+	default:
+		return false
+	}
+}
 
 const (
 	TypeTheme    PackageType = "theme"
@@ -42,7 +67,7 @@ type Config struct {
 	Name            string             `json:"name" validate:"required,wpm_name"`
 	Description     string             `json:"description,omitempty" validate:"omitempty,min=3,max=512"`
 	Private         bool               `json:"private,omitempty"`
-	Type            string             `json:"type" validate:"required,oneof=theme plugin mu-plugin"`
+	Type            PackageType        `json:"type" validate:"required,oneof=theme plugin mu-plugin"`
 	Version         string             `json:"version" validate:"required,wpm_semver"`
 	Platform        *Platform          `json:"platform,omitempty" validate:"omitempty"`
 	License         string             `json:"license,omitempty" validate:"omitempty,min=3,max=100"`
@@ -54,20 +79,6 @@ type Config struct {
 	DevDependencies *Dependencies      `json:"devDependencies,omitempty" validate:"omitempty,max=16,dive,keys,wpm_name,endkeys,wpm_dependency_version"`
 	Scripts         *map[string]string `json:"scripts,omitempty"`
 	Config          *PackageConfig     `json:"config,omitempty"`
-}
-
-// Meta struct to define the package metadata
-type Meta struct {
-	Tag        string `json:"tag"`
-	Dist       Dist   `json:"dist"`
-	Wpm        string `json:"_wpm"`
-	Visibility string `json:"visibility"`
-}
-
-// Package struct to define the package schema
-type Package struct {
-	Meta   Meta   `json:"meta"`
-	Config Config `json:"config"`
 }
 
 // Description of package fields.
@@ -86,4 +97,26 @@ var PackageFieldDescriptions = map[string]string{
 	"Dependencies":    "must be an object with string values. (optional)",
 	"DevDependencies": "must be an object with string values. (optional)",
 	"Scripts":         "must be an object with string values. (optional)",
+}
+
+// PackageManifest struct to define the package manifest in registry
+//
+// It will act as the source of truth for publishing and installing packages.
+type PackageManifest struct {
+	Name            string            `json:"name"`
+	Description     string            `json:"description,omitempty"`
+	Type            PackageType       `json:"type"`
+	Version         string            `json:"version"`
+	Platform        *Platform         `json:"platform,omitempty"`
+	License         string            `json:"license,omitempty"`
+	Homepage        string            `json:"homepage,omitempty"`
+	Tags            []string          `json:"tags,omitempty"`
+	Team            []string          `json:"team,omitempty"`
+	Dependencies    *Dependencies     `json:"dependencies,omitempty"`
+	DevDependencies *Dependencies     `json:"devDependencies,omitempty"`
+	Tag             string            `json:"tag"`
+	Dist            Dist              `json:"dist"`
+	Wpm             string            `json:"_wpm"`
+	Visibility      PackageVisibility `json:"visibility"`
+	Readme          string            `json:"readme,omitempty"`
 }
