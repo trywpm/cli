@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"unicode"
 
@@ -592,6 +593,10 @@ func buildWPMConfig(opts initOptions, pkgType string, mainFileHeaders any, readm
 
 		if len(h.RequiresPlugins) > 0 {
 			for _, reqPlugin := range h.RequiresPlugins {
+				if err := ve.Var(reqPlugin, "wpm_name"); err != nil {
+					continue
+				}
+
 				// Add "*" as version since requires plugins only specify the plugin slug, not a version.
 				dependencies[reqPlugin] = "*"
 			}
@@ -612,7 +617,9 @@ func buildWPMConfig(opts initOptions, pkgType string, mainFileHeaders any, readm
 			}
 		}
 
-		cfg.Tags = validTags
+		slices.Sort(validTags)
+
+		cfg.Tags = slices.Compact(validTags)
 	}
 
 	// Trim team to max 100 members
@@ -629,7 +636,9 @@ func buildWPMConfig(opts initOptions, pkgType string, mainFileHeaders any, readm
 			}
 		}
 
-		cfg.Team = validTeam
+		slices.Sort(validTeam)
+
+		cfg.Team = slices.Compact(validTeam)
 	}
 
 	// Trim description to max 512 characters
