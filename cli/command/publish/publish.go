@@ -96,7 +96,7 @@ func getReadme(dirPath string) (string, error) {
 				return "", err
 			}
 
-			return base64.RawStdEncoding.EncodeToString(data), nil
+			return string(data), nil
 		}
 	}
 
