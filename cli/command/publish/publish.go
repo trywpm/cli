@@ -219,7 +219,7 @@ func runPublish(ctx context.Context, wpmCli command.Cli, opts publishOptions) er
 		Description:     wpmJson.Description,
 		Type:            wpmJson.Type,
 		Version:         wpmJson.Version,
-		Platform:        wpmJson.Platform,
+		Requires:        wpmJson.Requires,
 		License:         wpmJson.License,
 		Homepage:        wpmJson.Homepage,
 		Tags:            wpmJson.Tags,
