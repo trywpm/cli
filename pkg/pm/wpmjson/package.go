@@ -54,8 +54,8 @@ type PackageConfig struct {
 	PlatformStrict *bool   `json:"platform-strict,omitempty"` // If set to true, wpm will refuse to install the package if the platform requirements are not met.
 }
 
-// Platform holds the php and wp version constraints for a package.
-type Platform struct {
+// Requires holds wp and php version constraints for a package
+type Requires struct {
 	WP  string `json:"wp,omitempty" validate:"omitempty,wpm_semver_constraint"`
 	PHP string `json:"php,omitempty" validate:"omitempty,wpm_semver_constraint"`
 }
@@ -69,7 +69,7 @@ type Config struct {
 	Private         bool               `json:"private,omitempty"`
 	Type            PackageType        `json:"type" validate:"required,oneof=theme plugin mu-plugin"`
 	Version         string             `json:"version" validate:"required,wpm_semver"`
-	Platform        *Platform          `json:"platform,omitempty" validate:"omitempty"`
+	Requires        *Requires          `json:"requires,omitempty" validate:"omitempty"`
 	License         string             `json:"license,omitempty" validate:"omitempty,min=3,max=100"`
 	Homepage        string             `json:"homepage,omitempty" validate:"omitempty,url,wpm_http_url,min=10,max=200"`
 	Tags            []string           `json:"tags,omitempty" validate:"omitempty,max=5,dive,min=2,max=64"`
@@ -88,7 +88,7 @@ var PackageFieldDescriptions = map[string]string{
 	"Private":         "must be a boolean. (optional)",
 	"Type":            "must be one of: 'plugin', 'theme', or 'mu-plugin'. (required)",
 	"Version":         "must be a valid semantic version (semver) and less than 64 characters. (required)",
-	"Platform":        "must be an object with 'php' and 'wp' fields, both of which must be valid semantic version constraints. (optional)",
+	"Requires":        "must be an object with 'php' and 'wp' fields, both of which must be valid semantic version constraints. (optional)",
 	"License":         "must be a string. (optional)",
 	"Homepage":        "must be a valid http url. (optional)",
 	"Tags":            "must be an array of strings with a maximum of 5 tags. (optional)",
@@ -107,7 +107,7 @@ type PackageManifest struct {
 	Description     string            `json:"description,omitempty"`
 	Type            PackageType       `json:"type"`
 	Version         string            `json:"version"`
-	Platform        *Platform         `json:"platform,omitempty"`
+	Requires        *Requires         `json:"requires,omitempty"`
 	License         string            `json:"license,omitempty"`
 	Homepage        string            `json:"homepage,omitempty"`
 	Tags            []string          `json:"tags,omitempty"`

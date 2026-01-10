@@ -522,11 +522,12 @@ func buildWPMConfig(opts initOptions, pkgType string, mainFileHeaders any, readm
 		cfg.Tags = tags
 	}
 
-	platform := &wpmjson.Platform{}
+	requires := &wpmjson.Requires{}
 	dependencies := make(wpmjson.Dependencies)
 	cfg.Team = getMetaStringSlice(readmeMeta, "contributors")
 	wpRequires := getMetaString(readmeMeta, "requires", "")
 	phpRequires := getMetaString(readmeMeta, "requires_php", "")
+	testedUpTo := getMetaString(readmeMeta, "tested", "")
 
 	switch h := mainFileHeaders.(type) {
 	case parser.ThemeFileHeaders:
@@ -654,13 +655,19 @@ func buildWPMConfig(opts initOptions, pkgType string, mainFileHeaders any, readm
 	if wpRequires != "" {
 		_, err := semver.NewConstraint(wpRequires)
 		if err == nil {
-			platform.WP = "^" + wpRequires
+			requires.WP = ">=" + wpRequires
+		}
+
+		_, err = semver.NewVersion(testedUpTo)
+		if err == nil && wpRequires != testedUpTo {
+			requires.WP += " <=" + testedUpTo
+			requires.WP = strings.TrimSpace(requires.WP)
 		}
 	}
 	if phpRequires != "" {
 		_, err := semver.NewConstraint(phpRequires)
 		if err == nil {
-			platform.PHP = "^" + phpRequires
+			requires.PHP = ">=" + phpRequires
 		}
 	}
 
@@ -668,8 +675,8 @@ func buildWPMConfig(opts initOptions, pkgType string, mainFileHeaders any, readm
 		cfg.Dependencies = &dependencies
 	}
 
-	if platform.PHP != "" || platform.WP != "" {
-		cfg.Platform = platform
+	if requires.PHP != "" || requires.WP != "" {
+		cfg.Requires = requires
 	}
 
 	return cfg
