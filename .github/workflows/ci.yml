@@ -91,8 +91,6 @@ jobs:
           targets: binary-cross
           set: |
             *.platform=${{ matrix.platform }}
-            *.cache-from=type=gha,scope=binary-${{ steps.platform.outputs.pair }}
-            *.cache-to=type=gha,scope=binary-${{ steps.platform.outputs.pair }},mode=max
 
       - name: list artifacts
         run: ls -alh ./build
@@ -212,9 +210,6 @@ jobs:
             ${{ steps.meta.outputs.bake-file }}
           targets: image-cross
           push: true
-          set: |
-            *.cache-from=type=gha,scope=wpm-image
-            *.cache-to=type=gha,scope=wpm-image,mode=max
 
       - name: download artifacts
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 #v7.0.0
