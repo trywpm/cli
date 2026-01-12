@@ -27,6 +27,22 @@ func (o *Out) IsColorEnabled() bool {
 	return o.enableColor
 }
 
+func (o *Out) CanShowSpinner() bool {
+	if !o.isTerminal {
+		return false
+	}
+
+	if os.Getenv("CI") != "" {
+		return false
+	}
+
+	if os.Getenv("TERM") == "dumb" {
+		return false
+	}
+
+	return true
+}
+
 // SetRawTerminal puts the output of the terminal connected to the stream
 // into raw mode.
 //
