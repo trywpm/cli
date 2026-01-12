@@ -69,9 +69,5 @@ func resolveOptions(opts ClientOptions) (ClientOptions, error) {
 		return ClientOptions{}, fmt.Errorf("host not found")
 	}
 
-	if opts.AuthToken == "" {
-		return ClientOptions{}, fmt.Errorf("authentication token not found for host %s", opts.Host)
-	}
-
 	return opts, nil
 }

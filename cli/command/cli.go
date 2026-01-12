@@ -6,10 +6,10 @@ import (
 
 	"wpm/cli/debug"
 	cliflags "wpm/cli/flags"
-	"wpm/cli/registry/client"
 	"wpm/cli/version"
 	"wpm/pkg/config"
 	"wpm/pkg/config/configfile"
+	"wpm/pkg/pm/registry"
 	"wpm/pkg/progress"
 	"wpm/pkg/streams"
 
@@ -32,7 +32,7 @@ type Cli interface {
 	Progress() *progress.Progress
 	Options() *cliflags.ClientOptions
 	ConfigFile() *configfile.ConfigFile
-	RegistryClient() (client.RegistryClient, error)
+	RegistryClient() (registry.Client, error)
 }
 
 // WpmCli is an instance the wpm command line client.
@@ -146,13 +146,14 @@ func (cli *WpmCli) Initialize(opts *cliflags.ClientOptions, ops ...CLIOption) er
 }
 
 // RegistryClient returns a client for communicating with wpm registry
-func (cli *WpmCli) RegistryClient() (client.RegistryClient, error) {
-	_client, err := client.NewRegistryClient(cli.Registry(), cli.configFile.AuthToken, UserAgent(), cli.out)
-	if err != nil {
-		return nil, err
-	}
-
-	return _client, nil
+func (cli *WpmCli) RegistryClient() (registry.Client, error) {
+	return registry.New(
+		cli.Registry(),
+		cli.configFile.AuthToken,
+		UserAgent(),
+		cli.out.IsColorEnabled(),
+		cli.err,
+	)
 }
 
 // UserAgent returns the user agent string used for making API requests
@@ -163,6 +164,7 @@ func UserAgent() string {
 // Progress returns the progress indicator
 func (cli *WpmCli) Progress() *progress.Progress {
 	return &progress.Progress{
-		ProgressIndicatorEnabled: cli.Out().IsTerminal() && cli.in.IsTerminal(),
+		ProgressColorEnabled:     cli.Out().IsColorEnabled(),
+		ProgressIndicatorEnabled: cli.Out().CanShowSpinner(),
 	}
 }

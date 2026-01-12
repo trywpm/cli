@@ -107,6 +107,32 @@ func (c *RESTClient) DoWithContext(ctx context.Context, method string, path stri
 	return nil
 }
 
+// RequestStream issues a request and returns the raw response body stream.
+func (c *RESTClient) RequestStream(ctx context.Context, method string, path string, body io.Reader, opts ...RequestOption) (io.ReadCloser, error) {
+	url := restURL(c.host, path)
+	req, err := http.NewRequestWithContext(ctx, method, url, body)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, opt := range opts {
+		opt(req)
+	}
+
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	success := resp.StatusCode >= 200 && resp.StatusCode < 300
+	if !success {
+		defer resp.Body.Close()
+		return nil, HandleHTTPError(resp)
+	}
+
+	return resp.Body, nil
+}
+
 // Do wraps DoWithContext with context.Background.
 func (c *RESTClient) Do(method string, path string, body io.Reader, response interface{}, opts ...RequestOption) error {
 	return c.DoWithContext(context.Background(), method, path, body, response, opts...)

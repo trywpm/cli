@@ -7,9 +7,7 @@ import (
 	"wpm/cli"
 	"wpm/cli/command"
 	"wpm/pkg/api"
-	wpmTerm "wpm/pkg/term"
 
-	"github.com/moby/term"
 	"github.com/morikuni/aec"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
@@ -77,7 +75,7 @@ func validateToken(wpmCli command.Cli, token string) (string, error) {
 		AuthToken:   token,
 		Host:        wpmCli.Registry(),
 		Headers:     map[string]string{"User-Agent": command.UserAgent()},
-		LogColorize: !wpmTerm.IsColorDisabled() && term.IsTerminal(wpmCli.Err().FD()),
+		LogColorize: wpmCli.Err().IsColorEnabled(),
 	})
 	if err != nil {
 		return "", err
