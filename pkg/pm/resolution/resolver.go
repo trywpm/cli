@@ -127,7 +127,7 @@ func (r *Resolver) Resolve(ctx context.Context) (map[string]Node, error) {
 			// -- Runtime Compatibility Check ---
 			if err := r.checkRuntimeCompatibility(res.manifest); err != nil {
 				return nil, fmt.Errorf(
-					"Package %s@%s incompatible:\n"+
+					"package %s@%s incompatible:\n"+
 						"  %w",
 					res.req.name, res.req.version, err,
 				)
@@ -175,7 +175,7 @@ func (r *Resolver) resolveConflict(req dependencyRequest, existing Node) error {
 		//
 		// This indicates a bug in the resolver logic if this invariant is violated.
 		if existing.Version != rootVersion {
-			return fmt.Errorf("Invariant violation: existing version %s does not match root version %s for package %s", existing.Version, rootVersion, req.name)
+			return fmt.Errorf("invariant violation: existing version %s does not match root version %s for package %s", existing.Version, rootVersion, req.name)
 		}
 
 		reqV, err := semver.NewVersion(req.version)
@@ -191,8 +191,9 @@ func (r *Resolver) resolveConflict(req dependencyRequest, existing Node) error {
 		}
 
 		if reqV.GreaterThan(rootV) {
+			//nolint:staticcheck
 			return fmt.Errorf(
-				"Version downgrade detected for %s:\n"+
+				"version downgrade detected for %s:\n"+
 					"  currently resolved: %s\n"+
 					"  %s requires: %s\n"+
 					"Action: Upgrade %s in your wpm.json to %s or higher.",
@@ -205,7 +206,7 @@ func (r *Resolver) resolveConflict(req dependencyRequest, existing Node) error {
 	}
 
 	// Unresolvable conflict, user must intervene.
-	return fmt.Errorf(
+	return fmt.Errorf( //nolint:staticcheck
 		"Dependency version conflict for package %s:\n"+
 			"  currently resolved: %s\n"+
 			"  %s requires: %s\n"+
@@ -226,7 +227,7 @@ func (r *Resolver) checkRuntimeCompatibility(manifest *wpmjson.PackageManifest) 
 	}
 
 	// If runtime strict mode is disabled, skip checks.
-	if r.rootConfig.Config != nil && *r.rootConfig.Config.RuntimeStrict == false {
+	if r.rootConfig.Config != nil && !*r.rootConfig.Config.RuntimeStrict {
 		return nil
 	}
 
@@ -248,7 +249,7 @@ func (r *Resolver) checkRuntimeCompatibility(manifest *wpmjson.PackageManifest) 
 		}
 
 		if !c.Check(v) {
-			return fmt.Errorf("Requires WordPress %s, but runtime is %s", manifest.Requires.WP, r.runtimeWp)
+			return fmt.Errorf("requires WordPress %s, but runtime is %s", manifest.Requires.WP, r.runtimeWp)
 		}
 	}
 
@@ -265,7 +266,7 @@ func (r *Resolver) checkRuntimeCompatibility(manifest *wpmjson.PackageManifest) 
 		}
 
 		if !c.Check(v) {
-			return fmt.Errorf("Requires PHP %s, but runtime is %s", manifest.Requires.PHP, r.runtimePhp)
+			return fmt.Errorf("requires PHP %s, but runtime is %s", manifest.Requires.PHP, r.runtimePhp)
 		}
 	}
 
