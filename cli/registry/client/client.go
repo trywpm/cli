@@ -9,9 +9,6 @@ import (
 	"wpm/pkg/api"
 	"wpm/pkg/pm/wpmjson"
 	"wpm/pkg/streams"
-	wpmTerm "wpm/pkg/term"
-
-	"github.com/moby/term"
 )
 
 type client struct {
@@ -22,6 +19,7 @@ type client struct {
 // registry
 type RegistryClient interface {
 	PutPackage(ctx context.Context, data *wpmjson.PackageManifest, tarball io.Reader) error
+	GetPackageManifest(ctx context.Context, packageName string, versionOrTag string) (*wpmjson.PackageManifest, error)
 }
 
 var _ RegistryClient = &client{}
@@ -32,8 +30,8 @@ func NewRegistryClient(host string, authToken string, userAgent string, out *str
 		Log:         out,
 		Host:        host,
 		AuthToken:   authToken,
+		LogColorize: out.IsColorEnabled(),
 		Headers:     map[string]string{"User-Agent": userAgent},
-		LogColorize: !wpmTerm.IsColorDisabled() && term.IsTerminal(out.FD()),
 	}
 
 	_client, err := api.NewRESTClient(opts)
@@ -60,4 +58,20 @@ func (c *client) PutPackage(ctx context.Context, data *wpmjson.PackageManifest, 
 		api.WithHeader("Content-Type", "application/octet-stream"),
 		api.WithHeader("x-wpm-manifest", base64.StdEncoding.EncodeToString(manifest)),
 	)
+}
+
+// GetPackageManifest retrieves a package manifest from the registry
+func (c *client) GetPackageManifest(ctx context.Context, packageName string, versionOrTag string) (*wpmjson.PackageManifest, error) {
+	var manifest wpmjson.PackageManifest
+
+	err := c.restClient.Get(
+		"/"+packageName+"/"+versionOrTag,
+		&manifest,
+		nil,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return &manifest, nil
 }
