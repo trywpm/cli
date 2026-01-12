@@ -1,24 +1,25 @@
 package progress
 
 import (
+	"io"
 	"sync"
 	"time"
-	"wpm/pkg/streams"
 
 	"github.com/briandowns/spinner"
 )
 
 type Progress struct {
+	ProgressColorEnabled     bool
 	ProgressIndicatorEnabled bool
 	progressIndicator        *spinner.Spinner
 	progressIndicatorMu      sync.Mutex
 }
 
-func (p *Progress) StartProgressIndicator(out *streams.Out) {
+func (p *Progress) StartProgressIndicator(out io.Writer) {
 	p.StartProgressIndicatorWithLabel("", out)
 }
 
-func (p *Progress) StartProgressIndicatorWithLabel(label string, s *streams.Out) {
+func (p *Progress) StartProgressIndicatorWithLabel(label string, s io.Writer) {
 	if !p.ProgressIndicatorEnabled {
 		return
 	}
@@ -36,8 +37,15 @@ func (p *Progress) StartProgressIndicatorWithLabel(label string, s *streams.Out)
 	}
 
 	// https://github.com/briandowns/spinner#available-character-sets
-	dotStyle := spinner.CharSets[11]
-	sp := spinner.New(dotStyle, 120*time.Millisecond, spinner.WithWriter(s), spinner.WithColor("fgCyan"))
+	var sp *spinner.Spinner
+	if p.ProgressColorEnabled {
+		dotStyle := spinner.CharSets[11]
+		sp = spinner.New(dotStyle, 120*time.Millisecond, spinner.WithWriter(s), spinner.WithColor("fgCyan"))
+	} else {
+		dotStyle := spinner.CharSets[14]
+		sp = spinner.New(dotStyle, 120*time.Millisecond, spinner.WithWriter(s))
+	}
+
 	if label != "" {
 		sp.Prefix = label + " "
 	}
@@ -56,7 +64,7 @@ func (p *Progress) StopProgressIndicator() {
 	p.progressIndicator = nil
 }
 
-func (p *Progress) RunWithProgress(label string, run func() error, out *streams.Out) error {
+func (p *Progress) RunWithProgress(label string, run func() error, out io.Writer) error {
 	p.StartProgressIndicatorWithLabel(label, out)
 	defer p.StopProgressIndicator()
 
