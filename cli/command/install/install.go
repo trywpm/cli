@@ -6,10 +6,12 @@ import (
 	"strings"
 
 	"wpm/cli/command"
+	"wpm/pkg/pm/registry"
 	"wpm/pkg/pm/wpmjson"
 
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
+	"golang.org/x/sync/errgroup"
 )
 
 type installOptions struct {
@@ -46,6 +48,11 @@ func runInstall(ctx context.Context, wpmCli command.Cli, opts installOptions, pa
 		return errors.Wrap(err, "failed to get current working directory")
 	}
 
+	client, err := wpmCli.RegistryClient()
+	if err != nil {
+		return err
+	}
+
 	cfg, err := wpmjson.ReadAndValidateWpmJson(cwd)
 	if err != nil {
 		return err
@@ -56,7 +63,7 @@ func runInstall(ctx context.Context, wpmCli command.Cli, opts installOptions, pa
 	configModified := false
 
 	if len(packages) > 0 {
-		if err := addPackages(cfg, packages, opts.saveDev); err != nil {
+		if err := addPackages(ctx, cfg, client, packages, opts.saveDev); err != nil {
 			return err
 		}
 
@@ -72,34 +79,46 @@ func runInstall(ctx context.Context, wpmCli command.Cli, opts installOptions, pa
 	})
 }
 
-func addPackages(config *wpmjson.Config, packages []string, saveDev bool) error {
+func addPackages(ctx context.Context, config *wpmjson.Config, client registry.Client, packages []string, saveDev bool) error {
+	g, ctx := errgroup.WithContext(ctx)
+	g.SetLimit(16)
+
 	for _, pkgArg := range packages {
-		name, version := parsePackageArg(pkgArg)
+		name, versionOrTag := parsePackageArg(pkgArg)
 
-		if saveDev {
-			if config.DevDependencies == nil {
-				config.DevDependencies = &wpmjson.Dependencies{}
+		g.Go(func() error {
+			manifest, err := client.GetPackageManifest(ctx, name, versionOrTag)
+			if err != nil {
+				return errors.Wrapf(err, "failed to fetch package %s@%s", name, versionOrTag)
 			}
 
-			(*config.DevDependencies)[name] = version
+			if saveDev {
+				if config.DevDependencies == nil {
+					config.DevDependencies = &wpmjson.Dependencies{}
+				}
 
-			if config.Dependencies != nil {
-				delete(*config.Dependencies, name)
-			}
-		} else {
-			if config.Dependencies == nil {
-				config.Dependencies = &wpmjson.Dependencies{}
+				(*config.DevDependencies)[name] = manifest.Version
+
+				if config.Dependencies != nil {
+					delete(*config.Dependencies, name)
+				}
+			} else {
+				if config.Dependencies == nil {
+					config.Dependencies = &wpmjson.Dependencies{}
+				}
+
+				(*config.Dependencies)[name] = manifest.Version
+
+				if config.DevDependencies != nil {
+					delete(*config.DevDependencies, name)
+				}
 			}
 
-			(*config.Dependencies)[name] = version
-
-			if config.DevDependencies != nil {
-				delete(*config.DevDependencies, name)
-			}
-		}
+			return nil
+		})
 	}
 
-	return nil
+	return g.Wait()
 }
 
 func setDefaultPackageConfig(pkgConfig *wpmjson.PackageConfig) {
