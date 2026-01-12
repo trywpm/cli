@@ -147,7 +147,7 @@ func (cli *WpmCli) Initialize(opts *cliflags.ClientOptions, ops ...CLIOption) er
 
 // RegistryClient returns a client for communicating with wpm registry
 func (cli *WpmCli) RegistryClient() (client.RegistryClient, error) {
-	_client, err := client.NewRegistryClient(cli.Registry(), cli.configFile.AuthToken, UserAgent(), cli.out)
+	_client, err := client.NewRegistryClient(cli.Registry(), cli.configFile.AuthToken, UserAgent(), cli.err)
 	if err != nil {
 		return nil, err
 	}
@@ -163,6 +163,7 @@ func UserAgent() string {
 // Progress returns the progress indicator
 func (cli *WpmCli) Progress() *progress.Progress {
 	return &progress.Progress{
-		ProgressIndicatorEnabled: cli.Out().IsTerminal() && cli.in.IsTerminal(),
+		ProgressColorEnabled:     cli.Out().IsColorEnabled(),
+		ProgressIndicatorEnabled: cli.Out().CanShowSpinner(),
 	}
 }
