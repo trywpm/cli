@@ -1,4 +1,4 @@
-package client
+package registry
 
 import (
 	"context"
@@ -8,29 +8,28 @@ import (
 
 	"wpm/pkg/api"
 	"wpm/pkg/pm/wpmjson"
-	"wpm/pkg/streams"
 )
 
 type client struct {
 	restClient *api.RESTClient
 }
 
-// RegistryClient is a client used to communicate with a wpm distribution
+// Client is a client used to communicate with a wpm distribution
 // registry
-type RegistryClient interface {
+type Client interface {
 	PutPackage(ctx context.Context, data *wpmjson.PackageManifest, tarball io.Reader) error
 	GetPackageManifest(ctx context.Context, packageName string, versionOrTag string) (*wpmjson.PackageManifest, error)
 }
 
-var _ RegistryClient = &client{}
+var _ Client = &client{}
 
-// NewRegistryClient returns a new REST client for the wpm registry
-func NewRegistryClient(host string, authToken string, userAgent string, out *streams.Out) (RegistryClient, error) {
+// New returns a new REST client for the wpm registry
+func New(host, authToken, userAgent string, colorize bool, out io.Writer) (Client, error) {
 	opts := api.ClientOptions{
 		Log:         out,
 		Host:        host,
 		AuthToken:   authToken,
-		LogColorize: out.IsColorEnabled(),
+		LogColorize: colorize,
 		Headers:     map[string]string{"User-Agent": userAgent},
 	}
 
