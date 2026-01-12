@@ -95,28 +95,7 @@ func (r *Resolver) Resolve(ctx context.Context) (map[string]Node, error) {
 
 		for _, req := range uniqueRequests {
 			g.Go(func() error {
-				var err error
-				var manifest *wpmjson.PackageManifest
-
-				// manifest, err := r.client.GetPackageManifest(ctx, req.name, req.version)
-				if r.lockfile != nil && r.lockfile.Packages != nil {
-					if lockPkg, ok := r.lockfile.Packages[req.name]; ok && lockPkg.Version == req.version {
-						// @todo(thelovekesh): what if lockfile is corrupted/missing fields?
-						manifest = &wpmjson.PackageManifest{
-							Name:         req.name,
-							Version:      lockPkg.Version,
-							Type:         lockPkg.Type,
-							Bin:          lockPkg.Bin,
-							Dependencies: lockPkg.Dependencies,
-							Dist: wpmjson.Dist{
-								Digest: lockPkg.Digest,
-							},
-						}
-					}
-				} else {
-					manifest, err = r.client.GetPackageManifest(ctx, req.name, req.version)
-				}
-
+				manifest, err := r.fetchMetadata(ctx, req.name, req.version)
 				results <- fetchResult{req: req, manifest: manifest, err: err}
 				return nil
 			})
@@ -129,7 +108,7 @@ func (r *Resolver) Resolve(ctx context.Context) (map[string]Node, error) {
 
 		for res := range results {
 			if res.err != nil {
-				return nil, res.err
+				return nil, fmt.Errorf("failed to fetch metadata for %s@%s required by %s: %w", res.req.name, res.req.version, res.req.requestor, res.err)
 			}
 
 			// --- Conflict Resolution ---
@@ -242,6 +221,10 @@ func (r *Resolver) resolveConflict(req dependencyRequest, existing Node) error {
 }
 
 func (r *Resolver) checkRuntimeCompatibility(manifest *wpmjson.PackageManifest) error {
+	if manifest == nil {
+		return errors.New("manifest is nil")
+	}
+
 	// If runtime strict mode is disabled, skip checks.
 	if r.rootConfig.Config != nil && *r.rootConfig.Config.RuntimeStrict == false {
 		return nil
@@ -287,4 +270,26 @@ func (r *Resolver) checkRuntimeCompatibility(manifest *wpmjson.PackageManifest) 
 	}
 
 	return nil
+}
+
+func (r *Resolver) fetchMetadata(ctx context.Context, name, version string) (*wpmjson.PackageManifest, error) {
+	// Try to resolve the manifest from lockfile first
+	if r.lockfile != nil && r.lockfile.Packages != nil {
+		if lockPkg, ok := r.lockfile.Packages[name]; ok {
+			if lockPkg.Version == version {
+				return &wpmjson.PackageManifest{
+					Name:         name,
+					Version:      lockPkg.Version,
+					Type:         lockPkg.Type,
+					Bin:          lockPkg.Bin,
+					Dependencies: lockPkg.Dependencies,
+					Dist: wpmjson.Dist{
+						Digest: lockPkg.Digest,
+					},
+				}, nil
+			}
+		}
+	}
+
+	return r.client.GetPackageManifest(ctx, name, version)
 }
