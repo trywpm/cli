@@ -61,16 +61,19 @@ func (c *client) PutPackage(ctx context.Context, data *wpmjson.PackageManifest, 
 
 // GetPackageManifest retrieves a package manifest from the registry
 func (c *client) GetPackageManifest(ctx context.Context, packageName string, versionOrTag string) (*wpmjson.PackageManifest, error) {
-	var manifest wpmjson.PackageManifest
+	var manifest *wpmjson.PackageManifest
+
+	if versionOrTag == "" || versionOrTag == "*" {
+		versionOrTag = "latest"
+	}
 
 	err := c.restClient.Get(
 		"/"+packageName+"/"+versionOrTag,
 		&manifest,
-		nil,
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	return &manifest, nil
+	return manifest, nil
 }
