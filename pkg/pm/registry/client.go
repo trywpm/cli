@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"io"
+	"net/http"
 
 	"wpm/pkg/api"
 	"wpm/pkg/pm/wpmjson"
@@ -17,6 +18,7 @@ type client struct {
 // Client is a client used to communicate with a wpm distribution
 // registry
 type Client interface {
+	DownloadTarball(ctx context.Context, url string) (io.ReadCloser, error)
 	PutPackage(ctx context.Context, data *wpmjson.PackageManifest, tarball io.Reader) error
 	GetPackageManifest(ctx context.Context, packageName string, versionOrTag string) (*wpmjson.PackageManifest, error)
 }
@@ -76,4 +78,14 @@ func (c *client) GetPackageManifest(ctx context.Context, packageName string, ver
 	}
 
 	return manifest, nil
+}
+
+// DownloadTarball downloads a package tarball from the registry
+func (c *client) DownloadTarball(ctx context.Context, url string) (io.ReadCloser, error) {
+	return c.restClient.RequestStream(
+		ctx,
+		http.MethodGet,
+		url,
+		nil,
+	)
 }
