@@ -36,7 +36,7 @@ type Resolver struct {
 	runtimePhp string
 }
 
-func NewResolver(rootConfig *wpmjson.Config, lockfile *wpmlock.Lockfile, client registry.Client, runtimeWp, runtimePhp string) *Resolver {
+func New(rootConfig *wpmjson.Config, lockfile *wpmlock.Lockfile, client registry.Client, runtimeWp, runtimePhp string) *Resolver {
 	return &Resolver{
 		rootConfig: rootConfig,
 		lockfile:   lockfile,
