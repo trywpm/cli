@@ -9,6 +9,7 @@ import (
 	"wpm/cli/version"
 	"wpm/pkg/config"
 	"wpm/pkg/config/configfile"
+	"wpm/pkg/output"
 	"wpm/pkg/pm/registry"
 	"wpm/pkg/progress"
 	"wpm/pkg/streams"
@@ -28,6 +29,7 @@ type Cli interface {
 	Streams
 	Registry() string
 	SetIn(in *streams.In)
+	Output() *output.Output
 	Apply(ops ...CLIOption) error
 	Progress() *progress.Progress
 	Options() *cliflags.ClientOptions
@@ -44,6 +46,7 @@ type WpmCli struct {
 	err        *streams.Out
 	options    *cliflags.ClientOptions
 	configFile *configfile.ConfigFile
+	output     *output.Output
 }
 
 // NewWpmCli returns a WpmCli instance with all operators applied on it.
@@ -59,6 +62,9 @@ func NewWpmCli(ops ...CLIOption) (*WpmCli, error) {
 	if err := cli.Apply(ops...); err != nil {
 		return nil, err
 	}
+
+	cli.output = output.New(cli.Out(), cli.Err())
+
 	return cli, nil
 }
 
@@ -154,6 +160,11 @@ func (cli *WpmCli) RegistryClient() (registry.Client, error) {
 		cli.out.IsColorEnabled(),
 		cli.err,
 	)
+}
+
+// Output returns the output handler
+func (cli *WpmCli) Output() *output.Output {
+	return cli.output
 }
 
 // UserAgent returns the user agent string used for making API requests
