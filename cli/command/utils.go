@@ -110,3 +110,15 @@ func PromptForConfirmation(ctx context.Context, ins io.Reader, outs io.Writer, m
 		return r, nil
 	}
 }
+
+func Pluralize(word, identifier string, count int) string {
+	if count == 1 {
+		return word
+	}
+
+	if identifier == "" {
+		identifier = "s"
+	}
+
+	return word + identifier
+}
