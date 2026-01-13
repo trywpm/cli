@@ -46,8 +46,8 @@ type PackageConfig struct {
 	BinDir        string `json:"bin-dir,omitempty"`
 	ContentDir    string `json:"content-dir,omitempty"`
 	RuntimeStrict *bool  `json:"runtime-strict,omitempty"`
-	RuntimeWp     string `json:"runtime-wp,omitempty"`
-	RuntimePhp    string `json:"runtime-php,omitempty"`
+	RuntimeWP     string `json:"runtime-wp,omitempty"`
+	RuntimePHP    string `json:"runtime-php,omitempty"`
 }
 
 // Requires holds wp and php version constraints for a package

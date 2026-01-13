@@ -59,8 +59,8 @@ func Run(ctx context.Context, cwd string, wpmCli command.Cli, opts RunOptions) e
 
 	var runtimeWP, runtimePHP string
 	if wpmCfg.Config != nil {
-		runtimeWP = wpmCfg.Config.RuntimeWp
-		runtimePHP = wpmCfg.Config.RuntimePhp
+		runtimeWP = wpmCfg.Config.RuntimeWP
+		runtimePHP = wpmCfg.Config.RuntimePHP
 	}
 
 	if wpmCfg.Config.RuntimeStrict == nil || *wpmCfg.Config.RuntimeStrict {

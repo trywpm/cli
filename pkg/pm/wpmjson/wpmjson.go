@@ -34,9 +34,22 @@ type Config struct {
 	Indentation string `json:"-"`
 }
 
+var defaultRuntimeStrict = true
+
 // New returns a new instance of wpm.json config
 func New() *Config {
-	return &Config{}
+	return &Config{
+		Bin:             &types.Bin{},
+		Requires:        &types.Requires{},
+		Dependencies:    &types.Dependencies{},
+		DevDependencies: &types.Dependencies{},
+		Config: &types.PackageConfig{
+			RuntimeStrict: &defaultRuntimeStrict,
+			BinDir:        "wp-bin",
+			ContentDir:    "wp-content",
+		},
+		Scripts: &types.Scripts{},
+	}
 }
 
 // GetIndentation returns the indentation used in the wpm.json file
