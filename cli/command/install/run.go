@@ -3,7 +3,9 @@ package install
 import (
 	"context"
 	"fmt"
+	"maps"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"wpm/cli/command"
 	"wpm/pkg/output"
@@ -63,11 +65,17 @@ func Run(ctx context.Context, cwd string, wpmCli command.Cli, opts RunOptions) e
 
 	if wpmCfg.Config.RuntimeStrict == nil || *wpmCfg.Config.RuntimeStrict {
 		if runtimeWP == "" {
-			return errors.New("runtime-wp must be specified in wpm.json")
+			wpmCli.Output().PrettyErrorln(output.Text{
+				Plain: "warn: config.runtime-wp is not specified in wpm.json",
+				Fancy: fmt.Sprintf("%s %s is not specified in wpm.json", aec.YellowF.Apply("warn:"), aec.LightBlueF.Apply("config.runtime-wp")),
+			})
 		}
 
 		if runtimePHP == "" {
-			return errors.New("runtime-php must be specified in wpm.json")
+			wpmCli.Output().PrettyErrorln(output.Text{
+				Plain: "warn: config.runtime-php is not specified in wpm.json",
+				Fancy: fmt.Sprintf("%s %s is not specified in wpm.json", aec.YellowF.Apply("warn:"), aec.LightBlueF.Apply("config.runtime-php")),
+			})
 		}
 	}
 
@@ -135,7 +143,8 @@ func Run(ctx context.Context, cwd string, wpmCli command.Cli, opts RunOptions) e
 
 	// -- Update Lockfile --
 	newLock := wpmlock.New()
-	for name, node := range resolved {
+	for _, name := range slices.Sorted(maps.Keys(resolved)) {
+		node := resolved[name]
 		newLock.Packages[name] = wpmlock.LockPackage{
 			Version:      node.Version,
 			Resolved:     node.Resolved,
@@ -145,6 +154,7 @@ func Run(ctx context.Context, cwd string, wpmCli command.Cli, opts RunOptions) e
 			Dependencies: node.Dependencies,
 		}
 	}
+
 	if err := newLock.Write(cwd); err != nil {
 		return errors.Wrap(err, "failed to save lockfile")
 	}
