@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"wpm/pkg/pm"
-	"wpm/pkg/pm/wpmjson"
+	"wpm/pkg/pm/wpmjson/types"
 
 	"github.com/pkg/errors"
 )
@@ -17,12 +17,12 @@ const (
 
 // LockPackage represents a specific version of a package locked in the lockfile.
 type LockPackage struct {
-	Version      string                `json:"version"`
-	Resolved     string                `json:"resolved"`
-	Digest       string                `json:"digest"`
-	Type         wpmjson.PackageType   `json:"type"`
-	Bin          *wpmjson.Bin          `json:"bin,omitempty"`
-	Dependencies *wpmjson.Dependencies `json:"dependencies,omitempty"`
+	Version      string              `json:"version"`
+	Resolved     string              `json:"resolved"`
+	Digest       string              `json:"digest"`
+	Type         types.PackageType   `json:"type"`
+	Bin          *types.Bin          `json:"bin,omitempty"`
+	Dependencies *types.Dependencies `json:"dependencies,omitempty"`
 }
 
 // Lockfile represents the state of the dependency tree.

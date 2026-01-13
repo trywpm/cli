@@ -6,6 +6,8 @@ import (
 	"io"
 	"wpm/pkg/pm/registry"
 	"wpm/pkg/pm/wpmjson"
+	"wpm/pkg/pm/wpmjson/manifest"
+	"wpm/pkg/pm/wpmjson/types"
 	"wpm/pkg/pm/wpmlock"
 
 	"github.com/Masterminds/semver/v3"
@@ -16,11 +18,11 @@ import (
 type Node struct {
 	Name         string
 	Version      string
-	Type         wpmjson.PackageType
-	Resolved     string                // Tarball URL
-	Digest       string                // Sha256 digest of the tarball
-	Bin          *wpmjson.Bin          `json:"bin,omitempty"`
-	Dependencies *wpmjson.Dependencies `json:"dependencies,omitempty"`
+	Type         types.PackageType
+	Resolved     string              // Tarball URL
+	Digest       string              // Sha256 digest of the tarball
+	Bin          *types.Bin          `json:"bin,omitempty"`
+	Dependencies *types.Dependencies `json:"dependencies,omitempty"`
 }
 
 type dependencyRequest struct {
@@ -55,7 +57,7 @@ type ProgressReporter interface {
 
 type fetchResult struct {
 	req      dependencyRequest
-	manifest *wpmjson.PackageManifest
+	manifest *manifest.Package
 	err      error
 }
 
@@ -239,7 +241,7 @@ func (r *Resolver) resolveConflict(req dependencyRequest, existing Node) error {
 	)
 }
 
-func (r *Resolver) checkRuntimeCompatibility(manifest *wpmjson.PackageManifest) error {
+func (r *Resolver) checkRuntimeCompatibility(manifest *manifest.Package) error {
 	if manifest == nil {
 		return errors.New("manifest is nil")
 	}
@@ -291,18 +293,18 @@ func (r *Resolver) checkRuntimeCompatibility(manifest *wpmjson.PackageManifest) 
 	return nil
 }
 
-func (r *Resolver) fetchMetadata(ctx context.Context, name, version string) (*wpmjson.PackageManifest, error) {
+func (r *Resolver) fetchMetadata(ctx context.Context, name, version string) (*manifest.Package, error) {
 	// Try to resolve the manifest from lockfile first
 	if r.lockfile != nil && r.lockfile.Packages != nil {
 		if lockPkg, ok := r.lockfile.Packages[name]; ok {
 			if lockPkg.Version == version {
-				return &wpmjson.PackageManifest{
+				return &manifest.Package{
 					Name:         name,
 					Version:      lockPkg.Version,
 					Type:         lockPkg.Type,
 					Bin:          lockPkg.Bin,
 					Dependencies: lockPkg.Dependencies,
-					Dist: wpmjson.Dist{
+					Dist: manifest.Dist{
 						Digest: lockPkg.Digest,
 					},
 				}, nil

@@ -17,6 +17,8 @@ import (
 	"wpm/pkg/archive"
 	"wpm/pkg/pm/wpmignore"
 	"wpm/pkg/pm/wpmjson"
+	"wpm/pkg/pm/wpmjson/manifest"
+	"wpm/pkg/pm/wpmjson/types"
 
 	"github.com/docker/go-units"
 	"github.com/morikuni/aec"
@@ -118,12 +120,12 @@ func runPublish(ctx context.Context, wpmCli command.Cli, opts publishOptions) er
 		return errors.Wrap(err, "failed to get current working directory")
 	}
 
-	visibility := wpmjson.PackageVisibility(opts.access)
+	visibility := types.PackageVisibility(opts.access)
 	if !visibility.Valid() {
 		return errors.New("access must be either public or private")
 	}
 
-	wpmJson, err := wpmjson.ReadAndValidateWpmJson(cwd)
+	wpmJson, err := wpmjson.Read(cwd)
 	if err != nil {
 		return err
 	}
@@ -214,7 +216,7 @@ func runPublish(ctx context.Context, wpmCli command.Cli, opts publishOptions) er
 		return errors.Wrap(err, "failed to read readme file")
 	}
 
-	manifest := &wpmjson.PackageManifest{
+	manifest := &manifest.Package{
 		Name:            wpmJson.Name,
 		Description:     wpmJson.Description,
 		Type:            wpmJson.Type,
@@ -227,7 +229,7 @@ func runPublish(ctx context.Context, wpmCli command.Cli, opts publishOptions) er
 		Dependencies:    wpmJson.Dependencies,
 		DevDependencies: wpmJson.DevDependencies,
 		Tag:             opts.tag,
-		Dist: wpmjson.Dist{
+		Dist: manifest.Dist{
 			Digest:       "sha256:" + digest,
 			PackedSize:   counter.total,
 			TotalFiles:   tarballer.FileCount(),

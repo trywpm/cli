@@ -11,6 +11,7 @@ import (
 	"wpm/cli/version"
 	"wpm/pkg/output"
 	"wpm/pkg/pm/wpmjson"
+	"wpm/pkg/pm/wpmjson/types"
 
 	"github.com/morikuni/aec"
 	"github.com/pkg/errors"
@@ -63,7 +64,7 @@ func runInstall(ctx context.Context, wpmCli command.Cli, opts installOptions, pa
 		return errors.Wrap(err, "failed to get current working directory")
 	}
 
-	cfg, err := wpmjson.ReadAndValidateWpmJson(cwd)
+	cfg, err := wpmjson.Read(cwd)
 	if err != nil {
 		return err
 	}
@@ -106,11 +107,11 @@ func addPackages(ctx context.Context, config *wpmjson.Config, wpmCli command.Cli
 	}()
 
 	if config.DevDependencies == nil {
-		config.DevDependencies = &wpmjson.Dependencies{}
+		config.DevDependencies = &types.Dependencies{}
 	}
 
 	if config.Dependencies == nil {
-		config.Dependencies = &wpmjson.Dependencies{}
+		config.Dependencies = &types.Dependencies{}
 	}
 
 	var mu sync.Mutex
@@ -150,9 +151,9 @@ func addPackages(ctx context.Context, config *wpmjson.Config, wpmCli command.Cli
 	return g.Wait()
 }
 
-func setDefaultPackageConfig(pkgConfig *wpmjson.PackageConfig) *wpmjson.PackageConfig {
+func setDefaultPackageConfig(pkgConfig *types.PackageConfig) *types.PackageConfig {
 	if pkgConfig == nil {
-		pkgConfig = &wpmjson.PackageConfig{}
+		pkgConfig = &types.PackageConfig{}
 	}
 
 	if pkgConfig.BinDir == "" {

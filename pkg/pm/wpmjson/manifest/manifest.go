@@ -10,10 +10,10 @@ type Dist struct {
 	UnpackedSize int64  `json:"unpackedSize"`
 }
 
-// PackageManifest struct to define the package manifest in registry
+// Package struct to define the package manifest in registry
 //
 // It will act as the source of truth for publishing and installing packages.
-type PackageManifest struct {
+type Package struct {
 	Name            string                  `json:"name"`
 	Description     string                  `json:"description,omitempty"`
 	Type            types.PackageType       `json:"type"`

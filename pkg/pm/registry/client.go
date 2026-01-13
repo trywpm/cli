@@ -8,7 +8,7 @@ import (
 	"net/http"
 
 	"wpm/pkg/api"
-	"wpm/pkg/pm/wpmjson"
+	"wpm/pkg/pm/wpmjson/manifest"
 )
 
 type client struct {
@@ -19,8 +19,8 @@ type client struct {
 // registry
 type Client interface {
 	DownloadTarball(ctx context.Context, url string) (io.ReadCloser, error)
-	PutPackage(ctx context.Context, data *wpmjson.PackageManifest, tarball io.Reader) error
-	GetPackageManifest(ctx context.Context, packageName string, versionOrTag string) (*wpmjson.PackageManifest, error)
+	PutPackage(ctx context.Context, data *manifest.Package, tarball io.Reader) error
+	GetPackageManifest(ctx context.Context, packageName string, versionOrTag string) (*manifest.Package, error)
 }
 
 var _ Client = &client{}
@@ -46,7 +46,7 @@ func New(host, authToken, userAgent string, colorize bool, out io.Writer) (Clien
 }
 
 // PutPackage uploads a package to the registry
-func (c *client) PutPackage(ctx context.Context, data *wpmjson.PackageManifest, tarball io.Reader) error {
+func (c *client) PutPackage(ctx context.Context, data *manifest.Package, tarball io.Reader) error {
 	manifest, err := json.Marshal(data)
 	if err != nil {
 		return err
@@ -62,8 +62,8 @@ func (c *client) PutPackage(ctx context.Context, data *wpmjson.PackageManifest, 
 }
 
 // GetPackageManifest retrieves a package manifest from the registry
-func (c *client) GetPackageManifest(ctx context.Context, packageName string, versionOrTag string) (*wpmjson.PackageManifest, error) {
-	var manifest *wpmjson.PackageManifest
+func (c *client) GetPackageManifest(ctx context.Context, packageName string, versionOrTag string) (*manifest.Package, error) {
+	var manifest *manifest.Package
 
 	if versionOrTag == "" || versionOrTag == "*" {
 		versionOrTag = "latest"

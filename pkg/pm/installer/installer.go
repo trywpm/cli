@@ -10,7 +10,7 @@ import (
 	"strings"
 	"wpm/pkg/archive"
 	"wpm/pkg/pm/registry"
-	"wpm/pkg/pm/wpmjson"
+	"wpm/pkg/pm/wpmjson/types"
 
 	"github.com/pkg/errors"
 	"golang.org/x/sync/errgroup"
@@ -73,12 +73,12 @@ func (i *Installer) Install(ctx context.Context, action Action) error {
 	}
 }
 
-func (i *Installer) getTargetDir(pkgType wpmjson.PackageType, name string) string {
+func (i *Installer) getTargetDir(pkgType types.PackageType, name string) string {
 	subDir := "plugins"
 	switch pkgType {
-	case wpmjson.TypeTheme:
+	case types.TypeTheme:
 		subDir = "themes"
-	case wpmjson.TypeMuPlugin:
+	case types.TypeMuPlugin:
 		subDir = "mu-plugins"
 	}
 	return filepath.Join(i.contentDir, subDir, name)

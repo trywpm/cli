@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"wpm/pkg/pm/resolution"
 	"wpm/pkg/pm/wpmjson"
+	"wpm/pkg/pm/wpmjson/types"
 	"wpm/pkg/pm/wpmlock"
 )
 
@@ -23,7 +24,7 @@ type Action struct {
 	Version  string
 	Resolved string // Tarball URL
 	Digest   string // Sha256 digest
-	PkgType  wpmjson.PackageType
+	PkgType  types.PackageType
 }
 
 // CalculatePlan determines filesystem operations based on lockfile, resolved tree, and flags.
@@ -52,10 +53,10 @@ func CalculatePlan(
 
 		// Calculate target path to check filesystem state
 		subDir := "plugins"
-		switch wpmjson.PackageType(node.Type) {
-		case wpmjson.TypeTheme:
+		switch node.Type {
+		case types.TypeTheme:
 			subDir = "themes"
-		case wpmjson.TypeMuPlugin:
+		case types.TypeMuPlugin:
 			subDir = "mu-plugins"
 		}
 		targetPath := filepath.Join(contentDir, subDir, name)

@@ -51,7 +51,7 @@ func Run(ctx context.Context, cwd string, wpmCli command.Cli, opts RunOptions) e
 
 	wpmCfg := opts.Config
 	if wpmCfg == nil {
-		wpmCfg, err = wpmjson.ReadAndValidateWpmJson(cwd)
+		wpmCfg, err = wpmjson.Read(cwd)
 		if err != nil {
 			return err
 		}
