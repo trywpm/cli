@@ -142,10 +142,10 @@ func Run(ctx context.Context, cwd string, wpmCli command.Cli, opts RunOptions) e
 	// @todo: dependencies lifecycle scripts
 
 	// -- Update Lockfile --
-	newLock := wpmlock.New()
+	lock.Packages = make(map[string]wpmlock.LockPackage, len(resolved))
 	for _, name := range slices.Sorted(maps.Keys(resolved)) {
 		node := resolved[name]
-		newLock.Packages[name] = wpmlock.LockPackage{
+		lock.Packages[name] = wpmlock.LockPackage{
 			Version:      node.Version,
 			Resolved:     node.Resolved,
 			Digest:       node.Digest,
@@ -155,7 +155,7 @@ func Run(ctx context.Context, cwd string, wpmCli command.Cli, opts RunOptions) e
 		}
 	}
 
-	if err := newLock.Write(cwd); err != nil {
+	if err := lock.Write(cwd); err != nil {
 		return errors.Wrap(err, "failed to save lockfile")
 	}
 
