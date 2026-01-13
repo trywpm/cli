@@ -100,6 +100,10 @@ func addPackages(ctx context.Context, config *wpmjson.Config, wpmCli command.Cli
 
 	progress := wpmCli.Progress()
 	progress.StartProgressIndicator(wpmCli.Err())
+	defer func() {
+		progress.Stream(wpmCli.Err(), "")
+		progress.StopProgressIndicator()
+	}()
 
 	if opts.saveDev {
 		if config.DevDependencies == nil {
@@ -144,9 +148,6 @@ func addPackages(ctx context.Context, config *wpmjson.Config, wpmCli command.Cli
 			return nil
 		})
 	}
-
-	progress.Stream(wpmCli.Err(), "")
-	progress.StopProgressIndicator()
 
 	return g.Wait()
 }
