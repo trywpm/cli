@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"wpm/pkg/pm"
 	"wpm/pkg/pm/wpmjson/types"
+	"wpm/pkg/pm/wpmjson/validator"
 
 	"github.com/pkg/errors"
 )
@@ -50,6 +51,46 @@ func New() *Config {
 		},
 		Scripts: &types.Scripts{},
 	}
+}
+
+// Validate checks the configuration struct for logical and schema errors.
+func (c *Config) Validate() error {
+	var errs validator.ErrorList
+
+	// Required fields
+	errs.Add("name", validator.IsValidPackageName(c.Name))
+	errs.Add("version", validator.IsValidVersion(c.Version))
+	errs.Add("type", validator.IsValidPackageType(c.Type))
+
+	// Metadata fields
+	if c.Description != "" {
+		errs.Add("description", validator.IsValidDescription(c.Description))
+	}
+	if c.License != "" {
+		errs.Add("license", validator.IsValidLicense(c.License))
+	}
+	if c.Homepage != "" {
+		errs.Add("homepage", validator.IsValidHomepage(c.Homepage))
+	}
+	if len(c.Tags) > 0 {
+		errs.MustMerge(validator.ValidateTags(c.Tags))
+	}
+	if len(c.Team) > 0 {
+		errs.MustMerge(validator.ValidateTeam(c.Team))
+	}
+
+	// Core fields
+	if c.Requires != nil {
+		errs.MustMerge(validator.ValidateRequires(c.Requires.WP, c.Requires.PHP))
+	}
+	if c.Dependencies != nil {
+		errs.MustMerge(validator.ValidateDependencies(*c.Dependencies, "dependencies"))
+	}
+	if c.DevDependencies != nil {
+		errs.MustMerge(validator.ValidateDependencies(*c.DevDependencies, "devDependencies"))
+	}
+
+	return errs.Err()
 }
 
 // GetIndentation returns the indentation used in the wpm.json file
