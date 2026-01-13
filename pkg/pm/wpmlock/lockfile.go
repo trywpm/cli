@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"wpm/pkg/pm"
 	"wpm/pkg/pm/wpmjson"
 
 	"github.com/pkg/errors"
@@ -29,6 +30,7 @@ type LockPackage struct {
 type Lockfile struct {
 	LockfileVersion int                    `json:"lockfileVersion"`
 	Packages        map[string]LockPackage `json:"packages"`
+	Indentation     string                 `json:"-"`
 }
 
 // New creates a new empty Lockfile instance with the current version.
@@ -64,6 +66,8 @@ func Read(cwd string) (*Lockfile, error) {
 		lockfile.Packages = make(map[string]LockPackage)
 	}
 
+	lockfile.Indentation = pm.DetectIndentation(data)
+
 	return &lockfile, nil
 }
 
@@ -73,7 +77,7 @@ func (l *Lockfile) Write(cwd string) error {
 
 	path := filepath.Join(cwd, LockfileName)
 
-	data, err := json.MarshalIndent(l, "", "  ")
+	data, err := json.MarshalIndent(l, "", l.Indentation)
 	if err != nil {
 		return errors.Wrap(err, "failed to marshal lockfile")
 	}
