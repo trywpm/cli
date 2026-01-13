@@ -23,6 +23,7 @@ type installOptions struct {
 	ignoreScripts bool
 	dryRun        bool
 	saveDev       bool
+	saveProd      bool
 }
 
 func NewInstallCommand(wpmCli command.Cli) *cobra.Command {
@@ -42,8 +43,11 @@ func NewInstallCommand(wpmCli command.Cli) *cobra.Command {
 	flags.BoolVar(&opts.ignoreScripts, "ignore-scripts", false, "Do not run lifecycle scripts")
 	flags.BoolVar(&opts.dryRun, "dry-run", false, "Do not write anything to disk")
 	flags.BoolVarP(&opts.saveDev, "save-dev", "D", false, "Install package as a dev dependency")
+	flags.BoolVarP(&opts.saveProd, "save-prod", "P", false, "Install package as a production dependency (default behavior)")
 
 	cmd.MarkFlagsMutuallyExclusive("no-dev", "save-dev")
+	cmd.MarkFlagsMutuallyExclusive("no-dev", "save-prod")
+	cmd.MarkFlagsMutuallyExclusive("save-dev", "save-prod")
 
 	return cmd
 }
@@ -69,7 +73,7 @@ func runInstall(ctx context.Context, wpmCli command.Cli, opts installOptions, pa
 	configModified := false
 
 	if len(packages) > 0 {
-		if err := addPackages(ctx, cfg, wpmCli, packages, opts.saveDev); err != nil {
+		if err := addPackages(ctx, cfg, wpmCli, packages, opts); err != nil {
 			return err
 		}
 
@@ -85,7 +89,7 @@ func runInstall(ctx context.Context, wpmCli command.Cli, opts installOptions, pa
 	})
 }
 
-func addPackages(ctx context.Context, config *wpmjson.Config, wpmCli command.Cli, packages []string, saveDev bool) error {
+func addPackages(ctx context.Context, config *wpmjson.Config, wpmCli command.Cli, packages []string, opts installOptions) error {
 	client, err := wpmCli.RegistryClient()
 	if err != nil {
 		return err
@@ -97,7 +101,7 @@ func addPackages(ctx context.Context, config *wpmjson.Config, wpmCli command.Cli
 	progress := wpmCli.Progress()
 	progress.StartProgressIndicator(wpmCli.Err())
 
-	if saveDev {
+	if opts.saveDev {
 		if config.DevDependencies == nil {
 			config.DevDependencies = &wpmjson.Dependencies{}
 		}
@@ -123,17 +127,17 @@ func addPackages(ctx context.Context, config *wpmjson.Config, wpmCli command.Cli
 			mu.Lock()
 			defer mu.Unlock()
 
-			if saveDev {
+			if opts.saveDev {
 				(*config.DevDependencies)[name] = manifest.Version
-
-				if config.Dependencies != nil {
-					delete(*config.Dependencies, name)
-				}
-			} else {
+				delete(*config.Dependencies, name)
+			} else if opts.saveProd {
 				(*config.Dependencies)[name] = manifest.Version
-
-				if config.DevDependencies != nil {
-					delete(*config.DevDependencies, name)
+				delete(*config.DevDependencies, name)
+			} else {
+				if _, exists := (*config.DevDependencies)[name]; exists {
+					(*config.DevDependencies)[name] = manifest.Version
+				} else {
+					(*config.Dependencies)[name] = manifest.Version
 				}
 			}
 
