@@ -96,7 +96,7 @@ func Run(ctx context.Context, cwd string, wpmCli command.Cli, opts RunOptions) e
 	// absBinDir := filepath.Join(cwd, wpmCfg.Config.BinDir)
 	absContentDir := filepath.Join(cwd, wpmCfg.Config.ContentDir)
 
-	plan := installer.CalculatePlan(lock, resolved, absContentDir)
+	plan := installer.CalculatePlan(lock, resolved, absContentDir, wpmCfg, opts.NoDev)
 	if len(plan) == 0 {
 		wpmCli.Out().WriteString("Already up-to-date!\n")
 		return nil

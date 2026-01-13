@@ -2,6 +2,7 @@ package installer
 
 import (
 	"os"
+	"path/filepath"
 	"wpm/pkg/pm/resolution"
 	"wpm/pkg/pm/wpmjson"
 	"wpm/pkg/pm/wpmlock"
@@ -25,13 +26,57 @@ type Action struct {
 	PkgType  wpmjson.PackageType
 }
 
-// CalculatePlan diffs the old lockfile against the new resolved tree and the filesystem state.
-func CalculatePlan(lock *wpmlock.Lockfile, resolved map[string]resolution.Node, contentDir string) []Action {
+// CalculatePlan determines filesystem operations based on lockfile, resolved tree, and flags.
+func CalculatePlan(
+	lock *wpmlock.Lockfile,
+	resolved map[string]resolution.Node,
+	contentDir string,
+	wpmCfg *wpmjson.Config,
+	noDev bool,
+) []Action {
 	var actions []Action
 	seen := make(map[string]bool)
 
+	var prodSet map[string]bool
+	if noDev {
+		prodSet = getProdDependencies(wpmCfg, resolved)
+	}
+
 	for name, node := range resolved {
 		seen[name] = true
+
+		shouldInstall := true
+		if noDev && !prodSet[name] {
+			shouldInstall = false
+		}
+
+		// Calculate target path to check filesystem state
+		subDir := "plugins"
+		switch wpmjson.PackageType(node.Type) {
+		case wpmjson.TypeTheme:
+			subDir = "themes"
+		case wpmjson.TypeMuPlugin:
+			subDir = "mu-plugins"
+		}
+		targetPath := filepath.Join(contentDir, subDir, name)
+
+		exists := false
+		if _, err := os.Stat(targetPath); err == nil {
+			exists = true
+		}
+
+		// If we shouldn't install it (dev dep in --no-dev mode)
+		if !shouldInstall {
+			if exists {
+				// It exists on disk but shouldn't be there -> Remove
+				actions = append(actions, Action{
+					Type:    ActionRemove,
+					Name:    name,
+					PkgType: node.Type,
+				})
+			}
+			continue
+		}
 
 		// Check if package exists in lockfile
 		if oldPkg, ok := lock.Packages[name]; ok {
@@ -48,21 +93,7 @@ func CalculatePlan(lock *wpmlock.Lockfile, resolved map[string]resolution.Node, 
 				continue
 			}
 
-			// Check fs if package is installed.
-			//
-			// Could be possible that the package exists in lockfile but is missing on disk.
-			subDir := "plugins"
-			switch node.Type {
-			case wpmjson.TypeTheme:
-				subDir = "themes"
-			case wpmjson.TypeMuPlugin:
-				subDir = "mu-plugins"
-			}
-
-			targetPath := contentDir + "/" + subDir + "/" + name
-
-			// Install if not present on the filesystem
-			if _, err := os.Stat(targetPath); os.IsNotExist(err) {
+			if !exists {
 				actions = append(actions, Action{
 					Type:     ActionInstall,
 					Name:     name,
@@ -76,6 +107,7 @@ func CalculatePlan(lock *wpmlock.Lockfile, resolved map[string]resolution.Node, 
 			// If it exists and matches lockfile, do nothing (NoOp)
 
 		} else {
+			// New package -> Install
 			actions = append(actions, Action{
 				Type:     ActionInstall,
 				Name:     name,
@@ -100,4 +132,39 @@ func CalculatePlan(lock *wpmlock.Lockfile, resolved map[string]resolution.Node, 
 	}
 
 	return actions
+}
+
+// getProdDependencies returns a set of all production dependencies and their transitive dependencies.
+func getProdDependencies(root *wpmjson.Config, resolved map[string]resolution.Node) map[string]bool {
+	prodSet := make(map[string]bool)
+	queue := make([]string, 0)
+
+	if root.Dependencies != nil {
+		for name := range *root.Dependencies {
+			queue = append(queue, name)
+		}
+	}
+
+	for len(queue) > 0 {
+		name := queue[0]
+		queue = queue[1:]
+
+		if prodSet[name] {
+			continue
+		}
+		prodSet[name] = true
+
+		// Add children to queue
+		if node, ok := resolved[name]; ok {
+			if node.Dependencies == nil {
+				continue
+			}
+
+			for depName := range *node.Dependencies {
+				queue = append(queue, depName)
+			}
+		}
+	}
+
+	return prodSet
 }
