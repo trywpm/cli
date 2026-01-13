@@ -70,24 +70,6 @@ func Read(cwd string) (*Config, error) {
 	return &config, nil
 }
 
-func WriteWpmJson(pkg *Config, path string) error {
-	file, err := os.Create(filepath.Join(path, ConfigFile))
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	encoder := json.NewEncoder(file)
-	encoder.SetEscapeHTML(false)
-	encoder.SetIndent("", pkg.GetIndentation())
-
-	if err := encoder.Encode(pkg); err != nil {
-		return err
-	}
-
-	return nil
-}
-
 // Write saves the wpm.json to disk in the specified directory.
 func (c *Config) Write(cwd string) error {
 	path := filepath.Join(cwd, ConfigFile)
