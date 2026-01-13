@@ -40,3 +40,11 @@ func (o *Output) PrettyErrorln(t Text) (int, error) {
 	}
 	return o.err.WriteString(t.Plain + "\n")
 }
+
+func (o *Output) Write(s string) (int, error) {
+	return o.out.WriteString(s)
+}
+
+func (o *Output) ErrorWrite(s string) (int, error) {
+	return o.err.WriteString(s)
+}
