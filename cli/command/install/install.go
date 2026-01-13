@@ -68,7 +68,7 @@ func runInstall(ctx context.Context, wpmCli command.Cli, opts installOptions, pa
 		return err
 	}
 
-	setDefaultPackageConfig(cfg.Config)
+	cfg.Config = setDefaultPackageConfig(cfg.Config)
 
 	configModified := false
 
@@ -105,14 +105,12 @@ func addPackages(ctx context.Context, config *wpmjson.Config, wpmCli command.Cli
 		progress.StopProgressIndicator()
 	}()
 
-	if opts.saveDev {
-		if config.DevDependencies == nil {
-			config.DevDependencies = &wpmjson.Dependencies{}
-		}
-	} else {
-		if config.Dependencies == nil {
-			config.Dependencies = &wpmjson.Dependencies{}
-		}
+	if config.DevDependencies == nil {
+		config.DevDependencies = &wpmjson.Dependencies{}
+	}
+
+	if config.Dependencies == nil {
+		config.Dependencies = &wpmjson.Dependencies{}
 	}
 
 	var mu sync.Mutex
@@ -152,7 +150,11 @@ func addPackages(ctx context.Context, config *wpmjson.Config, wpmCli command.Cli
 	return g.Wait()
 }
 
-func setDefaultPackageConfig(pkgConfig *wpmjson.PackageConfig) {
+func setDefaultPackageConfig(pkgConfig *wpmjson.PackageConfig) *wpmjson.PackageConfig {
+	if pkgConfig == nil {
+		pkgConfig = &wpmjson.PackageConfig{}
+	}
+
 	if pkgConfig.BinDir == "" {
 		pkgConfig.BinDir = "wp-bin"
 	}
@@ -165,6 +167,8 @@ func setDefaultPackageConfig(pkgConfig *wpmjson.PackageConfig) {
 		defaultStrict := true
 		pkgConfig.RuntimeStrict = &defaultStrict
 	}
+
+	return pkgConfig
 }
 
 func parsePackageArg(arg string) (string, string) {
