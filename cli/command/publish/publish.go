@@ -130,6 +130,10 @@ func runPublish(ctx context.Context, wpmCli command.Cli, opts publishOptions) er
 		return err
 	}
 
+	if err := wpmJson.Validate(); err != nil {
+		return err
+	}
+
 	if wpmJson.Private {
 		return errors.New("package marked as private cannot be published")
 	}
