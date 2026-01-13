@@ -3,6 +3,7 @@ package resolution
 import (
 	"context"
 	"fmt"
+	"io"
 	"wpm/pkg/pm/registry"
 	"wpm/pkg/pm/wpmjson"
 	"wpm/pkg/pm/wpmlock"
@@ -46,15 +47,27 @@ func New(rootConfig *wpmjson.Config, lockfile *wpmlock.Lockfile, client registry
 	}
 }
 
+type ProgressReporter interface {
+	StartProgressIndicator(w io.Writer)
+	StopProgressIndicator()
+	Stream(w io.Writer, msg string)
+}
+
 type fetchResult struct {
 	req      dependencyRequest
 	manifest *wpmjson.PackageManifest
 	err      error
 }
 
-func (r *Resolver) Resolve(ctx context.Context) (map[string]Node, error) {
+func (r *Resolver) Resolve(ctx context.Context, progress ProgressReporter, w io.Writer) (map[string]Node, error) {
 	resolved := make(map[string]Node)
 	queue := make([]dependencyRequest, 0)
+
+	progress.StartProgressIndicator(w)
+	defer func() {
+		progress.Stream(w, "")
+		progress.StopProgressIndicator()
+	}()
 
 	// Seed the queue with root dependencies
 	if r.rootConfig.Dependencies != nil {
@@ -93,7 +106,12 @@ func (r *Resolver) Resolve(ctx context.Context) (map[string]Node, error) {
 		g, ctx := errgroup.WithContext(ctx)
 		g.SetLimit(16) // Limit concurrent fetches
 
+		count := 0
 		for _, req := range uniqueRequests {
+			count++
+
+			progress.Stream(w, fmt.Sprintf("  Resolving %s@%s [%d/%d]", req.name, req.version, count, len(uniqueRequests)))
+
 			g.Go(func() error {
 				manifest, err := r.fetchMetadata(ctx, req.name, req.version)
 				results <- fetchResult{req: req, manifest: manifest, err: err}

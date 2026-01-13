@@ -85,7 +85,7 @@ func Run(ctx context.Context, cwd string, wpmCli command.Cli, opts RunOptions) e
 	}
 
 	resolver := resolution.New(wpmCfg, lock, client, runtimeWP, runtimePHP)
-	resolved, err := resolver.Resolve(ctx)
+	resolved, err := resolver.Resolve(ctx, wpmCli.Progress(), wpmCli.Err())
 	if err != nil {
 		return err
 	}
