@@ -2,13 +2,17 @@ package install
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"strings"
+	"sync"
 
 	"wpm/cli/command"
-	"wpm/pkg/pm/registry"
+	"wpm/cli/version"
+	"wpm/pkg/output"
 	"wpm/pkg/pm/wpmjson"
 
+	"github.com/morikuni/aec"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"golang.org/x/sync/errgroup"
@@ -43,14 +47,14 @@ func NewInstallCommand(wpmCli command.Cli) *cobra.Command {
 }
 
 func runInstall(ctx context.Context, wpmCli command.Cli, opts installOptions, packages []string) error {
+	wpmCli.Output().Prettyln(output.Text{
+		Plain: "wpm install v" + version.Version,
+		Fancy: aec.Bold.Apply("wpm install") + " " + aec.LightBlackF.Apply("v"+version.Version),
+	})
+
 	cwd, err := os.Getwd()
 	if err != nil {
 		return errors.Wrap(err, "failed to get current working directory")
-	}
-
-	client, err := wpmCli.RegistryClient()
-	if err != nil {
-		return err
 	}
 
 	cfg, err := wpmjson.ReadAndValidateWpmJson(cwd)
@@ -63,7 +67,7 @@ func runInstall(ctx context.Context, wpmCli command.Cli, opts installOptions, pa
 	configModified := false
 
 	if len(packages) > 0 {
-		if err := addPackages(ctx, cfg, client, packages, opts.saveDev); err != nil {
+		if err := addPackages(ctx, cfg, wpmCli, packages, opts.saveDev); err != nil {
 			return err
 		}
 
@@ -79,12 +83,34 @@ func runInstall(ctx context.Context, wpmCli command.Cli, opts installOptions, pa
 	})
 }
 
-func addPackages(ctx context.Context, config *wpmjson.Config, client registry.Client, packages []string, saveDev bool) error {
+func addPackages(ctx context.Context, config *wpmjson.Config, wpmCli command.Cli, packages []string, saveDev bool) error {
+	client, err := wpmCli.RegistryClient()
+	if err != nil {
+		return err
+	}
+
 	g, ctx := errgroup.WithContext(ctx)
 	g.SetLimit(16)
 
-	for _, pkgArg := range packages {
+	progress := wpmCli.Progress()
+	progress.StartProgressIndicator(wpmCli.Err())
+
+	if saveDev {
+		if config.DevDependencies == nil {
+			config.DevDependencies = &wpmjson.Dependencies{}
+		}
+	} else {
+		if config.Dependencies == nil {
+			config.Dependencies = &wpmjson.Dependencies{}
+		}
+	}
+
+	var mu sync.Mutex
+
+	for i, pkgArg := range packages {
 		name, versionOrTag := parsePackageArg(pkgArg)
+
+		progress.Stream(wpmCli.Err(), fmt.Sprintf("  Resolving %s@%s [%d/%d]", name, versionOrTag, i+1, len(packages)))
 
 		g.Go(func() error {
 			manifest, err := client.GetPackageManifest(ctx, name, versionOrTag)
@@ -92,21 +118,16 @@ func addPackages(ctx context.Context, config *wpmjson.Config, client registry.Cl
 				return errors.Wrapf(err, "failed to fetch package %s@%s", name, versionOrTag)
 			}
 
-			if saveDev {
-				if config.DevDependencies == nil {
-					config.DevDependencies = &wpmjson.Dependencies{}
-				}
+			mu.Lock()
+			defer mu.Unlock()
 
+			if saveDev {
 				(*config.DevDependencies)[name] = manifest.Version
 
 				if config.Dependencies != nil {
 					delete(*config.Dependencies, name)
 				}
 			} else {
-				if config.Dependencies == nil {
-					config.Dependencies = &wpmjson.Dependencies{}
-				}
-
 				(*config.Dependencies)[name] = manifest.Version
 
 				if config.DevDependencies != nil {
@@ -117,6 +138,9 @@ func addPackages(ctx context.Context, config *wpmjson.Config, client registry.Cl
 			return nil
 		})
 	}
+
+	progress.Stream(wpmCli.Err(), "")
+	progress.StopProgressIndicator()
 
 	return g.Wait()
 }
