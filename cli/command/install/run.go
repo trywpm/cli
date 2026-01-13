@@ -98,6 +98,12 @@ func Run(ctx context.Context, cwd string, wpmCli command.Cli, opts RunOptions) e
 
 	plan := installer.CalculatePlan(lock, resolved, absContentDir, wpmCfg, opts.NoDev)
 	if len(plan) == 0 {
+		if opts.SaveConfig {
+			if err := wpmjson.WriteWpmJson(wpmCfg, cwd); err != nil {
+				return errors.Wrap(err, "failed to save wpm.json")
+			}
+		}
+
 		wpmCli.Out().WriteString("Already up-to-date!\n")
 		return nil
 	}
