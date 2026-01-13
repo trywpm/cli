@@ -43,6 +43,8 @@ func NewInstallCommand(wpmCli command.Cli) *cobra.Command {
 	flags.BoolVar(&opts.dryRun, "dry-run", false, "Do not write anything to disk")
 	flags.BoolVarP(&opts.saveDev, "save-dev", "D", false, "Install package as a dev dependency")
 
+	cmd.MarkFlagsMutuallyExclusive("no-dev", "save-dev")
+
 	return cmd
 }
 
