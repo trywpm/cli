@@ -158,3 +158,7 @@ func CacheDir() string {
 func UserAuthCacheDir() string {
 	return filepath.Join(Dir(), "cache", "auth")
 }
+
+func TarballsCacheDir() string {
+	return filepath.Join(Dir(), "cache", "tarballs")
+}
