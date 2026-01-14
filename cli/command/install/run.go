@@ -89,6 +89,9 @@ func Run(ctx context.Context, cwd string, wpmCli command.Cli, opts RunOptions) e
 		lock = wpmlock.New()
 	}
 
+	// Set lockfile indentation based on wpm.json formatting
+	lock.SetIndentation(wpmCfg.GetIndentation())
+
 	client, err := wpmCli.RegistryClient()
 	if err != nil {
 		return errors.Wrap(err, "failed to create registry client")
