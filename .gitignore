@@ -5,6 +5,8 @@
 # files
 !go.mod
 !go.sum
+!LICENSE
+!NOTICE.txt
 !.gitignore
 !.golangci.yml
 !.editorconfig
