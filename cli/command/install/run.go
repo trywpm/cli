@@ -62,7 +62,7 @@ func Run(ctx context.Context, cwd string, wpmCli command.Cli, opts RunOptions) e
 		runtimePHP = wpmCfg.Config.RuntimePHP
 	}
 
-	if wpmCfg.Config.RuntimeStrict == nil || *wpmCfg.Config.RuntimeStrict {
+	if wpmCfg.RuntimeStrict() {
 		if runtimeWP == "" {
 			wpmCli.Output().PrettyErrorln(output.Text{
 				Plain: "warn: config.runtime-wp is not specified in wpm.json",
@@ -103,8 +103,8 @@ func Run(ctx context.Context, cwd string, wpmCli command.Cli, opts RunOptions) e
 	// Add empty line after resolution output for better readability
 	_, _ = wpmCli.Out().WriteString("\n")
 
-	// absBinDir := filepath.Join(cwd, wpmCfg.Config.BinDir)
-	absContentDir := filepath.Join(cwd, wpmCfg.Config.ContentDir)
+	// absBinDir := filepath.Join(cwd, wpmCfg.BinDir())
+	absContentDir := filepath.Join(cwd, wpmCfg.ContentDir())
 
 	plan := installer.CalculatePlan(lock, resolved, absContentDir, wpmCfg, opts.NoDev)
 	if len(plan) == 0 {
