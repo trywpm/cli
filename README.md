@@ -99,29 +99,29 @@ The `wpm.json` file defines your package and its dependencies:
 
 ```json
 {
-	"name": "my-awesome-plugin",
-	"description": "A short description of my plugin",
-	"type": "plugin",
-	"version": "1.0.0",
-	"license": "GPL-2.0-or-later",
-	"requires": {
-		"wp": ">=6.0",
-		"php": ">=7.4"
-	},
-	"dependencies": {
-		"akismet": "*", // always fetch latest version
-		"hello-dolly": "1.7.2",
-	},
-	"devDependencies": {
-		"some-dev-plugin": "3.20.2"
-	},
-	"config": {
-		"bin-dir": "wp-bin",
-		"content-dir": "wp-content",
-		"runtime-wp": "6.9",
-		"runtime-php": "8.2",
-		"runtime-strict": true
-	}
+  "name": "my-awesome-plugin",
+  "description": "A short description of my plugin",
+  "type": "plugin",
+  "version": "1.0.0",
+  "license": "GPL-2.0-or-later",
+  "requires": {
+    "wp": ">=6.0",
+    "php": ">=7.4"
+  },
+  "dependencies": {
+    "akismet": "*", // always fetch latest version
+    "hello-dolly": "1.7.2"
+  },
+  "devDependencies": {
+    "some-dev-plugin": "3.20.2"
+  },
+  "config": {
+    "bin-dir": "wp-bin",
+    "content-dir": "wp-content",
+    "runtime-wp": "6.9",
+    "runtime-php": "8.2",
+    "runtime-strict": true
+  }
 }
 ```
 
