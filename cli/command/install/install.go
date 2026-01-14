@@ -20,11 +20,12 @@ import (
 )
 
 type installOptions struct {
-	noDev         bool
-	ignoreScripts bool
-	dryRun        bool
-	saveDev       bool
-	saveProd      bool
+	noDev              bool
+	ignoreScripts      bool
+	dryRun             bool
+	saveDev            bool
+	saveProd           bool
+	networkConcurrency int
 }
 
 func NewInstallCommand(wpmCli command.Cli) *cobra.Command {
@@ -45,6 +46,7 @@ func NewInstallCommand(wpmCli command.Cli) *cobra.Command {
 	flags.BoolVar(&opts.dryRun, "dry-run", false, "Do not write anything to disk")
 	flags.BoolVarP(&opts.saveDev, "save-dev", "D", false, "Install package as a dev dependency")
 	flags.BoolVarP(&opts.saveProd, "save-prod", "P", false, "Install package as a production dependency (default behavior)")
+	flags.IntVar(&opts.networkConcurrency, "network-concurrency", 16, "Number of concurrent network requests when installing packages (default 16)")
 
 	cmd.MarkFlagsMutuallyExclusive("no-dev", "save-dev")
 	cmd.MarkFlagsMutuallyExclusive("no-dev", "save-prod")
@@ -82,11 +84,12 @@ func runInstall(ctx context.Context, wpmCli command.Cli, opts installOptions, pa
 	}
 
 	return Run(ctx, cwd, wpmCli, RunOptions{
-		NoDev:         opts.noDev,
-		IgnoreScripts: opts.ignoreScripts,
-		DryRun:        opts.dryRun,
-		Config:        cfg,
-		SaveConfig:    configModified,
+		NoDev:              opts.noDev,
+		IgnoreScripts:      opts.ignoreScripts,
+		DryRun:             opts.dryRun,
+		Config:             cfg,
+		SaveConfig:         configModified,
+		NetworkConcurrency: opts.networkConcurrency,
 	})
 }
 
@@ -97,7 +100,7 @@ func addPackages(ctx context.Context, config *wpmjson.Config, wpmCli command.Cli
 	}
 
 	g, ctx := errgroup.WithContext(ctx)
-	g.SetLimit(16)
+	g.SetLimit(opts.networkConcurrency)
 
 	progress := wpmCli.Progress()
 	progress.StartProgressIndicator(wpmCli.Err())

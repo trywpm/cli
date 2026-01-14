@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strconv"
 	"wpm/cli/command"
+	"wpm/pkg/config"
 	"wpm/pkg/output"
 	"wpm/pkg/pm/installer"
 	"wpm/pkg/pm/resolution"
@@ -19,11 +20,12 @@ import (
 )
 
 type RunOptions struct {
-	NoDev         bool
-	IgnoreScripts bool
-	DryRun        bool
-	Config        *wpmjson.Config
-	SaveConfig    bool
+	NoDev              bool
+	IgnoreScripts      bool
+	DryRun             bool
+	Config             *wpmjson.Config
+	SaveConfig         bool
+	NetworkConcurrency int
 }
 
 func installerProgress(out *output.Output) func(action installer.Action) {
@@ -132,7 +134,7 @@ func Run(ctx context.Context, cwd string, wpmCli command.Cli, opts RunOptions) e
 	}
 
 	// -- Actual Install --
-	inst := installer.New(absContentDir, 16, client)
+	inst := installer.New(absContentDir, config.TarballsCacheDir(), opts.NetworkConcurrency, client)
 	if err := inst.InstallAll(ctx, plan, installerProgress(wpmCli.Output())); err != nil {
 		return errors.Wrap(err, "installation failed")
 	}
