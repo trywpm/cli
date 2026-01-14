@@ -43,7 +43,7 @@ func NewInstallCommand(wpmCli command.Cli) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			err := runInstall(cmd.Context(), wpmCli, opts, args)
 			if err != nil {
-				if "RUN_HELP" == err.Error() {
+				if err.Error() == "RUN_HELP" {
 					return cmd.Help()
 				}
 
