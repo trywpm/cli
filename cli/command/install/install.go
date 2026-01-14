@@ -33,10 +33,19 @@ func NewInstallCommand(wpmCli command.Cli) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "install [OPTIONS]",
-		Short: "Install project dependencies",
+		Short: "Install project dependencies and add new packages",
 		Args:  cobra.ArbitraryArgs,
+		Example: `  wpm install
+  wpm install --no-dev
+  wpm install akismet hello-dolly@1.7.2
+  wpm install --save-dev query-monitor@latest`,
+		Aliases: []string{"i", "add"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			err := runInstall(cmd.Context(), wpmCli, opts, args)
+			if "RUN_HELP" == err.Error() {
+				return cmd.Help()
+			}
+
 			if err != nil {
 				suffix := "error:"
 				if wpmCli.Out().IsColorEnabled() {
@@ -65,11 +74,6 @@ func NewInstallCommand(wpmCli command.Cli) *cobra.Command {
 }
 
 func runInstall(ctx context.Context, wpmCli command.Cli, opts installOptions, packages []string) error {
-	wpmCli.Output().Prettyln(output.Text{
-		Plain: "wpm install v" + version.Version,
-		Fancy: aec.Bold.Apply("wpm install") + " " + aec.LightBlackF.Apply("v"+version.Version),
-	})
-
 	cwd, err := os.Getwd()
 	if err != nil {
 		return errors.Wrap(err, "failed to get current working directory")
@@ -82,11 +86,16 @@ func runInstall(ctx context.Context, wpmCli command.Cli, opts installOptions, pa
 
 	if cfg == nil {
 		if len(packages) == 0 {
-			return errors.New("no wpm.json found in the current directory")
+			return errors.New("RUN_HELP")
 		}
 
 		cfg = wpmjson.New()
 	}
+
+	wpmCli.Output().Prettyln(output.Text{
+		Plain: "wpm install v" + version.Version,
+		Fancy: aec.Bold.Apply("wpm install") + " " + aec.LightBlackF.Apply("v"+version.Version),
+	})
 
 	configModified := false
 
