@@ -45,7 +45,7 @@ const (
 type PackageConfig struct {
 	BinDir        string `json:"bin-dir,omitempty"`
 	ContentDir    string `json:"content-dir,omitempty"`
-	RuntimeStrict *bool  `json:"runtime-strict,omitempty"`
+	RuntimeStrict bool   `json:"runtime-strict,omitempty"`
 	RuntimeWP     string `json:"runtime-wp,omitempty"`
 	RuntimePHP    string `json:"runtime-php,omitempty"`
 }
