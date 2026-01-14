@@ -103,7 +103,9 @@ func (i *Installer) installOrUpdate(ctx context.Context, action Action, targetDi
 	if err != nil {
 		return err
 	}
-	defer i.removeAll(contentPath)
+	defer func() {
+		_ = i.removeAll(contentPath)
+	}()
 
 	return i.replaceDir(contentPath, targetDir)
 }
@@ -240,6 +242,7 @@ func (i *Installer) replaceDir(sourceDir, targetDir string) error {
 		return errors.Wrap(err, "failed to install new version; rollback attempted")
 	}
 
+	//nolint:staticcheck
 	if err := i.removeAll(backupPath); err != nil {
 		// @todo: log warning about failed backup removal once telemetry/logging is in place
 	}

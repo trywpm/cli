@@ -80,5 +80,5 @@ func (p *Progress) Stream(out io.Writer, text string) {
 		p.progressIndicator.Stop()
 	}
 
-	out.Write(unsafeconv.UnsafeStringToBytes("\r" + text + "\033[K"))
+	_, _ = out.Write(unsafeconv.UnsafeStringToBytes("\r" + text + "\033[K"))
 }
