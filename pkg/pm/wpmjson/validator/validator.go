@@ -43,6 +43,12 @@ func IsValidVersion(v string) error {
 	if v == "" {
 		return fmt.Errorf("cannot be empty")
 	}
+	if len(v) < 5 {
+		return fmt.Errorf("must be at least 5 characters")
+	}
+	if len(v) > 64 {
+		return fmt.Errorf("must be at most 64 characters")
+	}
 	if strings.HasPrefix(v, "v") {
 		return fmt.Errorf("cannot start with 'v'")
 	}
@@ -75,12 +81,12 @@ func IsValidHomepage(homepage string) error {
 		return fmt.Errorf("must be between 10 and 200 characters")
 	}
 
-	url, err := url.Parse(homepage)
+	u, err := url.Parse(homepage)
 	if err != nil {
 		return fmt.Errorf("must be a valid URL")
 	}
 
-	if url.Scheme != "http" && url.Scheme != "https" {
+	if u.Scheme != "http" && u.Scheme != "https" {
 		return fmt.Errorf("URL scheme must be http or https")
 	}
 
