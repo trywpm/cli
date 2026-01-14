@@ -139,6 +139,10 @@ func runPublish(ctx context.Context, wpmCli command.Cli, opts publishOptions) er
 		return err
 	}
 
+	if wpmJson == nil {
+		return errors.New("no wpm.json found in the current directory")
+	}
+
 	if err := wpmJson.Validate(); err != nil {
 		return err
 	}
