@@ -2,87 +2,136 @@ package wpmjson
 
 import (
 	"encoding/json"
-	"fmt"
-	"io"
 	"os"
 	"path/filepath"
+	"wpm/pkg/pm"
+	"wpm/pkg/pm/wpmjson/types"
+	"wpm/pkg/pm/wpmjson/validator"
 
-	"github.com/go-playground/validator/v10"
 	"github.com/pkg/errors"
 )
 
 const ConfigFile = "wpm.json"
 
-// NewConfig returns a new instance of wpm.json config
-func NewConfig() *Config {
-	return &Config{}
+// Config struct to define the wpm.json schema
+type Config struct {
+	Name            string               `json:"name,omitempty"`
+	Version         string               `json:"version,omitempty"`
+	Type            types.PackageType    `json:"type,omitempty"`
+	Description     string               `json:"description,omitempty"`
+	Private         bool                 `json:"private,omitempty"`
+	Bin             *types.Bin           `json:"bin,omitempty"`
+	Requires        *types.Requires      `json:"requires,omitempty"`
+	License         string               `json:"license,omitempty"`
+	Homepage        string               `json:"homepage,omitempty"`
+	Tags            []string             `json:"tags,omitempty"`
+	Team            []string             `json:"team,omitempty"`
+	Dependencies    *types.Dependencies  `json:"dependencies,omitempty"`
+	DevDependencies *types.Dependencies  `json:"devDependencies,omitempty"`
+	Config          *types.PackageConfig `json:"config,omitempty"`
+	Scripts         *types.Scripts       `json:"scripts,omitempty"`
+
+	// Internal fields.
+	Indentation string `json:"-"`
 }
 
-// ReadWpmJson reads the wpm.json file from the passed path and
-// returns the list of paths to exclude
-func ReadWpmJson(path string) (*Config, error) {
-	f, err := os.Open(filepath.Join(path, ConfigFile))
-	switch {
-	case os.IsNotExist(err):
-		return nil, fmt.Errorf("wpm.json file not found")
-	case err != nil:
-		return nil, err
+var defaultRuntimeStrict = true
+
+// New returns a new instance of wpm.json config
+func New() *Config {
+	return &Config{
+		Config: &types.PackageConfig{
+			RuntimeStrict: &defaultRuntimeStrict,
+			BinDir:        "wp-bin",
+			ContentDir:    "wp-content",
+		},
 	}
-	defer f.Close()
-
-	var j Config
-	if err := json.NewDecoder(f).Decode(&j); err != nil && !errors.Is(err, io.EOF) {
-		var typeError *json.UnmarshalTypeError
-		if errors.As(err, &typeError) {
-			return nil, errors.Errorf("wpm.json has an invalid value for field %s, expected %s but got %s", typeError.Field, typeError.Type.Name(), typeError.Value)
-		}
-
-		return nil, errors.New("error parsing wpm.json")
-	}
-
-	return &j, nil
 }
 
-func WriteWpmJson(pkg *Config, path string) error {
-	file, err := os.Create(filepath.Join(path, ConfigFile))
+// Validate checks the configuration struct for logical and schema errors.
+func (c *Config) Validate() error {
+	var errs validator.ErrorList
+
+	// Required fields
+	errs.Add("name", validator.IsValidPackageName(c.Name))
+	errs.Add("version", validator.IsValidVersion(c.Version))
+	errs.Add("type", validator.IsValidPackageType(c.Type))
+
+	// Metadata fields
+	if c.Description != "" {
+		errs.Add("description", validator.IsValidDescription(c.Description))
+	}
+	if c.License != "" {
+		errs.Add("license", validator.IsValidLicense(c.License))
+	}
+	if c.Homepage != "" {
+		errs.Add("homepage", validator.IsValidHomepage(c.Homepage))
+	}
+	if len(c.Tags) > 0 {
+		errs.MustMerge(validator.ValidateTags(c.Tags))
+	}
+	if len(c.Team) > 0 {
+		errs.MustMerge(validator.ValidateTeam(c.Team))
+	}
+
+	// Core fields
+	if c.Requires != nil {
+		errs.MustMerge(validator.ValidateRequires(c.Requires.WP, c.Requires.PHP))
+	}
+	if c.Dependencies != nil {
+		errs.MustMerge(validator.ValidateDependencies(*c.Dependencies, "dependencies"))
+	}
+	if c.DevDependencies != nil {
+		errs.MustMerge(validator.ValidateDependencies(*c.DevDependencies, "devDependencies"))
+	}
+
+	return errs.Err()
+}
+
+// GetIndentation returns the indentation used in the wpm.json file
+func (c *Config) GetIndentation() string {
+	if c.Indentation != "" {
+		return c.Indentation
+	}
+
+	return "  " // Default to 2 spaces if not set
+}
+
+// Read loads the wpm.json file from the specified directory.
+func Read(cwd string) (*Config, error) {
+	path := filepath.Join(cwd, ConfigFile)
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		return nil, nil
+	}
+
+	data, err := os.ReadFile(path)
 	if err != nil {
-		return err
+		return nil, errors.Wrap(err, "failed to read wpm.json")
 	}
-	defer file.Close()
 
-	encoder := json.NewEncoder(file)
-	encoder.SetEscapeHTML(false)
-	encoder.SetIndent("", "\t")
+	var config Config
+	if err := json.Unmarshal(data, &config); err != nil {
+		return nil, errors.Wrap(err, "failed to parse wpm.json")
+	}
 
-	if err := encoder.Encode(pkg); err != nil {
-		return err
+	config.Indentation = pm.DetectIndentation(data)
+
+	return &config, nil
+}
+
+// Write saves the wpm.json to disk in the specified directory.
+func (c *Config) Write(cwd string) error {
+	path := filepath.Join(cwd, ConfigFile)
+
+	data, err := json.MarshalIndent(c, "", c.GetIndentation())
+	if err != nil {
+		return errors.Wrap(err, "failed to marshal wpm.json")
+	}
+
+	// Write with 0644 permissions (rw-r--r--)
+	if err := os.WriteFile(path, data, 0644); err != nil {
+		return errors.Wrap(err, "failed to write wpm.json to disk")
 	}
 
 	return nil
-}
-
-func ValidateWpmJson(validator *validator.Validate, pkg *Config) error {
-	if err := validator.Struct(pkg); err != nil {
-		return handleValidatorError(err)
-	}
-
-	return nil
-}
-
-func ReadAndValidateWpmJson(path string) (*Config, error) {
-	wpmJson, err := ReadWpmJson(path)
-	if err != nil {
-		return nil, err
-	}
-
-	ve, err := NewValidator()
-	if err != nil {
-		return nil, err
-	}
-
-	if err = ValidateWpmJson(ve, wpmJson); err != nil {
-		return nil, err
-	}
-
-	return wpmJson, nil
 }

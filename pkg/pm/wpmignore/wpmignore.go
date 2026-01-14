@@ -24,7 +24,7 @@ func ReadWpmIgnore(path string) ([]string, error) {
 
 	patterns, err := ignorefile.ReadAll(f)
 	if err != nil {
-		return nil, fmt.Errorf("error reading .wpmignore: %w", err)
+		return nil, fmt.Errorf("failed to read .wpmignore: %w", err)
 	}
 	return patterns, nil
 }

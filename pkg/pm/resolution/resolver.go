@@ -3,8 +3,11 @@ package resolution
 import (
 	"context"
 	"fmt"
+	"io"
 	"wpm/pkg/pm/registry"
 	"wpm/pkg/pm/wpmjson"
+	"wpm/pkg/pm/wpmjson/manifest"
+	"wpm/pkg/pm/wpmjson/types"
 	"wpm/pkg/pm/wpmlock"
 
 	"github.com/Masterminds/semver/v3"
@@ -15,11 +18,11 @@ import (
 type Node struct {
 	Name         string
 	Version      string
-	Type         wpmjson.PackageType
-	Resolved     string                // Tarball URL
-	Digest       string                // Sha256 digest of the tarball
-	Bin          *wpmjson.Bin          `json:"bin,omitempty"`
-	Dependencies *wpmjson.Dependencies `json:"dependencies,omitempty"`
+	Type         types.PackageType
+	Resolved     string              // Tarball URL
+	Digest       string              // Sha256 digest of the tarball
+	Bin          *types.Bin          `json:"bin,omitempty"`
+	Dependencies *types.Dependencies `json:"dependencies,omitempty"`
 }
 
 type dependencyRequest struct {
@@ -36,7 +39,7 @@ type Resolver struct {
 	runtimePhp string
 }
 
-func NewResolver(rootConfig *wpmjson.Config, lockfile *wpmlock.Lockfile, client registry.Client, runtimeWp, runtimePhp string) *Resolver {
+func New(rootConfig *wpmjson.Config, lockfile *wpmlock.Lockfile, client registry.Client, runtimeWp, runtimePhp string) *Resolver {
 	return &Resolver{
 		rootConfig: rootConfig,
 		lockfile:   lockfile,
@@ -46,15 +49,27 @@ func NewResolver(rootConfig *wpmjson.Config, lockfile *wpmlock.Lockfile, client 
 	}
 }
 
+type ProgressReporter interface {
+	StartProgressIndicator(w io.Writer)
+	StopProgressIndicator()
+	Stream(w io.Writer, msg string)
+}
+
 type fetchResult struct {
 	req      dependencyRequest
-	manifest *wpmjson.PackageManifest
+	manifest *manifest.Package
 	err      error
 }
 
-func (r *Resolver) Resolve(ctx context.Context) (map[string]Node, error) {
+func (r *Resolver) Resolve(ctx context.Context, progress ProgressReporter, w io.Writer) (map[string]Node, error) {
 	resolved := make(map[string]Node)
 	queue := make([]dependencyRequest, 0)
+
+	progress.StartProgressIndicator(w)
+	defer func() {
+		progress.Stream(w, "")
+		progress.StopProgressIndicator()
+	}()
 
 	// Seed the queue with root dependencies
 	if r.rootConfig.Dependencies != nil {
@@ -93,7 +108,12 @@ func (r *Resolver) Resolve(ctx context.Context) (map[string]Node, error) {
 		g, ctx := errgroup.WithContext(ctx)
 		g.SetLimit(16) // Limit concurrent fetches
 
+		count := 0
 		for _, req := range uniqueRequests {
+			count++
+
+			progress.Stream(w, fmt.Sprintf("  Resolving %s@%s [%d/%d]", req.name, req.version, count, len(uniqueRequests)))
+
 			g.Go(func() error {
 				manifest, err := r.fetchMetadata(ctx, req.name, req.version)
 				results <- fetchResult{req: req, manifest: manifest, err: err}
@@ -156,6 +176,21 @@ func (r *Resolver) Resolve(ctx context.Context) (map[string]Node, error) {
 	return resolved, nil
 }
 
+type ResolutionError struct {
+	Header string
+	Detail []string
+	Action string
+}
+
+func (e *ResolutionError) Error() string {
+	msg := e.Header + "\n"
+	for _, d := range e.Detail {
+		msg += "  " + d + "\n"
+	}
+	msg += "Action: " + e.Action
+	return msg
+}
+
 func (r *Resolver) resolveConflict(req dependencyRequest, existing Node) error {
 	// Check if root wpm.json has a direct dependency on this package
 	rootVersion := ""
@@ -191,14 +226,14 @@ func (r *Resolver) resolveConflict(req dependencyRequest, existing Node) error {
 		}
 
 		if reqV.GreaterThan(rootV) {
-			//nolint:staticcheck
-			return fmt.Errorf(
-				"version downgrade detected for %s:\n"+
-					"  currently resolved: %s\n"+
-					"  %s requires: %s\n"+
-					"Action: Upgrade %s in your wpm.json to %s or higher.",
-				req.name, rootVersion, req.requestor, req.version, req.name, req.version,
-			)
+			return &ResolutionError{
+				Header: fmt.Sprintf("Version downgrade detected for package %s:", req.name),
+				Detail: []string{
+					fmt.Sprintf("currently resolved: %s", rootVersion),
+					fmt.Sprintf("%s requires: %s", req.requestor, req.version),
+				},
+				Action: fmt.Sprintf("Upgrade %s in your wpm.json to %s or higher.", req.name, req.version),
+			}
 		}
 
 		// If we reach here, the root version satisfies the request, so we can ignore the conflict.
@@ -206,22 +241,17 @@ func (r *Resolver) resolveConflict(req dependencyRequest, existing Node) error {
 	}
 
 	// Unresolvable conflict, user must intervene.
-	return fmt.Errorf( //nolint:staticcheck
-		"Dependency version conflict for package %s:\n"+
-			"  currently resolved: %s\n"+
-			"  %s requires: %s\n"+
-			`Action: Add "%s": "%s" (or %s) to the root wpm.json to force a resolution.`,
-		req.name,
-		existing.Version,
-		req.requestor,
-		req.version,
-		req.name,
-		req.version,
-		existing.Version,
-	)
+	return &ResolutionError{
+		Header: fmt.Sprintf("Dependency version conflict for package %s:", req.name),
+		Detail: []string{
+			fmt.Sprintf("currently resolved: %s", existing.Version),
+			fmt.Sprintf("%s requires: %s", req.requestor, req.version),
+		},
+		Action: fmt.Sprintf(`Add "%s": "%s" (or %s) to the root wpm.json to force a resolution.`, req.name, req.version, existing.Version),
+	}
 }
 
-func (r *Resolver) checkRuntimeCompatibility(manifest *wpmjson.PackageManifest) error {
+func (r *Resolver) checkRuntimeCompatibility(manifest *manifest.Package) error {
 	if manifest == nil {
 		return errors.New("manifest is nil")
 	}
@@ -273,18 +303,18 @@ func (r *Resolver) checkRuntimeCompatibility(manifest *wpmjson.PackageManifest) 
 	return nil
 }
 
-func (r *Resolver) fetchMetadata(ctx context.Context, name, version string) (*wpmjson.PackageManifest, error) {
+func (r *Resolver) fetchMetadata(ctx context.Context, name, version string) (*manifest.Package, error) {
 	// Try to resolve the manifest from lockfile first
 	if r.lockfile != nil && r.lockfile.Packages != nil {
 		if lockPkg, ok := r.lockfile.Packages[name]; ok {
 			if lockPkg.Version == version {
-				return &wpmjson.PackageManifest{
+				return &manifest.Package{
 					Name:         name,
 					Version:      lockPkg.Version,
 					Type:         lockPkg.Type,
 					Bin:          lockPkg.Bin,
 					Dependencies: lockPkg.Dependencies,
-					Dist: wpmjson.Dist{
+					Dist: manifest.Dist{
 						Digest: lockPkg.Digest,
 					},
 				}, nil

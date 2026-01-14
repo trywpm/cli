@@ -4,6 +4,7 @@ import (
 	"io"
 	"sync"
 	"time"
+	"wpm/pkg/unsafeconv"
 
 	"github.com/briandowns/spinner"
 )
@@ -69,4 +70,15 @@ func (p *Progress) RunWithProgress(label string, run func() error, out io.Writer
 	defer p.StopProgressIndicator()
 
 	return run()
+}
+
+func (p *Progress) Stream(out io.Writer, text string) {
+	p.progressIndicatorMu.Lock()
+	defer p.progressIndicatorMu.Unlock()
+
+	if p.progressIndicator != nil && p.progressIndicator.Active() {
+		p.progressIndicator.Stop()
+	}
+
+	_, _ = out.Write(unsafeconv.UnsafeStringToBytes("\r" + text + "\033[K"))
 }

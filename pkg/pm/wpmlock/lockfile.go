@@ -4,7 +4,8 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
-	"wpm/pkg/pm/wpmjson"
+	"wpm/pkg/pm"
+	"wpm/pkg/pm/wpmjson/types"
 
 	"github.com/pkg/errors"
 )
@@ -16,12 +17,12 @@ const (
 
 // LockPackage represents a specific version of a package locked in the lockfile.
 type LockPackage struct {
-	Version      string                `json:"version"`
-	Resolved     string                `json:"resolved"`
-	Digest       string                `json:"digest"`
-	Type         wpmjson.PackageType   `json:"type"`
-	Bin          *wpmjson.Bin          `json:"bin,omitempty"`
-	Dependencies *wpmjson.Dependencies `json:"dependencies,omitempty"`
+	Version      string              `json:"version"`
+	Resolved     string              `json:"resolved"`
+	Digest       string              `json:"digest"`
+	Type         types.PackageType   `json:"type"`
+	Bin          *types.Bin          `json:"bin,omitempty"`
+	Dependencies *types.Dependencies `json:"dependencies,omitempty"`
 }
 
 // Lockfile represents the state of the dependency tree.
@@ -29,6 +30,7 @@ type LockPackage struct {
 type Lockfile struct {
 	LockfileVersion int                    `json:"lockfileVersion"`
 	Packages        map[string]LockPackage `json:"packages"`
+	Indentation     string                 `json:"-"`
 }
 
 // New creates a new empty Lockfile instance with the current version.
@@ -64,7 +66,14 @@ func Read(cwd string) (*Lockfile, error) {
 		lockfile.Packages = make(map[string]LockPackage)
 	}
 
+	lockfile.Indentation = pm.DetectIndentation(data)
+
 	return &lockfile, nil
+}
+
+// SetIndentation sets the indentation style for the lockfile when written to disk.
+func (l *Lockfile) SetIndentation(indentation string) {
+	l.Indentation = indentation
 }
 
 // Write saves the Lockfile to disk in the specified directory.
@@ -73,7 +82,7 @@ func (l *Lockfile) Write(cwd string) error {
 
 	path := filepath.Join(cwd, LockfileName)
 
-	data, err := json.MarshalIndent(l, "", "  ")
+	data, err := json.MarshalIndent(l, "", l.Indentation)
 	if err != nil {
 		return errors.Wrap(err, "failed to marshal lockfile")
 	}

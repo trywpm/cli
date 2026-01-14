@@ -2,23 +2,30 @@ package install
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"strings"
+	"sync"
 
 	"wpm/cli/command"
-	"wpm/pkg/pm/registry"
+	"wpm/cli/version"
+	"wpm/pkg/output"
 	"wpm/pkg/pm/wpmjson"
+	"wpm/pkg/pm/wpmjson/types"
 
+	"github.com/morikuni/aec"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"golang.org/x/sync/errgroup"
 )
 
 type installOptions struct {
-	noDev         bool
-	ignoreScripts bool
-	dryRun        bool
-	saveDev       bool
+	noDev              bool
+	ignoreScripts      bool
+	dryRun             bool
+	saveDev            bool
+	saveProd           bool
+	networkConcurrency int
 }
 
 func NewInstallCommand(wpmCli command.Cli) *cobra.Command {
@@ -29,7 +36,16 @@ func NewInstallCommand(wpmCli command.Cli) *cobra.Command {
 		Short: "Install project dependencies",
 		Args:  cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runInstall(cmd.Context(), wpmCli, opts, args)
+			err := runInstall(cmd.Context(), wpmCli, opts, args)
+			if err != nil {
+				suffix := "error:"
+				if wpmCli.Out().IsColorEnabled() {
+					suffix = aec.RedF.Apply("error:")
+				}
+
+				err = fmt.Errorf("%s %w", suffix, err)
+			}
+			return err
 		},
 	}
 
@@ -38,53 +54,96 @@ func NewInstallCommand(wpmCli command.Cli) *cobra.Command {
 	flags.BoolVar(&opts.ignoreScripts, "ignore-scripts", false, "Do not run lifecycle scripts")
 	flags.BoolVar(&opts.dryRun, "dry-run", false, "Do not write anything to disk")
 	flags.BoolVarP(&opts.saveDev, "save-dev", "D", false, "Install package as a dev dependency")
+	flags.BoolVarP(&opts.saveProd, "save-prod", "P", false, "Install package as a production dependency (default behavior)")
+	flags.IntVar(&opts.networkConcurrency, "network-concurrency", 16, "Number of concurrent network requests when installing packages (default 16)")
+
+	cmd.MarkFlagsMutuallyExclusive("no-dev", "save-dev")
+	cmd.MarkFlagsMutuallyExclusive("no-dev", "save-prod")
+	cmd.MarkFlagsMutuallyExclusive("save-dev", "save-prod")
 
 	return cmd
 }
 
 func runInstall(ctx context.Context, wpmCli command.Cli, opts installOptions, packages []string) error {
+	wpmCli.Output().Prettyln(output.Text{
+		Plain: "wpm install v" + version.Version,
+		Fancy: aec.Bold.Apply("wpm install") + " " + aec.LightBlackF.Apply("v"+version.Version),
+	})
+
 	cwd, err := os.Getwd()
 	if err != nil {
 		return errors.Wrap(err, "failed to get current working directory")
 	}
 
-	client, err := wpmCli.RegistryClient()
+	cfg, err := wpmjson.Read(cwd)
 	if err != nil {
 		return err
 	}
 
-	cfg, err := wpmjson.ReadAndValidateWpmJson(cwd)
-	if err != nil {
-		return err
+	if cfg == nil {
+		cfg = &wpmjson.Config{}
 	}
 
-	setDefaultPackageConfig(cfg.Config)
+	cfg.Config = setDefaultPackageConfig(cfg.Config)
 
 	configModified := false
 
 	if len(packages) > 0 {
-		if err := addPackages(ctx, cfg, client, packages, opts.saveDev); err != nil {
+		if err := addPackages(ctx, cfg, wpmCli, packages, opts); err != nil {
 			return err
+		}
+
+		// If dependencies or devDependencies still have zero entries, set them to nil
+		if cfg.Dependencies != nil && len(*cfg.Dependencies) == 0 {
+			cfg.Dependencies = nil
+		}
+		if cfg.DevDependencies != nil && len(*cfg.DevDependencies) == 0 {
+			cfg.DevDependencies = nil
 		}
 
 		configModified = true
 	}
 
 	return Run(ctx, cwd, wpmCli, RunOptions{
-		NoDev:         opts.noDev,
-		IgnoreScripts: opts.ignoreScripts,
-		DryRun:        opts.dryRun,
-		Config:        cfg,
-		SaveConfig:    configModified,
+		NoDev:              opts.noDev,
+		IgnoreScripts:      opts.ignoreScripts,
+		DryRun:             opts.dryRun,
+		Config:             cfg,
+		SaveConfig:         configModified,
+		NetworkConcurrency: opts.networkConcurrency,
 	})
 }
 
-func addPackages(ctx context.Context, config *wpmjson.Config, client registry.Client, packages []string, saveDev bool) error {
-	g, ctx := errgroup.WithContext(ctx)
-	g.SetLimit(16)
+func addPackages(ctx context.Context, config *wpmjson.Config, wpmCli command.Cli, packages []string, opts installOptions) error {
+	client, err := wpmCli.RegistryClient()
+	if err != nil {
+		return err
+	}
 
-	for _, pkgArg := range packages {
+	g, ctx := errgroup.WithContext(ctx)
+	g.SetLimit(opts.networkConcurrency)
+
+	progress := wpmCli.Progress()
+	progress.StartProgressIndicator(wpmCli.Err())
+	defer func() {
+		progress.Stream(wpmCli.Err(), "")
+		progress.StopProgressIndicator()
+	}()
+
+	if config.DevDependencies == nil {
+		config.DevDependencies = &types.Dependencies{}
+	}
+
+	if config.Dependencies == nil {
+		config.Dependencies = &types.Dependencies{}
+	}
+
+	var mu sync.Mutex
+
+	for i, pkgArg := range packages {
 		name, versionOrTag := parsePackageArg(pkgArg)
+
+		progress.Stream(wpmCli.Err(), fmt.Sprintf("  Resolving %s@%s [%d/%d]", name, versionOrTag, i+1, len(packages)))
 
 		g.Go(func() error {
 			manifest, err := client.GetPackageManifest(ctx, name, versionOrTag)
@@ -92,25 +151,20 @@ func addPackages(ctx context.Context, config *wpmjson.Config, client registry.Cl
 				return errors.Wrapf(err, "failed to fetch package %s@%s", name, versionOrTag)
 			}
 
-			if saveDev {
-				if config.DevDependencies == nil {
-					config.DevDependencies = &wpmjson.Dependencies{}
-				}
+			mu.Lock()
+			defer mu.Unlock()
 
+			if opts.saveDev {
 				(*config.DevDependencies)[name] = manifest.Version
-
-				if config.Dependencies != nil {
-					delete(*config.Dependencies, name)
-				}
-			} else {
-				if config.Dependencies == nil {
-					config.Dependencies = &wpmjson.Dependencies{}
-				}
-
+				delete(*config.Dependencies, name)
+			} else if opts.saveProd {
 				(*config.Dependencies)[name] = manifest.Version
-
-				if config.DevDependencies != nil {
-					delete(*config.DevDependencies, name)
+				delete(*config.DevDependencies, name)
+			} else {
+				if _, exists := (*config.DevDependencies)[name]; exists {
+					(*config.DevDependencies)[name] = manifest.Version
+				} else {
+					(*config.Dependencies)[name] = manifest.Version
 				}
 			}
 
@@ -121,7 +175,11 @@ func addPackages(ctx context.Context, config *wpmjson.Config, client registry.Cl
 	return g.Wait()
 }
 
-func setDefaultPackageConfig(pkgConfig *wpmjson.PackageConfig) {
+func setDefaultPackageConfig(pkgConfig *types.PackageConfig) *types.PackageConfig {
+	if pkgConfig == nil {
+		pkgConfig = &types.PackageConfig{}
+	}
+
 	if pkgConfig.BinDir == "" {
 		pkgConfig.BinDir = "wp-bin"
 	}
@@ -134,6 +192,8 @@ func setDefaultPackageConfig(pkgConfig *wpmjson.PackageConfig) {
 		defaultStrict := true
 		pkgConfig.RuntimeStrict = &defaultStrict
 	}
+
+	return pkgConfig
 }
 
 func parsePackageArg(arg string) (string, string) {

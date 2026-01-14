@@ -16,6 +16,7 @@ import (
 	platformsignals "wpm/cmd/wpm/internal/signals"
 
 	"github.com/containerd/errdefs"
+	"github.com/morikuni/aec"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -114,6 +115,13 @@ func newWpmCommand(wpmCli *command.WpmCli) *cli.TopLevelCommand {
 		helpCmd *cobra.Command
 	)
 
+	var ver string
+	if wpmCli.Out().IsColorEnabled() {
+		ver = "v" + version.Version + aec.LightBlackF.Apply(" ("+version.GitCommit+")")
+	} else {
+		ver = "v" + version.Version + " (" + version.GitCommit + ")"
+	}
+
 	cmd := &cobra.Command{
 		Use:              "wpm [OPTIONS] COMMAND [ARG...]",
 		Short:            "Package Manager for WordPress ecosystem",
@@ -146,7 +154,7 @@ func newWpmCommand(wpmCli *command.WpmCli) *cli.TopLevelCommand {
 
 			return fmt.Errorf("\nRun 'wpm --help' for more information")
 		},
-		Version:               fmt.Sprintf("%s, build %s", version.Version, version.GitCommit),
+		Version:               ver,
 		DisableFlagsInUseLine: true,
 		CompletionOptions: cobra.CompletionOptions{
 			DisableDefaultCmd:   false,

@@ -11,11 +11,13 @@ import (
 	"unicode"
 
 	"wpm/cli/command"
+	"wpm/pkg/output"
 	"wpm/pkg/pm/wpmjson"
+	"wpm/pkg/pm/wpmjson/types"
+	"wpm/pkg/pm/wpmjson/validator"
 	"wpm/pkg/wp/parser"
 
 	"github.com/Masterminds/semver/v3"
-	"github.com/go-playground/validator/v10"
 	"github.com/morikuni/aec"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
@@ -94,31 +96,26 @@ func runNewInit(ctx context.Context, wpmCli command.Cli, opts *initOptions) erro
 		return errors.Wrapf(err, "failed to check for existing %s", wpmjson.ConfigFile)
 	}
 
+	wpmCfg := wpmjson.New()
 	defaultName := filepath.Base(cwd)
-	wpmJsonInitData := wpmjson.NewConfig()
-
-	ve, err := wpmjson.NewValidator()
-	if err != nil {
-		return errors.Wrap(err, "failed to initialize validator")
-	}
 
 	if opts.yes {
 		if err := setDefaults(opts, defaultName); err != nil {
 			return err
 		}
 
-		if err := validateOptions(opts, ve); err != nil {
+		if err := validateOptions(opts); err != nil {
 			return err
 		}
 
-		setConfigFromOptions(wpmJsonInitData, opts)
+		setConfigFromOptions(wpmCfg, opts)
 	} else {
-		if err := promptForConfig(ctx, wpmCli, wpmJsonInitData, ve, defaultName); err != nil {
+		if err := promptForConfig(ctx, wpmCli, wpmCfg, defaultName); err != nil {
 			return err
 		}
 	}
 
-	if err := wpmjson.WriteWpmJson(wpmJsonInitData, cwd); err != nil {
+	if err := wpmCfg.Write(cwd); err != nil {
 		return errors.Wrap(err, "failed to write wpm.json")
 	}
 
@@ -207,47 +204,47 @@ func runExistingInit(wpmCli command.Cli, opts *initOptions) error {
 	}
 
 	// Build wpm.json config
-	wpmJsonData := buildWPMConfig(*opts, opts.packageType, mainFileHeaders, readmeParser.GetMetadata())
+	wpmCfg := buildWpmConfig(*opts, opts.packageType, mainFileHeaders, readmeParser.GetMetadata())
 
 	// Set name
 	if opts.name != "" {
-		wpmJsonData.Name = opts.name
+		wpmCfg.Name = opts.name
 	} else {
-		wpmJsonData.Name = filepath.Base(cwd)
+		wpmCfg.Name = filepath.Base(cwd)
 	}
 
 	if opts.version != "" {
-		wpmJsonData.Version = opts.version
-
+		wpmCfg.Version = opts.version
 		if extractedVersion != "" && extractedVersion != opts.version {
-			_, _ = fmt.Fprintf(wpmCli.Err(), aec.YellowF.Apply("provided version (%s) differs from version in headers (%s)\n"), opts.version, extractedVersion)
+			wpmCli.Output().PrettyErrorln(output.Text{
+				Plain: fmt.Sprintf("warn: provided version (%s) differs from version in parsed headers (%s)", opts.version, extractedVersion),
+				Fancy: fmt.Sprintf(
+					"%s provided version (%s) differs from version in parsed headers (%s)",
+					aec.YellowF.Apply("warn:"),
+					aec.LightBlueF.Apply(opts.version), aec.LightBlueF.Apply(extractedVersion),
+				),
+			})
 		}
 	} else {
 		if extractedVersion == "" {
 			return errors.New("unable to determine version; please specify it with --version")
 		}
-		wpmJsonData.Version = extractedVersion
+		wpmCfg.Version = extractedVersion
 	}
 
 	// Normalize and validate version
-	v, err := normalizeVersion(wpmJsonData.Version)
+	v, err := normalizeVersion(wpmCfg.Version)
 	if err != nil {
 		return errors.New("invalid version format: " + err.Error())
 	}
-	wpmJsonData.Version = v
-
-	ve, err := wpmjson.NewValidator()
-	if err != nil {
-		return errors.Wrap(err, "failed to initialize validator")
-	}
-
-	if err = wpmjson.ValidateWpmJson(ve, wpmJsonData); err != nil {
+	wpmCfg.Version = v
+	if err = wpmCfg.Validate(); err != nil {
 		return err
 	}
 
 	// create wpm.json file
-	if err := wpmjson.WriteWpmJson(wpmJsonData, cwd); err != nil {
-		return errors.Wrapf(err, "failed to write %s", wpmjson.ConfigFile)
+	if err := wpmCfg.Write(cwd); err != nil {
+		return err
 	}
 
 	// create readme.md from readme.txt if it exists
@@ -282,19 +279,20 @@ func setDefaults(opts *initOptions, defaultName string) error {
 	return nil
 }
 
-func validateOptions(opts *initOptions, ve *validator.Validate) error {
-	if errs := ve.Var(opts.name, "required,wpm_name"); errs != nil {
-		return errors.Errorf("invalid package name: \"%s\"", aec.Bold.Apply(opts.name))
+func validateOptions(opts *initOptions) error {
+	if err := validator.IsValidPackageName(opts.name); err != nil {
+		return fmt.Errorf("name %w", err)
 	}
-	if errs := ve.Var(opts.version, "required,wpm_semver"); errs != nil {
-		return errors.Errorf("invalid version: \"%s\"", aec.Bold.Apply(opts.version))
+	if err := validator.IsValidVersion(opts.version); err != nil {
+		return fmt.Errorf("version %w", err)
 	}
-	if errs := ve.Var(opts.packageType, "required,oneof=plugin theme mu-plugin"); errs != nil {
-		return errors.Errorf("invalid type: \"%s\"", aec.Bold.Apply(opts.packageType))
+	if err := validator.IsValidPackageType(types.PackageType(opts.packageType)); err != nil {
+		return fmt.Errorf("type %w", err)
 	}
-	if errs := ve.Var(opts.license, "required,min=3,max=100"); errs != nil {
-		return errors.Errorf("invalid license: \"%s\"", aec.Bold.Apply(opts.license))
+	if err := validator.IsValidLicense(opts.license); err != nil {
+		return fmt.Errorf("license %w", err)
 	}
+
 	return nil
 }
 
@@ -302,10 +300,10 @@ func setConfigFromOptions(config *wpmjson.Config, opts *initOptions) {
 	config.Name = opts.name
 	config.License = opts.license
 	config.Version = opts.version
-	config.Type = wpmjson.PackageType(opts.packageType)
+	config.Type = types.PackageType(opts.packageType)
 }
 
-func promptForConfig(ctx context.Context, wpmCli command.Cli, config *wpmjson.Config, ve *validator.Validate, defaultName string) error {
+func promptForConfig(ctx context.Context, wpmCli command.Cli, config *wpmjson.Config, defaultName string) error {
 	prompts := []promptField{
 		{
 			"name",
@@ -316,8 +314,8 @@ func promptForConfig(ctx context.Context, wpmCli command.Cli, config *wpmjson.Co
 					if val == "" {
 						val = defaultName
 					}
-					if errs := ve.Var(val, "required,wpm_name"); errs != nil {
-						return errors.Errorf("invalid package name: \"%s\"", aec.Bold.Apply(val))
+					if err := validator.IsValidPackageName(val); err != nil {
+						return fmt.Errorf("name %w", err)
 					}
 					config.Name = val
 					return nil
@@ -333,8 +331,8 @@ func promptForConfig(ctx context.Context, wpmCli command.Cli, config *wpmjson.Co
 					if val == "" {
 						val = defaultVersion
 					}
-					if errs := ve.Var(val, "required,wpm_semver"); errs != nil {
-						return errors.Errorf("invalid version: \"%s\"", aec.Bold.Apply(val))
+					if err := validator.IsValidVersion(val); err != nil {
+						return fmt.Errorf("version %w", err)
 					}
 					config.Version = val
 					return nil
@@ -364,10 +362,10 @@ func promptForConfig(ctx context.Context, wpmCli command.Cli, config *wpmjson.Co
 					if val == "" {
 						val = defaultType
 					}
-					if errs := ve.Var(val, "required,oneof=plugin theme mu-plugin"); errs != nil {
-						return errors.Errorf("invalid type: \"%s\"", aec.Bold.Apply(val))
+					if err := validator.IsValidPackageType(types.PackageType(val)); err != nil {
+						return fmt.Errorf("type %w", err)
 					}
-					config.Type = wpmjson.PackageType(val)
+					config.Type = types.PackageType(val)
 					return nil
 				},
 			},
@@ -506,14 +504,9 @@ func trimMeaningfully(s string, limit int) string {
 	return truncated
 }
 
-func buildWPMConfig(opts initOptions, pkgType string, mainFileHeaders any, readmeMeta map[string]any) *wpmjson.Config {
-	cfg := wpmjson.NewConfig()
-	ve, err := wpmjson.NewValidator()
-	if err != nil {
-		return cfg
-	}
-
-	cfg.Type = wpmjson.PackageType(pkgType)
+func buildWpmConfig(opts initOptions, pkgType string, mainFileHeaders any, readmeMeta map[string]any) *wpmjson.Config {
+	cfg := wpmjson.New()
+	cfg.Type = types.PackageType(pkgType)
 	cfg.License = getMetaString(readmeMeta, "license", opts.license)
 	cfg.Description = getMetaString(readmeMeta, "meta_description", "")
 
@@ -522,8 +515,8 @@ func buildWPMConfig(opts initOptions, pkgType string, mainFileHeaders any, readm
 		cfg.Tags = tags
 	}
 
-	requires := &wpmjson.Requires{}
-	dependencies := make(wpmjson.Dependencies)
+	requires := &types.Requires{}
+	dependencies := &types.Dependencies{}
 	cfg.Team = getMetaStringSlice(readmeMeta, "contributors")
 	wpRequires := getMetaString(readmeMeta, "requires", "")
 	phpRequires := getMetaString(readmeMeta, "requires_php", "")
@@ -548,7 +541,7 @@ func buildWPMConfig(opts initOptions, pkgType string, mainFileHeaders any, readm
 		}
 
 		if h.ThemeURI != "" {
-			if err := ve.Var(h.ThemeURI, "url,wpm_http_url,min=10,max=200"); err == nil {
+			if err := validator.IsValidHomepage(h.ThemeURI); err == nil {
 				cfg.Homepage = h.ThemeURI
 			}
 		}
@@ -579,7 +572,7 @@ func buildWPMConfig(opts initOptions, pkgType string, mainFileHeaders any, readm
 		}
 
 		if h.PluginURI != "" {
-			if err := ve.Var(h.PluginURI, "url,wpm_http_url,min=10,max=200"); err == nil {
+			if err := validator.IsValidHomepage(h.PluginURI); err == nil {
 				cfg.Homepage = h.PluginURI
 			}
 		}
@@ -594,12 +587,12 @@ func buildWPMConfig(opts initOptions, pkgType string, mainFileHeaders any, readm
 
 		if len(h.RequiresPlugins) > 0 {
 			for _, reqPlugin := range h.RequiresPlugins {
-				if err := ve.Var(reqPlugin, "wpm_name"); err != nil {
+				if err := validator.IsValidPackageName(reqPlugin); err != nil {
 					continue
 				}
 
 				// Add "*" as version since requires plugins only specify the plugin slug, not a version.
-				dependencies[reqPlugin] = "*"
+				(*dependencies)[reqPlugin] = "*"
 			}
 		}
 	}
@@ -671,8 +664,8 @@ func buildWPMConfig(opts initOptions, pkgType string, mainFileHeaders any, readm
 		}
 	}
 
-	if len(dependencies) > 0 {
-		cfg.Dependencies = &dependencies
+	if len(*dependencies) > 0 {
+		cfg.Dependencies = dependencies
 	}
 
 	if requires.PHP != "" || requires.WP != "" {

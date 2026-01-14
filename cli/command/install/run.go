@@ -3,8 +3,13 @@ package install
 import (
 	"context"
 	"fmt"
+	"maps"
 	"path/filepath"
+	"slices"
+	"strconv"
 	"wpm/cli/command"
+	"wpm/pkg/config"
+	"wpm/pkg/output"
 	"wpm/pkg/pm/installer"
 	"wpm/pkg/pm/resolution"
 	"wpm/pkg/pm/wpmjson"
@@ -15,11 +20,32 @@ import (
 )
 
 type RunOptions struct {
-	NoDev         bool
-	IgnoreScripts bool
-	DryRun        bool
-	Config        *wpmjson.Config
-	SaveConfig    bool
+	NoDev              bool
+	IgnoreScripts      bool
+	DryRun             bool
+	Config             *wpmjson.Config
+	SaveConfig         bool
+	NetworkConcurrency int
+}
+
+func installerProgress(out *output.Output) func(action installer.Action) {
+	return func(action installer.Action) {
+		actionStr := "+"
+		color := aec.GreenF
+		switch action.Type {
+		case installer.ActionRemove:
+			actionStr = "-"
+			color = aec.RedF
+		case installer.ActionUpdate:
+			actionStr = "+" // we use "+" for updates as well to indicate addition of new version
+			color = aec.YellowF
+		}
+
+		out.Prettyln(output.Text{
+			Plain: fmt.Sprintf("%s %s@%s", actionStr, action.Name, action.Version),
+			Fancy: fmt.Sprintf("%s %s %s", color.Apply(actionStr), aec.Bold.Apply(action.Name), action.Version),
+		})
+	}
 }
 
 func Run(ctx context.Context, cwd string, wpmCli command.Cli, opts RunOptions) error {
@@ -27,25 +53,28 @@ func Run(ctx context.Context, cwd string, wpmCli command.Cli, opts RunOptions) e
 
 	wpmCfg := opts.Config
 	if wpmCfg == nil {
-		wpmCfg, err = wpmjson.ReadAndValidateWpmJson(cwd)
-		if err != nil {
-			return err
-		}
+		return errors.New("wpm.json config is required")
 	}
 
 	var runtimeWP, runtimePHP string
 	if wpmCfg.Config != nil {
-		runtimeWP = wpmCfg.Config.RuntimeWp
-		runtimePHP = wpmCfg.Config.RuntimePhp
+		runtimeWP = wpmCfg.Config.RuntimeWP
+		runtimePHP = wpmCfg.Config.RuntimePHP
 	}
 
 	if wpmCfg.Config.RuntimeStrict == nil || *wpmCfg.Config.RuntimeStrict {
 		if runtimeWP == "" {
-			return errors.New("runtime-wp must be specified in wpm.json")
+			wpmCli.Output().PrettyErrorln(output.Text{
+				Plain: "warn: config.runtime-wp is not specified in wpm.json",
+				Fancy: fmt.Sprintf("%s %s is not specified in wpm.json", aec.YellowF.Apply("warn:"), aec.LightBlueF.Apply("config.runtime-wp")),
+			})
 		}
 
 		if runtimePHP == "" {
-			return errors.New("runtime-php must be specified in wpm.json")
+			wpmCli.Output().PrettyErrorln(output.Text{
+				Plain: "warn: config.runtime-php is not specified in wpm.json",
+				Fancy: fmt.Sprintf("%s %s is not specified in wpm.json", aec.YellowF.Apply("warn:"), aec.LightBlueF.Apply("config.runtime-php")),
+			})
 		}
 	}
 
@@ -57,84 +86,95 @@ func Run(ctx context.Context, cwd string, wpmCli command.Cli, opts RunOptions) e
 		lock = wpmlock.New()
 	}
 
+	// Set lockfile indentation based on wpm.json formatting
+	lock.SetIndentation(wpmCfg.GetIndentation())
+
 	client, err := wpmCli.RegistryClient()
 	if err != nil {
 		return errors.Wrap(err, "failed to create registry client")
 	}
 
-	// absBinDir := filepath.Join(cwd, wpmCfg.Config.BinDir)
-	absContentDir := filepath.Join(cwd, wpmCfg.Config.ContentDir)
-
-	resolver := resolution.NewResolver(wpmCfg, lock, client, runtimeWP, runtimePHP)
-
-	resolved, err := resolver.Resolve(ctx)
+	resolver := resolution.New(wpmCfg, lock, client, runtimeWP, runtimePHP)
+	resolved, err := resolver.Resolve(ctx, wpmCli.Progress(), wpmCli.Err())
 	if err != nil {
 		return err
 	}
 
-	plan := installer.CalculatePlan(lock, resolved, absContentDir)
+	// Add empty line after resolution output for better readability
+	_, _ = wpmCli.Out().WriteString("\n")
+
+	// absBinDir := filepath.Join(cwd, wpmCfg.Config.BinDir)
+	absContentDir := filepath.Join(cwd, wpmCfg.Config.ContentDir)
+
+	plan := installer.CalculatePlan(lock, resolved, absContentDir, wpmCfg, opts.NoDev)
 	if len(plan) == 0 {
-		wpmCli.Out().With(aec.GreenF).Println("Already up to date.")
-	} else {
-		// -- Dry Run --
-		if opts.DryRun {
-			for _, action := range plan {
-				actionStr := "install"
-				switch action.Type {
-				case installer.ActionUpdate:
-					actionStr = "update"
-				case installer.ActionRemove:
-					actionStr = "remove"
-				}
-
-				wpmCli.Out().With(aec.GreenF).Printf("%s: %s\n", actionStr, action.Name)
-			}
-			return nil
-		}
-
-		// -- Actual Install --
-		inst := installer.New(absContentDir, 16, client)
-		wpmCli.Err().With(aec.GreenF).Printf("Installing %d package(s)...\n", len(plan))
-
-		progressFunc := func(action installer.Action) {
-			actionStr := "installed"
-			switch action.Type {
-			case installer.ActionRemove:
-				actionStr = "removed"
-			case installer.ActionUpdate:
-				actionStr = "updated"
-			}
-			fmt.Fprintf(wpmCli.Out(), "  %s %s\n", actionStr, action.Name)
-		}
-
-		if err := inst.InstallAll(ctx, plan, progressFunc); err != nil {
-			return errors.Wrap(err, "installation failed")
-		}
-	}
-
-	// -- Save Changes --
-	if !opts.DryRun {
 		if opts.SaveConfig {
-			if err := wpmjson.WriteWpmJson(wpmCfg, cwd); err != nil {
+			if err := wpmCfg.Write(cwd); err != nil {
 				return errors.Wrap(err, "failed to save wpm.json")
 			}
 		}
 
-		newLock := wpmlock.New()
-		for name, node := range resolved {
-			newLock.Packages[name] = wpmlock.LockPackage{
-				Version:      node.Version,
-				Resolved:     node.Resolved,
-				Digest:       node.Digest,
-				Type:         node.Type,
-				Bin:          node.Bin,
-				Dependencies: node.Dependencies,
-			}
+		_, _ = wpmCli.Out().WriteString("Already up-to-date!\n")
+		return nil
+	}
+
+	// -- Dry Run --
+	if opts.DryRun {
+		for _, action := range plan {
+			installerProgress(wpmCli.Output())(action)
 		}
-		if err := newLock.Write(cwd); err != nil {
-			return errors.Wrap(err, "failed to save lockfile")
+		totalPackages := len(plan)
+
+		wpmCli.Output().Prettyln(output.Text{
+			Plain: fmt.Sprintf("\n%d %s can be installed", totalPackages, command.Pluralize("package", "s", totalPackages)),
+			Fancy: fmt.Sprintf("\n%s %s can be installed", aec.GreenF.Apply(strconv.Itoa(totalPackages)), command.Pluralize("package", "s", totalPackages)),
+		})
+
+		return nil
+	}
+
+	// -- Actual Install --
+	inst := installer.New(absContentDir, config.TarballsCacheDir(), opts.NetworkConcurrency, client)
+	if err := inst.InstallAll(ctx, plan, installerProgress(wpmCli.Output())); err != nil {
+		return errors.Wrap(err, "installation failed")
+	}
+
+	// @todo: binary linking
+
+	// @todo: dependencies lifecycle scripts
+
+	// -- Update Lockfile --
+	lock.Packages = make(map[string]wpmlock.LockPackage, len(resolved))
+	for _, name := range slices.Sorted(maps.Keys(resolved)) {
+		node := resolved[name]
+		lock.Packages[name] = wpmlock.LockPackage{
+			Version:      node.Version,
+			Resolved:     node.Resolved,
+			Digest:       node.Digest,
+			Type:         node.Type,
+			Bin:          node.Bin,
+			Dependencies: node.Dependencies,
 		}
 	}
+
+	if err := lock.Write(cwd); err != nil {
+		return errors.Wrap(err, "failed to save lockfile")
+	}
+
+	// @todo: run root lifecycle scripts
+
+	// -- Save wpm.json --
+	if opts.SaveConfig {
+		if err := wpmCfg.Write(cwd); err != nil {
+			return errors.Wrap(err, "failed to save wpm.json")
+		}
+	}
+
+	// -- Print Summary --
+	wpmCli.Output().Prettyln(output.Text{
+		Plain: fmt.Sprintf("\n%d %s installed", len(plan), command.Pluralize("package", "s", len(plan))),
+		Fancy: fmt.Sprintf("\n%s %s installed", aec.GreenF.Apply(strconv.Itoa(len(plan))), command.Pluralize("package", "s", len(plan))),
+	})
 
 	return nil
 }
