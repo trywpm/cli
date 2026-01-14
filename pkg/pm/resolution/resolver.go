@@ -176,6 +176,21 @@ func (r *Resolver) Resolve(ctx context.Context, progress ProgressReporter, w io.
 	return resolved, nil
 }
 
+type ResolutionError struct {
+	Header string
+	Detail []string
+	Action string
+}
+
+func (e *ResolutionError) Error() string {
+	msg := e.Header + "\n"
+	for _, d := range e.Detail {
+		msg += "  " + d + "\n"
+	}
+	msg += "Action: " + e.Action
+	return msg
+}
+
 func (r *Resolver) resolveConflict(req dependencyRequest, existing Node) error {
 	// Check if root wpm.json has a direct dependency on this package
 	rootVersion := ""
@@ -211,14 +226,14 @@ func (r *Resolver) resolveConflict(req dependencyRequest, existing Node) error {
 		}
 
 		if reqV.GreaterThan(rootV) {
-			//nolint:staticcheck
-			return fmt.Errorf(
-				"version downgrade detected for %s:\n"+
-					"  currently resolved: %s\n"+
-					"  %s requires: %s\n"+
-					"Action: Upgrade %s in your wpm.json to %s or higher.",
-				req.name, rootVersion, req.requestor, req.version, req.name, req.version,
-			)
+			return &ResolutionError{
+				Header: fmt.Sprintf("Version downgrade detected for package %s:", req.name),
+				Detail: []string{
+					fmt.Sprintf("currently resolved: %s", rootVersion),
+					fmt.Sprintf("%s requires: %s", req.requestor, req.version),
+				},
+				Action: fmt.Sprintf("Upgrade %s in your wpm.json to %s or higher.", req.name, req.version),
+			}
 		}
 
 		// If we reach here, the root version satisfies the request, so we can ignore the conflict.
@@ -226,19 +241,14 @@ func (r *Resolver) resolveConflict(req dependencyRequest, existing Node) error {
 	}
 
 	// Unresolvable conflict, user must intervene.
-	return fmt.Errorf( //nolint:staticcheck
-		"Dependency version conflict for package %s:\n"+
-			"  currently resolved: %s\n"+
-			"  %s requires: %s\n"+
-			`Action: Add "%s": "%s" (or %s) to the root wpm.json to force a resolution.`,
-		req.name,
-		existing.Version,
-		req.requestor,
-		req.version,
-		req.name,
-		req.version,
-		existing.Version,
-	)
+	return &ResolutionError{
+		Header: fmt.Sprintf("Dependency version conflict for package %s:", req.name),
+		Detail: []string{
+			fmt.Sprintf("currently resolved: %s", existing.Version),
+			fmt.Sprintf("%s requires: %s", req.requestor, req.version),
+		},
+		Action: fmt.Sprintf(`Add "%s": "%s" (or %s) to the root wpm.json to force a resolution.`, req.name, req.version, existing.Version),
+	}
 }
 
 func (r *Resolver) checkRuntimeCompatibility(manifest *manifest.Package) error {
