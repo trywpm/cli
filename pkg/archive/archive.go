@@ -8,6 +8,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,11 +16,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/docker/go-units"
 	"github.com/klauspost/compress/zstd"
 	"github.com/moby/patternmatcher"
 	"github.com/moby/sys/sequential"
-	"github.com/morikuni/aec"
 )
 
 const (
@@ -33,7 +32,6 @@ var (
 )
 
 type TarOptions struct {
-	ShowInfo        bool
 	IncludeFiles    []string
 	ExcludePatterns []string
 }
@@ -68,11 +66,13 @@ func IsArchivePath(path string) bool {
 		return false
 	}
 	defer file.Close()
+
 	rdr, err := DecompressStream(file)
 	if err != nil {
 		return false
 	}
 	defer rdr.Close()
+
 	r := tar.NewReader(rdr)
 	_, err = r.Next()
 	return err == nil
@@ -95,8 +95,8 @@ func (r *readCloserWrapper) Close() error {
 }
 
 var (
-	bufioReader32KPool = &sync.Pool{
-		New: func() interface{} { return bufio.NewReaderSize(nil, 32*1024) },
+	bufioReader1MPool = &sync.Pool{
+		New: func() interface{} { return bufio.NewReaderSize(nil, 1024*1024) },
 	}
 )
 
@@ -105,7 +105,7 @@ type bufferedReader struct {
 }
 
 func newBufferedReader(r io.Reader) *bufferedReader {
-	buf := bufioReader32KPool.Get().(*bufio.Reader)
+	buf := bufioReader1MPool.Get().(*bufio.Reader)
 	buf.Reset(r)
 	return &bufferedReader{buf}
 }
@@ -117,7 +117,7 @@ func (r *bufferedReader) Read(p []byte) (n int, err error) {
 	n, err = r.buf.Read(p)
 	if err == io.EOF {
 		r.buf.Reset(nil)
-		bufioReader32KPool.Put(r.buf)
+		bufioReader1MPool.Put(r.buf)
 		r.buf = nil
 	}
 	return
@@ -378,8 +378,8 @@ func createTarFile(path, extractDir string, hdr *tar.Header, reader io.Reader) e
 
 // Tar creates an archive from the directory at `path`, only including files whose relative
 // paths are included in `options.IncludeFiles` (if non-nil) or not in `options.ExcludePatterns`.
-func Tar(srcPath string, options *TarOptions, dst io.Writer) (*Tarballer, error) {
-	tb, err := NewTarballer(srcPath, options, dst)
+func Tar(srcPath string, options *TarOptions) (*Tarballer, error) {
+	tb, err := NewTarballer(srcPath, options)
 	if err != nil {
 		return nil, err
 	}
@@ -390,20 +390,20 @@ func Tar(srcPath string, options *TarOptions, dst io.Writer) (*Tarballer, error)
 // Tarballer is a lower-level interface to TarWithOptions which gives the caller
 // control over which goroutine the archiving operation executes on.
 type Tarballer struct {
-	srcPath        string
-	options        *TarOptions
-	dst            io.Writer
-	pm             *patternmatcher.PatternMatcher
-	pipeReader     *io.PipeReader
-	pipeWriter     *io.PipeWriter
-	compressWriter io.WriteCloser
-	fileCount      atomic.Int64
-	unpackedSize   atomic.Int64
+	srcPath          string
+	options          *TarOptions
+	pm               *patternmatcher.PatternMatcher
+	pipeReader       *io.PipeReader
+	pipeWriter       *io.PipeWriter
+	compressWriter   io.WriteCloser
+	fileCount        atomic.Int64
+	unpackedSize     atomic.Int64
+	FileInfoReporter func(fs.FileInfo)
 }
 
 // NewTarballer constructs a new tarballer. The arguments are the same as for
 // TarWithOptions.
-func NewTarballer(srcPath string, options *TarOptions, dst io.Writer) (*Tarballer, error) {
+func NewTarballer(srcPath string, options *TarOptions) (*Tarballer, error) {
 	pm, err := patternmatcher.New(options.ExcludePatterns)
 	if err != nil {
 		return nil, err
@@ -423,7 +423,6 @@ func NewTarballer(srcPath string, options *TarOptions, dst io.Writer) (*Tarballe
 		// on platforms other than Windows.
 		srcPath:        addLongPathPrefix(srcPath),
 		options:        options,
-		dst:            dst,
 		pm:             pm,
 		pipeReader:     pipeReader,
 		pipeWriter:     pipeWriter,
@@ -450,25 +449,34 @@ func (t *Tarballer) UnpackedSize() int64 {
 // can be read from t.Reader(). Do should only be called once on each Tarballer
 // instance.
 func (t *Tarballer) Do() {
-	ta := newTarAppender(
-		t.compressWriter,
-	)
+	ta := newTarAppender(t.compressWriter)
+
+	var doErr error
 
 	defer func() {
-		ta.TarWriter.Close()
-		t.compressWriter.Close()
-		t.pipeWriter.Close()
+		if err := ta.TarWriter.Close(); err != nil && doErr == nil {
+			doErr = fmt.Errorf("failed to close tar writer: %w", err)
+		}
+
+		if err := t.compressWriter.Close(); err != nil && doErr == nil {
+			doErr = fmt.Errorf("failed to close compression writer: %w", err)
+		}
+
+		if doErr != nil {
+			t.pipeWriter.CloseWithError(doErr)
+		} else {
+			t.pipeWriter.Close()
+		}
 	}()
 
 	stat, err := os.Lstat(t.srcPath)
 	if err != nil {
-		fmt.Fprintf(t.dst, "unable to read source path %s: %s", t.srcPath, err)
+		doErr = fmt.Errorf("unable to read source path %s: %s", t.srcPath, err)
 		return
 	}
 
 	if !stat.IsDir() {
-		// Must be a valid directory to tar.
-		fmt.Fprintf(t.dst, "source path %s is not a directory", t.srcPath)
+		doErr = fmt.Errorf("source path %s is not a directory", t.srcPath)
 		return
 	}
 
@@ -485,10 +493,9 @@ func (t *Tarballer) Do() {
 		)
 
 		walkRoot := filepath.Join(t.srcPath, include)
-		err = filepath.WalkDir(walkRoot, func(filePath string, f os.DirEntry, err error) error {
+		doErr = filepath.WalkDir(walkRoot, func(filePath string, f os.DirEntry, err error) error {
 			if err != nil {
-				fmt.Fprintf(t.dst, "unable to stat file %s: %s", t.srcPath, err)
-				return nil
+				return fmt.Errorf("unable to stat file %s: %s", t.srcPath, err)
 			}
 
 			relFilePath, err := filepath.Rel(t.srcPath, filePath)
@@ -520,7 +527,7 @@ func (t *Tarballer) Do() {
 					skip, matchInfo, err = t.pm.MatchesUsingParentResults(relFilePath, patternmatcher.MatchInfo{})
 				}
 				if err != nil {
-					fmt.Fprintf(t.dst, "error matching %s: %v", relFilePath, err)
+					doErr = fmt.Errorf("error matching %s: %v", relFilePath, err)
 					return err
 				}
 
@@ -568,37 +575,31 @@ func (t *Tarballer) Do() {
 			seen[relFilePath] = true
 
 			if err := ta.addTarFile(filePath, relFilePath); err != nil {
-				message := fmt.Sprintf("unable to add file %s to tar: %s", filePath, err)
 				// if pipe is broken, stop writing tar stream to it
 				if err == io.ErrClosedPipe {
-					fmt.Fprint(t.dst, message)
 					return err
 				}
 
-				fmt.Fprintln(t.dst, message)
+				return fmt.Errorf("unable to add file %s to tar: %s", filePath, err)
 			}
 
 			fileInfo, err := f.Info()
 			if err != nil {
-				fmt.Fprintf(t.dst, "unable to get file info for %s: %s", filePath, err)
-				return nil
+				return fmt.Errorf("unable to get file info for %s: %s", filePath, err)
 			}
 
 			if !f.IsDir() {
 				t.fileCount.Add(1)
 				t.unpackedSize.Add(fileInfo.Size())
 
-				if t.options.ShowInfo {
-					sizeString := units.HumanSize(float64(fileInfo.Size()))
-					sizeString = fmt.Sprintf("%-7s", sizeString) // pad to 7 spaces since size string is capped to 4 numbers
-					fmt.Fprintf(t.dst, "%s %s %s\n", aec.CyanF.Apply("packed"), sizeString, relFilePath)
+				if t.FileInfoReporter != nil {
+					t.FileInfoReporter(fileInfo)
 				}
 			}
 
 			return nil
 		})
-		if err != nil {
-			fmt.Fprintf(t.dst, "unable to traverse path %s: %s", t.srcPath, err)
+		if doErr != nil {
 			return
 		}
 	}
