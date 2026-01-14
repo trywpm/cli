@@ -28,6 +28,8 @@ type installOptions struct {
 	networkConcurrency int
 }
 
+var runHelp = errors.New("RUN_HELP")
+
 func NewInstallCommand(wpmCli command.Cli) *cobra.Command {
 	var opts installOptions
 
@@ -43,7 +45,7 @@ func NewInstallCommand(wpmCli command.Cli) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			err := runInstall(cmd.Context(), wpmCli, opts, args)
 			if err != nil {
-				if err.Error() == "RUN_HELP" {
+				if errors.Is(err, runHelp) {
 					return cmd.Help()
 				}
 
@@ -86,7 +88,7 @@ func runInstall(ctx context.Context, wpmCli command.Cli, opts installOptions, pa
 
 	if cfg == nil {
 		if len(packages) == 0 {
-			return errors.New("RUN_HELP")
+			return runHelp
 		}
 
 		cfg = wpmjson.New()
