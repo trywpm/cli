@@ -32,14 +32,14 @@ type Config struct {
 	Scripts         *types.Scripts       `json:"scripts,omitempty"`
 
 	// Internal fields.
-	Indentation   string              `json:"-"`
-	packageConfig types.PackageConfig `json:"-"`
+	Indentation          string              `json:"-"`
+	defaultPackageConfig types.PackageConfig `json:"-"`
 }
 
 // New returns a new instance of wpm.json config
 func New() *Config {
 	return &Config{
-		packageConfig: types.PackageConfig{
+		defaultPackageConfig: types.PackageConfig{
 			BinDir:        "wp-bin",
 			ContentDir:    "wp-content",
 			RuntimeStrict: true, // Runtime strict mode enabled by default
@@ -52,7 +52,7 @@ func (c *Config) BinDir() string {
 	if c.Config != nil && c.Config.BinDir != "" {
 		return c.Config.BinDir
 	}
-	return c.packageConfig.BinDir
+	return c.defaultPackageConfig.BinDir
 }
 
 // ContentDir returns the content directory from the config or the default if not set
@@ -60,7 +60,7 @@ func (c *Config) ContentDir() string {
 	if c.Config != nil && c.Config.ContentDir != "" {
 		return c.Config.ContentDir
 	}
-	return c.packageConfig.ContentDir
+	return c.defaultPackageConfig.ContentDir
 }
 
 // RuntimeStrict returns the runtime strict mode from the config or the default if not set
@@ -68,7 +68,7 @@ func (c *Config) RuntimeStrict() bool {
 	if c.Config != nil {
 		return c.Config.RuntimeStrict
 	}
-	return c.packageConfig.RuntimeStrict
+	return c.defaultPackageConfig.RuntimeStrict
 }
 
 // Validate checks the configuration struct for logical and schema errors.
@@ -138,6 +138,11 @@ func Read(cwd string) (*Config, error) {
 	}
 
 	config.Indentation = pm.DetectIndentation(data)
+	config.defaultPackageConfig = types.PackageConfig{
+		BinDir:        "wp-bin",
+		ContentDir:    "wp-content",
+		RuntimeStrict: true, // Runtime strict mode enabled by default
+	}
 
 	return &config, nil
 }
