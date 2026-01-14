@@ -15,9 +15,9 @@ const ConfigFile = "wpm.json"
 
 // Config struct to define the wpm.json schema
 type Config struct {
-	Name            string               `json:"name"`
-	Version         string               `json:"version"`
-	Type            types.PackageType    `json:"type"`
+	Name            string               `json:"name,omitempty"`
+	Version         string               `json:"version,omitempty"`
+	Type            types.PackageType    `json:"type,omitempty"`
 	Description     string               `json:"description,omitempty"`
 	Private         bool                 `json:"private,omitempty"`
 	Bin             *types.Bin           `json:"bin,omitempty"`
@@ -40,16 +40,11 @@ var defaultRuntimeStrict = true
 // New returns a new instance of wpm.json config
 func New() *Config {
 	return &Config{
-		Bin:             &types.Bin{},
-		Requires:        &types.Requires{},
-		Dependencies:    &types.Dependencies{},
-		DevDependencies: &types.Dependencies{},
 		Config: &types.PackageConfig{
 			RuntimeStrict: &defaultRuntimeStrict,
 			BinDir:        "wp-bin",
 			ContentDir:    "wp-content",
 		},
-		Scripts: &types.Scripts{},
 	}
 }
 
