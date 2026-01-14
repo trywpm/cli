@@ -34,7 +34,10 @@ var (
 	jsonTypeRE      = regexp.MustCompile(`[/+]json($|;)`)
 	zstdDecoderPool = sync.Pool{
 		New: func() any {
-			d, _ := zstd.NewReader(nil)
+			d, err := zstd.NewReader(nil)
+			if err != nil {
+				panic(fmt.Sprintf("failed to create zstd reader: %v", err))
+			}
 			return d
 		},
 	}
@@ -54,7 +57,7 @@ func NewHTTPClient(opts ClientOptions) (*http.Client, error) {
 	}
 
 	transport := &http.Transport{
-		MaxIdleConns:        0,
+		MaxIdleConns:        100,
 		MaxIdleConnsPerHost: 100,
 		IdleConnTimeout:     90 * time.Second,
 		ForceAttemptHTTP2:   true,
