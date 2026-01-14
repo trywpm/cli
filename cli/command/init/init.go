@@ -99,12 +99,16 @@ func runNewInit(ctx context.Context, wpmCli command.Cli, opts *initOptions) erro
 	wpmCfg := wpmjson.New()
 	defaultName := filepath.Base(cwd)
 
+	if !wpmCli.Out().IsTerminal() {
+		opts.yes = true
+	}
+
 	if opts.yes {
 		if err := setDefaults(opts, defaultName); err != nil {
 			return err
 		}
 
-		if err := validateOptions(opts); err != nil {
+		if err := validateOptions(opts, true); err != nil {
 			return err
 		}
 
@@ -270,24 +274,23 @@ func setDefaults(opts *initOptions, defaultName string) error {
 	if opts.version == "" {
 		opts.version = defaultVersion
 	}
-	if opts.packageType == "" {
-		opts.packageType = defaultType
-	}
 	if opts.license == "" {
 		opts.license = defaultLicense
 	}
 	return nil
 }
 
-func validateOptions(opts *initOptions) error {
+func validateOptions(opts *initOptions, omitType bool) error {
 	if err := validator.IsValidPackageName(opts.name); err != nil {
 		return fmt.Errorf("name %w", err)
 	}
 	if err := validator.IsValidVersion(opts.version); err != nil {
 		return fmt.Errorf("version %w", err)
 	}
-	if err := validator.IsValidPackageType(types.PackageType(opts.packageType)); err != nil {
-		return fmt.Errorf("type %w", err)
+	if !omitType {
+		if err := validator.IsValidPackageType(types.PackageType(opts.packageType)); err != nil {
+			return fmt.Errorf("type %w", err)
+		}
 	}
 	if err := validator.IsValidLicense(opts.license); err != nil {
 		return fmt.Errorf("license %w", err)
@@ -300,7 +303,11 @@ func setConfigFromOptions(config *wpmjson.Config, opts *initOptions) {
 	config.Name = opts.name
 	config.License = opts.license
 	config.Version = opts.version
-	config.Type = types.PackageType(opts.packageType)
+
+	pkgType := types.PackageType(opts.packageType)
+	if pkgType.Valid() {
+		config.Type = pkgType
+	}
 }
 
 func promptForConfig(ctx context.Context, wpmCli command.Cli, config *wpmjson.Config, defaultName string) error {
