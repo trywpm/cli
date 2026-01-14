@@ -81,6 +81,10 @@ func runInstall(ctx context.Context, wpmCli command.Cli, opts installOptions, pa
 	}
 
 	if cfg == nil {
+		if len(packages) == 0 {
+			return errors.New("no wpm.json found in the current directory")
+		}
+
 		cfg = wpmjson.New()
 	}
 
@@ -100,6 +104,13 @@ func runInstall(ctx context.Context, wpmCli command.Cli, opts installOptions, pa
 		}
 
 		configModified = true
+	}
+
+	// Bail if there is no packages to install
+	if (cfg.Dependencies == nil || len(*cfg.Dependencies) == 0) &&
+		(cfg.DevDependencies == nil || len(*cfg.DevDependencies) == 0) {
+		_, _ = wpmCli.Out().WriteString("\nNo packages to install.\n")
+		return nil
 	}
 
 	return Run(ctx, cwd, wpmCli, RunOptions{
