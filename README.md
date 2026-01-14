@@ -67,7 +67,13 @@ wpm [OPTIONS] COMMAND
 * `init`: Initialize a new WordPress package
   * Use `-y` or `--yes` to accept all defaults
 
-* `install`: (WIP) Install dependencies from `wpm.json`
+* `install`: Install dependencies from `wpm.json`
+  * `--no-dev`: Skip installing dev dependencies
+  * `--ignore-scripts`: Do not run lifecycle scripts
+  * `--dry-run`: Simulate installation without making changes
+  * `--save-dev`: Save installed packages as dev dependencies
+  * `--save-prod`: Save installed packages as production dependencies (default)
+  * `--network-concurrency`: Set number of concurrent network requests (default 16)
 
 * `publish`: Publish a package to the registry
   * `--dry-run`: Validate without publishing
