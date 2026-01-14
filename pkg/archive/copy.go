@@ -22,5 +22,5 @@ func copyWithBuffer(dst io.Writer, src io.Reader) (written int64, err error) {
 }
 
 var copyPool = sync.Pool{
-	New: func() any { s := make([]byte, 32*1024); return &s },
+	New: func() any { s := make([]byte, 1024*1024); return &s },
 }

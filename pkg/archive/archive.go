@@ -317,6 +317,11 @@ func createTarFile(path, extractDir string, hdr *tar.Header, reader io.Reader) e
 		if err != nil {
 			return err
 		}
+
+		if hdr.Size > 0 {
+			_ = file.Truncate(hdr.Size)
+		}
+
 		if _, err := copyWithBuffer(file, reader); err != nil {
 			file.Close()
 			return err
@@ -378,8 +383,8 @@ func createTarFile(path, extractDir string, hdr *tar.Header, reader io.Reader) e
 
 // Tar creates an archive from the directory at `path`, only including files whose relative
 // paths are included in `options.IncludeFiles` (if non-nil) or not in `options.ExcludePatterns`.
-func Tar(srcPath string, options *TarOptions) (*Tarballer, error) {
-	tb, err := NewTarballer(srcPath, options)
+func Tar(srcPath string, options *TarOptions, reporterFn func(fs.FileInfo)) (*Tarballer, error) {
+	tb, err := NewTarballer(srcPath, options, reporterFn)
 	if err != nil {
 		return nil, err
 	}
@@ -403,7 +408,7 @@ type Tarballer struct {
 
 // NewTarballer constructs a new tarballer. The arguments are the same as for
 // TarWithOptions.
-func NewTarballer(srcPath string, options *TarOptions) (*Tarballer, error) {
+func NewTarballer(srcPath string, options *TarOptions, reporterFn func(fs.FileInfo)) (*Tarballer, error) {
 	pm, err := patternmatcher.New(options.ExcludePatterns)
 	if err != nil {
 		return nil, err
@@ -421,12 +426,13 @@ func NewTarballer(srcPath string, options *TarOptions) (*Tarballer, error) {
 	return &Tarballer{
 		// Fix the source path to work with long path names. This is a no-op
 		// on platforms other than Windows.
-		srcPath:        addLongPathPrefix(srcPath),
-		options:        options,
-		pm:             pm,
-		pipeReader:     pipeReader,
-		pipeWriter:     pipeWriter,
-		compressWriter: zstdWriter,
+		srcPath:          addLongPathPrefix(srcPath),
+		options:          options,
+		pm:               pm,
+		pipeReader:       pipeReader,
+		pipeWriter:       pipeWriter,
+		compressWriter:   zstdWriter,
+		FileInfoReporter: reporterFn,
 	}, nil
 }
 
