@@ -53,10 +53,7 @@ func Run(ctx context.Context, cwd string, wpmCli command.Cli, opts RunOptions) e
 
 	wpmCfg := opts.Config
 	if wpmCfg == nil {
-		wpmCfg, err = wpmjson.Read(cwd)
-		if err != nil {
-			return err
-		}
+		return errors.New("wpm.json config is required")
 	}
 
 	var runtimeWP, runtimePHP string
