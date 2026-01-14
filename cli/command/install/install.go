@@ -28,16 +28,27 @@ type installOptions struct {
 	networkConcurrency int
 }
 
+var runHelp = errors.New("RUN_HELP")
+
 func NewInstallCommand(wpmCli command.Cli) *cobra.Command {
 	var opts installOptions
 
 	cmd := &cobra.Command{
 		Use:   "install [OPTIONS]",
-		Short: "Install project dependencies",
+		Short: "Install project dependencies and add new packages",
 		Args:  cobra.ArbitraryArgs,
+		Example: `  wpm install
+  wpm install --no-dev
+  wpm install akismet hello-dolly@1.7.2
+  wpm install --save-dev query-monitor@latest`,
+		Aliases: []string{"i", "add"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			err := runInstall(cmd.Context(), wpmCli, opts, args)
 			if err != nil {
+				if errors.Is(err, runHelp) {
+					return cmd.Help()
+				}
+
 				suffix := "error:"
 				if wpmCli.Out().IsColorEnabled() {
 					suffix = aec.RedF.Apply("error:")
@@ -54,8 +65,8 @@ func NewInstallCommand(wpmCli command.Cli) *cobra.Command {
 	flags.BoolVar(&opts.ignoreScripts, "ignore-scripts", false, "Do not run lifecycle scripts")
 	flags.BoolVar(&opts.dryRun, "dry-run", false, "Do not write anything to disk")
 	flags.BoolVarP(&opts.saveDev, "save-dev", "D", false, "Install package as a dev dependency")
-	flags.BoolVarP(&opts.saveProd, "save-prod", "P", false, "Install package as a production dependency (default behavior)")
-	flags.IntVar(&opts.networkConcurrency, "network-concurrency", 16, "Number of concurrent network requests when installing packages (default 16)")
+	flags.BoolVarP(&opts.saveProd, "save-prod", "P", false, "Install package as a production dependency (default)")
+	flags.IntVar(&opts.networkConcurrency, "network-concurrency", 16, "Number of concurrent network requests when installing packages")
 
 	cmd.MarkFlagsMutuallyExclusive("no-dev", "save-dev")
 	cmd.MarkFlagsMutuallyExclusive("no-dev", "save-prod")
@@ -65,11 +76,6 @@ func NewInstallCommand(wpmCli command.Cli) *cobra.Command {
 }
 
 func runInstall(ctx context.Context, wpmCli command.Cli, opts installOptions, packages []string) error {
-	wpmCli.Output().Prettyln(output.Text{
-		Plain: "wpm install v" + version.Version,
-		Fancy: aec.Bold.Apply("wpm install") + " " + aec.LightBlackF.Apply("v"+version.Version),
-	})
-
 	cwd, err := os.Getwd()
 	if err != nil {
 		return errors.Wrap(err, "failed to get current working directory")
@@ -81,8 +87,17 @@ func runInstall(ctx context.Context, wpmCli command.Cli, opts installOptions, pa
 	}
 
 	if cfg == nil {
+		if len(packages) == 0 {
+			return runHelp
+		}
+
 		cfg = wpmjson.New()
 	}
+
+	wpmCli.Output().Prettyln(output.Text{
+		Plain: "wpm install v" + version.Version,
+		Fancy: aec.Bold.Apply("wpm install") + " " + aec.LightBlackF.Apply("v"+version.Version),
+	})
 
 	configModified := false
 
@@ -100,6 +115,13 @@ func runInstall(ctx context.Context, wpmCli command.Cli, opts installOptions, pa
 		}
 
 		configModified = true
+	}
+
+	// Bail if there is no packages to install
+	if (cfg.Dependencies == nil || len(*cfg.Dependencies) == 0) &&
+		(cfg.DevDependencies == nil || len(*cfg.DevDependencies) == 0) {
+		_, _ = wpmCli.Out().WriteString("\nNo packages to install.\n")
+		return nil
 	}
 
 	return Run(ctx, cwd, wpmCli, RunOptions{

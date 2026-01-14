@@ -67,7 +67,13 @@ wpm [OPTIONS] COMMAND
 * `init`: Initialize a new WordPress package
   * Use `-y` or `--yes` to accept all defaults
 
-* `install`: (WIP) Install dependencies from `wpm.json`
+* `install`: Install dependencies from `wpm.json`
+  * `--no-dev`: Skip installing dev dependencies
+  * `--ignore-scripts`: Do not run lifecycle scripts
+  * `--dry-run`: Simulate installation without making changes
+  * `--save-dev`: Save installed packages as dev dependencies
+  * `--save-prod`: Save installed packages as production dependencies (default)
+  * `--network-concurrency`: Set number of concurrent network requests (default 16)
 
 * `publish`: Publish a package to the registry
   * `--dry-run`: Validate without publishing
@@ -98,8 +104,23 @@ The `wpm.json` file defines your package and its dependencies:
   "type": "plugin",
   "version": "1.0.0",
   "license": "GPL-2.0-or-later",
+  "requires": {
+    "wp": ">=6.0",
+    "php": ">=7.4"
+  },
   "dependencies": {
-    "wp": ">=6.0"
+    "akismet": "*", // always fetch latest version
+    "hello-dolly": "1.7.2"
+  },
+  "devDependencies": {
+    "some-dev-plugin": "3.20.2"
+  },
+  "config": {
+    "bin-dir": "wp-bin",
+    "content-dir": "wp-content",
+    "runtime-wp": "6.9",
+    "runtime-php": "8.2",
+    "runtime-strict": true
   }
 }
 ```
@@ -119,6 +140,15 @@ The `wpm.json` file defines your package and its dependencies:
 * `tags`: Keywords (maximum 5)
 * `dependencies`: Production dependencies
 * `devDependencies`: Development-only dependencies
+* `requires`: Minimum requirements which the package supports
+* `config`: Custom configuration options
+
+## Configuration Options
+* `bin-dir`: Directory for executable files (default: `wp-bin`)
+* `content-dir`: WordPress content directory (default: `wp-content`)
+* `runtime-wp`: WordPress version this project is geared to run on
+* `runtime-php`: PHP version this project is geared to run on
+* `runtime-strict`: If `true`, enforce strict version matching for WP and PHP (default: `true`)
 
 ## Excluding Files from Publishing
 
