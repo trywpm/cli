@@ -36,14 +36,16 @@ type Config struct {
 	defaultPackageConfig types.PackageConfig `json:"-"`
 }
 
+var defaultPackageConfig = types.PackageConfig{
+	BinDir:        "wp-bin",
+	ContentDir:    "wp-content",
+	RuntimeStrict: true, // Runtime strict mode enabled by default
+}
+
 // New returns a new instance of wpm.json config
 func New() *Config {
 	return &Config{
-		defaultPackageConfig: types.PackageConfig{
-			BinDir:        "wp-bin",
-			ContentDir:    "wp-content",
-			RuntimeStrict: true, // Runtime strict mode enabled by default
-		},
+		defaultPackageConfig: defaultPackageConfig,
 	}
 }
 
@@ -138,11 +140,7 @@ func Read(cwd string) (*Config, error) {
 	}
 
 	config.Indentation = pm.DetectIndentation(data)
-	config.defaultPackageConfig = types.PackageConfig{
-		BinDir:        "wp-bin",
-		ContentDir:    "wp-content",
-		RuntimeStrict: true, // Runtime strict mode enabled by default
-	}
+	config.defaultPackageConfig = defaultPackageConfig
 
 	return &config, nil
 }
