@@ -36,7 +36,16 @@ func NewInstallCommand(wpmCli command.Cli) *cobra.Command {
 		Short: "Install project dependencies",
 		Args:  cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runInstall(cmd.Context(), wpmCli, opts, args)
+			err := runInstall(cmd.Context(), wpmCli, opts, args)
+			if err != nil {
+				suffix := "error:"
+				if wpmCli.Out().IsColorEnabled() {
+					suffix = aec.RedF.Apply("error:")
+				}
+
+				err = fmt.Errorf("%s %w", suffix, err)
+			}
+			return err
 		},
 	}
 
