@@ -15,6 +15,7 @@ import (
 	"wpm/cli/command"
 	"wpm/cli/version"
 	"wpm/pkg/archive"
+	"wpm/pkg/output"
 	"wpm/pkg/pm/wpmignore"
 	"wpm/pkg/pm/wpmjson"
 	"wpm/pkg/pm/wpmjson/manifest"
@@ -55,16 +56,24 @@ func NewPublishCommand(wpmCli command.Cli) *cobra.Command {
 	return cmd
 }
 
-func pack(stdOut io.Writer, path string, opts publishOptions) (*archive.Tarballer, error) {
+func pack(path string, opts publishOptions, out *output.Output) (*archive.Tarballer, error) {
 	ignorePatterns, err := wpmignore.ReadWpmIgnore(path)
 	if err != nil {
 		return nil, err
 	}
 
 	tar, err := archive.Tar(path, &archive.TarOptions{
-		ShowInfo:        opts.verbose,
 		ExcludePatterns: ignorePatterns,
-	}, stdOut)
+	}, func(fileInfo os.FileInfo) {
+		if opts.verbose {
+			sizeString := units.HumanSize(float64(fileInfo.Size()))
+			sizeString = fmt.Sprintf("%-7s", sizeString) // pad to 7 spaces since size string is capped to 4 numbers
+			out.PrettyErrorln(output.Text{
+				Plain: fmt.Sprintf("%s %s %s", "packed", sizeString, fileInfo.Name()),
+				Fancy: fmt.Sprintf("%s %s %s", aec.CyanF.Apply("packed"), sizeString, fileInfo.Name()),
+			})
+		}
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -147,7 +156,7 @@ func runPublish(ctx context.Context, wpmCli command.Cli, opts publishOptions) er
 	defer os.Remove(tempFile.Name())
 	defer tempFile.Close()
 
-	tarballer, err := pack(wpmCli.Err(), cwd, opts)
+	tarballer, err := pack(cwd, opts, wpmCli.Output())
 	if err != nil {
 		return errors.Wrap(err, "failed to pack the package into a tarball")
 	}
@@ -156,17 +165,21 @@ func runPublish(ctx context.Context, wpmCli command.Cli, opts publishOptions) er
 	counter := &tarballSizeCounter{}
 	multiWriter := io.MultiWriter(tempFile, hasher, counter)
 
-	if err = wpmCli.Progress().RunWithProgress(
-		"packing package tarball",
-		func() error {
-			if _, err := io.Copy(multiWriter, tarballer.Reader()); err != nil {
-				return errors.Wrap(err, "failed to process tarball")
-			}
-			return nil
-		},
-		wpmCli.Err(),
-	); err != nil {
-		return err
+	packTarball := func() error {
+		if _, err := io.Copy(multiWriter, tarballer.Reader()); err != nil {
+			return errors.Wrap(err, "failed to process tarball")
+		}
+		return nil
+	}
+
+	if opts.verbose {
+		if err = packTarball(); err != nil {
+			return err
+		}
+	} else {
+		if err = wpmCli.Progress().RunWithProgress("packing tarball", packTarball, wpmCli.Err()); err != nil {
+			return err
+		}
 	}
 
 	digest := base64.StdEncoding.EncodeToString(hasher.Sum(nil))
