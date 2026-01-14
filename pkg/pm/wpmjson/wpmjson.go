@@ -32,20 +32,43 @@ type Config struct {
 	Scripts         *types.Scripts       `json:"scripts,omitempty"`
 
 	// Internal fields.
-	Indentation string `json:"-"`
+	Indentation   string              `json:"-"`
+	packageConfig types.PackageConfig `json:"-"`
 }
-
-var defaultRuntimeStrict = true
 
 // New returns a new instance of wpm.json config
 func New() *Config {
 	return &Config{
-		Config: &types.PackageConfig{
-			RuntimeStrict: &defaultRuntimeStrict,
+		packageConfig: types.PackageConfig{
 			BinDir:        "wp-bin",
 			ContentDir:    "wp-content",
+			RuntimeStrict: true, // Runtime strict mode enabled by default
 		},
 	}
+}
+
+// BinDir returns the bin directory from the config or the default if not set
+func (c *Config) BinDir() string {
+	if c.Config != nil && c.Config.BinDir != "" {
+		return c.Config.BinDir
+	}
+	return c.packageConfig.BinDir
+}
+
+// ContentDir returns the content directory from the config or the default if not set
+func (c *Config) ContentDir() string {
+	if c.Config != nil && c.Config.ContentDir != "" {
+		return c.Config.ContentDir
+	}
+	return c.packageConfig.ContentDir
+}
+
+// RuntimeStrict returns the runtime strict mode from the config or the default if not set
+func (c *Config) RuntimeStrict() bool {
+	if c.Config != nil {
+		return c.Config.RuntimeStrict
+	}
+	return c.packageConfig.RuntimeStrict
 }
 
 // Validate checks the configuration struct for logical and schema errors.
