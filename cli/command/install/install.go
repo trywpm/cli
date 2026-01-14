@@ -80,6 +80,10 @@ func runInstall(ctx context.Context, wpmCli command.Cli, opts installOptions, pa
 		return err
 	}
 
+	if cfg == nil {
+		cfg = &wpmjson.Config{}
+	}
+
 	cfg.Config = setDefaultPackageConfig(cfg.Config)
 
 	configModified := false
@@ -87,6 +91,14 @@ func runInstall(ctx context.Context, wpmCli command.Cli, opts installOptions, pa
 	if len(packages) > 0 {
 		if err := addPackages(ctx, cfg, wpmCli, packages, opts); err != nil {
 			return err
+		}
+
+		// If dependencies or devDependencies still have zero entries, set them to nil
+		if cfg.Dependencies != nil && len(*cfg.Dependencies) == 0 {
+			cfg.Dependencies = nil
+		}
+		if cfg.DevDependencies != nil && len(*cfg.DevDependencies) == 0 {
+			cfg.DevDependencies = nil
 		}
 
 		configModified = true
