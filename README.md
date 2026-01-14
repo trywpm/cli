@@ -143,4 +143,4 @@ node_modules/
 
 ## License
 
-*This project's license is currently being determined. A suitable open-source license will be chosen soon.*
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
