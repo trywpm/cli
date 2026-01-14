@@ -257,7 +257,7 @@ func (r *Resolver) checkRuntimeCompatibility(manifest *manifest.Package) error {
 	}
 
 	// If runtime strict mode is disabled, skip checks.
-	if r.rootConfig.Config != nil && !*r.rootConfig.Config.RuntimeStrict {
+	if !r.rootConfig.RuntimeStrict() {
 		return nil
 	}
 
