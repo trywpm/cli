@@ -30,15 +30,17 @@ type Text struct {
 func (o *Output) Prettyln(t Text) {
 	if o.out.IsColorEnabled() {
 		_, _ = o.out.WriteString(t.Fancy + "\n")
+	} else {
+		_, _ = o.out.WriteString(t.Plain + "\n")
 	}
-	_, _ = o.out.WriteString(t.Plain + "\n")
 }
 
 func (o *Output) PrettyErrorln(t Text) {
 	if o.err.IsColorEnabled() {
 		_, _ = o.err.WriteString(t.Fancy + "\n")
+	} else {
+		_, _ = o.err.WriteString(t.Plain + "\n")
 	}
-	_, _ = o.err.WriteString(t.Plain + "\n")
 }
 
 func (o *Output) Write(s string) {
