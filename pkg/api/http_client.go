@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"wpm/pkg/asciisanitizer"
@@ -29,13 +30,20 @@ const (
 	jsonContentType = "application/json; charset=utf-8"
 )
 
-var jsonTypeRE = regexp.MustCompile(`[/+]json($|;)`)
+var (
+	jsonTypeRE      = regexp.MustCompile(`[/+]json($|;)`)
+	zstdDecoderPool = sync.Pool{
+		New: func() any {
+			d, _ := zstd.NewReader(nil)
+			return d
+		},
+	}
+)
 
 func DefaultHTTPClient() (*http.Client, error) {
 	return NewHTTPClient(ClientOptions{})
 }
 
-// NewHTTPClient creates a new HTTP client with the provided options.
 func NewHTTPClient(opts ClientOptions) (*http.Client, error) {
 	if optionsNeedResolution(opts) {
 		var err error
@@ -45,7 +53,15 @@ func NewHTTPClient(opts ClientOptions) (*http.Client, error) {
 		}
 	}
 
-	transport := http.DefaultTransport
+	transport := &http.Transport{
+		MaxIdleConns:        0,
+		MaxIdleConnsPerHost: 100,
+		IdleConnTimeout:     90 * time.Second,
+		ForceAttemptHTTP2:   true,
+		DisableCompression:  true,
+	}
+
+	var rt http.RoundTripper = transport
 
 	if opts.CacheDir == "" {
 		opts.CacheDir = config.CacheDir()
@@ -53,14 +69,12 @@ func NewHTTPClient(opts ClientOptions) (*http.Client, error) {
 
 	if opts.EnableCache && opts.CacheTTL == 0 {
 		opts.CacheTTL = time.Hour * 24
-
 		c := cache{dir: opts.CacheDir, ttl: opts.CacheTTL}
-		transport = c.RoundTripper(transport)
+		rt = c.RoundTripper(rt)
 	}
 
 	if opts.Log != nil && logrus.GetLevel() == logrus.DebugLevel {
 		opts.LogVerboseHTTP = true
-
 		logger := &httpretty.Logger{
 			Time:            true,
 			TLS:             false,
@@ -76,7 +90,7 @@ func NewHTTPClient(opts ClientOptions) (*http.Client, error) {
 		logger.SetBodyFilter(func(h http.Header) (skip bool, err error) {
 			return !inspectableMIMEType(h.Get(contentType)), nil
 		})
-		transport = logger.RoundTripper(transport)
+		rt = logger.RoundTripper(rt)
 	}
 
 	if opts.Headers == nil {
@@ -87,11 +101,11 @@ func NewHTTPClient(opts ClientOptions) (*http.Client, error) {
 		resolveHeaders(opts.Headers)
 	}
 
-	transport = newHeaderRoundTripper(opts.Host, opts.AuthToken, opts.Headers, transport)
-	transport = newDecompressingRoundTripper(transport)
-	transport = newSanitizerRoundTripper(transport)
+	rt = newHeaderRoundTripper(opts.Host, opts.AuthToken, opts.Headers, rt)
+	rt = newDecompressingRoundTripper(rt)
+	rt = newSanitizerRoundTripper(rt)
 
-	return &http.Client{Transport: transport, Timeout: opts.Timeout}, nil
+	return &http.Client{Transport: rt, Timeout: opts.Timeout}, nil
 }
 
 func inspectableMIMEType(t string) bool {
@@ -114,18 +128,14 @@ func resolveHeaders(headers map[string]string) {
 	if _, ok := headers[contentType]; !ok {
 		headers[contentType] = jsonContentType
 	}
-
 	if _, ok := headers[userAgent]; !ok {
 		headers[userAgent] = "wpm-cli"
 	}
-
 	if _, ok := headers[timeZone]; !ok {
-		tz := currentTimeZone()
-		if tz != "" {
+		if tz, err := tzlocal.RuntimeTZ(); err == nil && tz != "" {
 			headers[timeZone] = tz
 		}
 	}
-
 	if _, ok := headers[accept]; !ok {
 		headers[accept] = "application/json"
 	}
@@ -136,30 +146,25 @@ func newHeaderRoundTripper(host string, authToken string, headers map[string]str
 		headers[authorization] = fmt.Sprintf("Bearer %s", authToken)
 	}
 	if len(headers) == 0 {
-		return rt
+		return headerRoundTripper{host: host, headers: nil, rt: rt}
 	}
 	return headerRoundTripper{host: host, headers: headers, rt: rt}
 }
 
 func (hrt headerRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	// In wpm, we always request zstd compressed responses.
-	req.Header.Set("Accept-Encoding", "zstd")
+	reqCopy := req.Clone(req.Context())
+	reqCopy.Header.Set("Accept-Encoding", "zstd")
 
 	for k, v := range hrt.headers {
-		// If the authorization header has been set and the request
-		// host is not in the same domain that was specified in the ClientOptions
-		// then do not add the authorization header to the request.
-		if k == authorization && !isSameDomain(req.URL.Hostname(), hrt.host) {
+		if k == authorization && !isSameDomain(reqCopy.URL.Hostname(), hrt.host) {
 			continue
 		}
-
-		// If the header is already set in the request, don't overwrite it.
-		if req.Header.Get(k) == "" {
-			req.Header.Set(k, v)
+		if reqCopy.Header.Get(k) == "" {
+			reqCopy.Header.Set(k, v)
 		}
 	}
 
-	return hrt.rt.RoundTrip(req)
+	return hrt.rt.RoundTrip(reqCopy)
 }
 
 type sanitizerRoundTripper struct {
@@ -172,21 +177,24 @@ func newSanitizerRoundTripper(rt http.RoundTripper) http.RoundTripper {
 
 func (srt sanitizerRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	resp, err := srt.rt.RoundTrip(req)
-	if err != nil || !jsonTypeRE.MatchString(resp.Header.Get(contentType)) {
+	if err != nil {
 		return resp, err
 	}
-	sanitizedReadCloser := struct {
-		io.Reader
-		io.Closer
-	}{
+	if !inspectableMIMEType(resp.Header.Get(contentType)) {
+		return resp, nil
+	}
+	resp.Body = &wrappedBody{
 		Reader: transform.NewReader(resp.Body, &asciisanitizer.Sanitizer{JSON: true}),
 		Closer: resp.Body,
 	}
-	resp.Body = sanitizedReadCloser
-	return resp, err
+	return resp, nil
 }
 
-// NEW RoundTripper for decompression
+type wrappedBody struct {
+	io.Reader
+	io.Closer
+}
+
 type decompressingRoundTripper struct {
 	rt http.RoundTripper
 }
@@ -201,26 +209,37 @@ func (d decompressingRoundTripper) RoundTrip(req *http.Request) (*http.Response,
 		return nil, err
 	}
 
-	// support for zstd compressed responses
 	if resp.Header.Get("Content-Encoding") == "zstd" {
-		reader, err := zstd.NewReader(resp.Body)
-		if err != nil {
+		decoder := zstdDecoderPool.Get().(*zstd.Decoder)
+		if err := decoder.Reset(resp.Body); err != nil {
 			resp.Body.Close()
-			return nil, fmt.Errorf("failed to create zstd reader: %w", err)
+			zstdDecoderPool.Put(decoder)
+			return nil, fmt.Errorf("failed to reset zstd reader: %w", err)
 		}
 
-		resp.Body = &readCloser{Reader: reader, Closer: resp.Body}
+		resp.Body = &zstdReadCloser{
+			Decoder:      decoder,
+			OriginalBody: resp.Body,
+		}
 		resp.Header.Del("Content-Encoding")
 		resp.Header.Del("Content-Length")
+		resp.ContentLength = -1
 	}
 
 	return resp, nil
 }
 
-func currentTimeZone() string {
-	tz, err := tzlocal.RuntimeTZ()
-	if err != nil {
-		return ""
-	}
-	return tz
+type zstdReadCloser struct {
+	Decoder      *zstd.Decoder
+	OriginalBody io.ReadCloser
+}
+
+func (z *zstdReadCloser) Read(p []byte) (n int, err error) {
+	return z.Decoder.Read(p)
+}
+
+func (z *zstdReadCloser) Close() error {
+	err := z.OriginalBody.Close()
+	zstdDecoderPool.Put(z.Decoder)
+	return err
 }

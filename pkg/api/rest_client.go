@@ -7,10 +7,9 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"wpm/pkg/unsafeconv"
 )
 
-// RESTClient wraps methods for the different types of
-// API requests that are supported by the server.
 type RESTClient struct {
 	client *http.Client
 	host   string
@@ -20,10 +19,6 @@ func DefaultRESTClient() (*RESTClient, error) {
 	return NewRESTClient(ClientOptions{})
 }
 
-// RESTClient builds a client to send requests to wpm REST API endpoints.
-// As part of the configuration a hostname, auth token, default set of headers,
-// and unix domain socket are resolved from the gh environment configuration.
-// These behaviors can be overridden using the opts argument.
 func NewRESTClient(opts ClientOptions) (*RESTClient, error) {
 	if optionsNeedResolution(opts) {
 		var err error
@@ -38,25 +33,22 @@ func NewRESTClient(opts ClientOptions) (*RESTClient, error) {
 		return nil, err
 	}
 
+	host := strings.TrimRight(opts.Host, "/")
+
 	return &RESTClient{
 		client: client,
-		host:   opts.Host,
+		host:   host,
 	}, nil
 }
 
-// RequestOption is a function that can modify an http.Request.
 type RequestOption func(*http.Request)
 
-// WithHeader returns a RequestOption that adds a header to the request.
 func WithHeader(key, value string) RequestOption {
 	return func(req *http.Request) {
 		req.Header.Set(key, value)
 	}
 }
 
-// DoWithContext issues a request with type specified by method to the
-// specified path with the specified body.
-// The response is populated into the response argument.
 func (c *RESTClient) DoWithContext(ctx context.Context, method string, path string, body io.Reader, response any, opts ...RequestOption) error {
 	url := restURL(c.host, path)
 	req, err := http.NewRequestWithContext(ctx, method, url, body)
@@ -64,7 +56,6 @@ func (c *RESTClient) DoWithContext(ctx context.Context, method string, path stri
 		return err
 	}
 
-	// Set any additional headers from options
 	for _, opt := range opts {
 		opt(req)
 	}
@@ -75,8 +66,7 @@ func (c *RESTClient) DoWithContext(ctx context.Context, method string, path stri
 	}
 	defer resp.Body.Close()
 
-	success := resp.StatusCode >= 200 && resp.StatusCode < 300
-	if !success {
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return HandleHTTPError(resp)
 	}
 
@@ -84,30 +74,26 @@ func (c *RESTClient) DoWithContext(ctx context.Context, method string, path stri
 		return nil
 	}
 
-	b, err := io.ReadAll(resp.Body)
-	if err != nil {
+	switch v := response.(type) {
+	case *string:
+		var b []byte
+		b, err = io.ReadAll(resp.Body)
+		if err == nil {
+			*v = unsafeconv.UnsafeBytesToString(b)
+		}
 		return err
-	}
-
-	if s, ok := response.(*string); ok {
-		*s = string(b)
-		return nil
-	}
-
-	if bs, ok := response.(*[]byte); ok {
-		*bs = b
-		return nil
-	}
-
-	err = json.Unmarshal(b, &response)
-	if err != nil {
+	case *[]byte:
+		var b []byte
+		b, err = io.ReadAll(resp.Body)
+		if err == nil {
+			*v = b
+		}
 		return err
+	default:
+		return json.NewDecoder(resp.Body).Decode(v)
 	}
-
-	return nil
 }
 
-// RequestStream issues a request and returns the raw response body stream.
 func (c *RESTClient) RequestStream(ctx context.Context, method string, path string, body io.Reader, opts ...RequestOption) (io.ReadCloser, error) {
 	url := restURL(c.host, path)
 	req, err := http.NewRequestWithContext(ctx, method, url, body)
@@ -124,8 +110,7 @@ func (c *RESTClient) RequestStream(ctx context.Context, method string, path stri
 		return nil, err
 	}
 
-	success := resp.StatusCode >= 200 && resp.StatusCode < 300
-	if !success {
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		defer resp.Body.Close()
 		return nil, HandleHTTPError(resp)
 	}
@@ -133,44 +118,36 @@ func (c *RESTClient) RequestStream(ctx context.Context, method string, path stri
 	return resp.Body, nil
 }
 
-// Do wraps DoWithContext with context.Background.
-func (c *RESTClient) Do(method string, path string, body io.Reader, response interface{}, opts ...RequestOption) error {
+func (c *RESTClient) Do(method string, path string, body io.Reader, response any, opts ...RequestOption) error {
 	return c.DoWithContext(context.Background(), method, path, body, response, opts...)
 }
 
-// Delete issues a DELETE request to the specified path.
-// The response is populated into the response argument.
-func (c *RESTClient) Delete(path string, resp interface{}, opts ...RequestOption) error {
+func (c *RESTClient) Delete(path string, resp any, opts ...RequestOption) error {
 	return c.Do(http.MethodDelete, path, nil, resp, opts...)
 }
 
-// Get issues a GET request to the specified path.
-// The response is populated into the response argument.
-func (c *RESTClient) Get(path string, resp interface{}, opts ...RequestOption) error {
+func (c *RESTClient) Get(path string, resp any, opts ...RequestOption) error {
 	return c.Do(http.MethodGet, path, nil, resp, opts...)
 }
 
-// Patch issues a PATCH request to the specified path with the specified body.
-// The response is populated into the response argument.
-func (c *RESTClient) Patch(path string, body io.Reader, resp interface{}, opts ...RequestOption) error {
+func (c *RESTClient) Patch(path string, body io.Reader, resp any, opts ...RequestOption) error {
 	return c.Do(http.MethodPatch, path, body, resp, opts...)
 }
 
-// Post issues a POST request to the specified path with the specified body.
-// The response is populated into the response argument.
-func (c *RESTClient) Post(path string, body io.Reader, resp interface{}, opts ...RequestOption) error {
+func (c *RESTClient) Post(path string, body io.Reader, resp any, opts ...RequestOption) error {
 	return c.Do(http.MethodPost, path, body, resp, opts...)
 }
 
-// Put issues a PUT request to the specified path with the specified body.
-// The response is populated into the response argument.
-func (c *RESTClient) Put(path string, body io.Reader, resp interface{}, opts ...RequestOption) error {
+func (c *RESTClient) Put(path string, body io.Reader, resp any, opts ...RequestOption) error {
 	return c.Do(http.MethodPut, path, body, resp, opts...)
 }
 
-func restURL(hostname string, pathOrURL string) string {
+func restURL(hostname, pathOrURL string) string {
 	if strings.HasPrefix(pathOrURL, "https://") || strings.HasPrefix(pathOrURL, "http://") {
 		return pathOrURL
+	}
+	if !strings.HasPrefix(pathOrURL, "/") {
+		pathOrURL = "/" + pathOrURL
 	}
 	return restPrefix(hostname) + pathOrURL
 }
