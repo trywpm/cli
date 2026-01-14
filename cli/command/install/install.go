@@ -42,11 +42,11 @@ func NewInstallCommand(wpmCli command.Cli) *cobra.Command {
 		Aliases: []string{"i", "add"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			err := runInstall(cmd.Context(), wpmCli, opts, args)
-			if "RUN_HELP" == err.Error() {
-				return cmd.Help()
-			}
-
 			if err != nil {
+				if "RUN_HELP" == err.Error() {
+					return cmd.Help()
+				}
+
 				suffix := "error:"
 				if wpmCli.Out().IsColorEnabled() {
 					suffix = aec.RedF.Apply("error:")
