@@ -71,6 +71,11 @@ func Read(cwd string) (*Lockfile, error) {
 	return &lockfile, nil
 }
 
+// SetIndentation sets the indentation style for the lockfile when written to disk.
+func (l *Lockfile) SetIndentation(indentation string) {
+	l.Indentation = indentation
+}
+
 // Write saves the Lockfile to disk in the specified directory.
 func (l *Lockfile) Write(cwd string) error {
 	l.LockfileVersion = CurrentVersion
