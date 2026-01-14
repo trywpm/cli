@@ -54,8 +54,8 @@ func NewInstallCommand(wpmCli command.Cli) *cobra.Command {
 	flags.BoolVar(&opts.ignoreScripts, "ignore-scripts", false, "Do not run lifecycle scripts")
 	flags.BoolVar(&opts.dryRun, "dry-run", false, "Do not write anything to disk")
 	flags.BoolVarP(&opts.saveDev, "save-dev", "D", false, "Install package as a dev dependency")
-	flags.BoolVarP(&opts.saveProd, "save-prod", "P", false, "Install package as a production dependency (default behavior)")
-	flags.IntVar(&opts.networkConcurrency, "network-concurrency", 16, "Number of concurrent network requests when installing packages (default 16)")
+	flags.BoolVarP(&opts.saveProd, "save-prod", "P", false, "Install package as a production dependency (default)")
+	flags.IntVar(&opts.networkConcurrency, "network-concurrency", 16, "Number of concurrent network requests when installing packages")
 
 	cmd.MarkFlagsMutuallyExclusive("no-dev", "save-dev")
 	cmd.MarkFlagsMutuallyExclusive("no-dev", "save-prod")
