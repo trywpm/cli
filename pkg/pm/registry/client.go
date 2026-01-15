@@ -38,6 +38,7 @@ func New(host, authToken, userAgent, cacheDir string, colorize bool, out io.Writ
 		Host:        host,
 		AuthToken:   authToken,
 		LogColorize: colorize,
+		CacheDir:    cacheDir,
 		Headers:     map[string]string{"User-Agent": userAgent},
 	}
 
