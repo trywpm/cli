@@ -40,10 +40,6 @@ var (
 	}
 )
 
-func DefaultHTTPClient() (*http.Client, error) {
-	return NewHTTPClient(ClientOptions{})
-}
-
 func NewHTTPClient(opts ClientOptions) (*http.Client, error) {
 	if optionsNeedResolution(opts) {
 		var err error
@@ -53,12 +49,14 @@ func NewHTTPClient(opts ClientOptions) (*http.Client, error) {
 		}
 	}
 
-	transport := &http.Transport{
-		MaxIdleConns:        100,
-		MaxIdleConnsPerHost: 100,
-		IdleConnTimeout:     90 * time.Second,
-		ForceAttemptHTTP2:   true,
-		DisableCompression:  true,
+	transport := &Transport{
+		Base: &http.Transport{
+			MaxIdleConns:        100,
+			MaxIdleConnsPerHost: 100,
+			IdleConnTimeout:     90 * time.Second,
+			ForceAttemptHTTP2:   true,
+			DisableCompression:  true,
+		},
 	}
 
 	var rt http.RoundTripper = transport
