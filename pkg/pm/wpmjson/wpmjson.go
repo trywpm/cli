@@ -37,9 +37,8 @@ type Config struct {
 }
 
 var defaultPackageConfig = types.PackageConfig{
-	BinDir:        "wp-bin",
-	ContentDir:    "wp-content",
-	RuntimeStrict: true, // Runtime strict mode enabled by default
+	BinDir:     "wp-bin",
+	ContentDir: "wp-content",
 }
 
 // New returns a new instance of wpm.json config
@@ -67,10 +66,10 @@ func (c *Config) ContentDir() string {
 
 // RuntimeStrict returns the runtime strict mode from the config or the default if not set
 func (c *Config) RuntimeStrict() bool {
-	if c.Config != nil {
-		return c.Config.RuntimeStrict
+	if c.Config == nil || c.Config.Runtime == nil {
+		return false
 	}
-	return c.defaultPackageConfig.RuntimeStrict
+	return c.Config.Runtime.PHP != "" || c.Config.Runtime.WP != ""
 }
 
 // Validate checks the configuration struct for logical and schema errors.

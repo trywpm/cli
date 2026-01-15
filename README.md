@@ -118,9 +118,10 @@ The `wpm.json` file defines your package and its dependencies:
   "config": {
     "bin-dir": "wp-bin",
     "content-dir": "wp-content",
-    "runtime-wp": "6.9",
-    "runtime-php": "8.2",
-    "runtime-strict": true
+    "runtime": {
+      "wp": "6.9",
+      "php": "8.2"
+    }
   }
 }
 ```
@@ -146,9 +147,9 @@ The `wpm.json` file defines your package and its dependencies:
 ## Configuration Options
 * `bin-dir`: Directory for executable files (default: `wp-bin`)
 * `content-dir`: WordPress content directory (default: `wp-content`)
-* `runtime-wp`: WordPress version this project is geared to run on
-* `runtime-php`: PHP version this project is geared to run on
-* `runtime-strict`: If `true`, enforce strict version matching for WP and PHP (default: `true`)
+* `runtime`: Runtime environment versions this project is geared to run on
+* `runtime.wp`: WordPress version (e.g., `6.7`, `6.8`, `6.9`)
+* `runtime.php`: PHP version (e.g., `7.4`, `8.0`, `8.1`, `8.2`)
 
 ## Excluding Files from Publishing
 

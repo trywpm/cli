@@ -35,17 +35,13 @@ type Resolver struct {
 	rootConfig *wpmjson.Config
 	lockfile   *wpmlock.Lockfile
 	client     registry.Client
-	runtimeWp  string
-	runtimePhp string
 }
 
-func New(rootConfig *wpmjson.Config, lockfile *wpmlock.Lockfile, client registry.Client, runtimeWp, runtimePhp string) *Resolver {
+func New(rootConfig *wpmjson.Config, lockfile *wpmlock.Lockfile, client registry.Client) *Resolver {
 	return &Resolver{
 		rootConfig: rootConfig,
 		lockfile:   lockfile,
 		client:     client,
-		runtimeWp:  runtimeWp,
-		runtimePhp: runtimePhp,
 	}
 }
 
@@ -266,38 +262,44 @@ func (r *Resolver) checkRuntimeCompatibility(manifest *manifest.Package) error {
 		return nil
 	}
 
+	// PHP and WordPress version constraints
+	requiresWP := manifest.Requires.WP
+	requiresPHP := manifest.Requires.PHP
+
+	// PHP and WordPress runtime versions
+	runtimeWP := r.rootConfig.Config.Runtime.WP
+	runtimePHP := r.rootConfig.Config.Runtime.PHP
+
 	// Check WordPress runtime compatibility.
-	if manifest.Requires.WP != "" && r.runtimeWp != "" {
-		c, err := semver.NewConstraint(manifest.Requires.WP)
-		if err != nil {
-			return errors.Wrap(err, "Invalid wp requirement in package")
-		}
-
-		v, err := semver.NewVersion(r.runtimeWp)
-		if err != nil {
-			return errors.Wrap(err, "Invalid runtime-wp version provided")
-		}
-
-		if !c.Check(v) {
-			return fmt.Errorf("requires WordPress %s, but runtime is %s", manifest.Requires.WP, r.runtimeWp)
-		}
+	if err := checkVersionCompatibility("WordPress", requiresWP, runtimeWP); err != nil {
+		return err
 	}
 
-	// Check PHP
-	if manifest.Requires.PHP != "" && r.runtimePhp != "" {
-		c, err := semver.NewConstraint(manifest.Requires.PHP)
-		if err != nil {
-			return errors.Wrap(err, "Invalid php requirement in package")
-		}
+	// Check PHP runtime compatibility.
+	if err := checkVersionCompatibility("PHP", requiresPHP, runtimePHP); err != nil {
+		return err
+	}
 
-		v, err := semver.NewVersion(r.runtimePhp)
-		if err != nil {
-			return errors.Wrap(err, "Invalid runtime-php version provided")
-		}
+	return nil
+}
 
-		if !c.Check(v) {
-			return fmt.Errorf("requires PHP %s, but runtime is %s", manifest.Requires.PHP, r.runtimePhp)
-		}
+func checkVersionCompatibility(name, required, runtime string) error {
+	if required == "" || runtime == "" {
+		return nil
+	}
+
+	constraint, err := semver.NewConstraint(required)
+	if err != nil {
+		return errors.Wrapf(err, "invalid %s requirement in package", name)
+	}
+
+	version, err := semver.NewVersion(runtime)
+	if err != nil {
+		return errors.Wrapf(err, "invalid runtime %s version provided", name)
+	}
+
+	if !constraint.Check(version) {
+		return fmt.Errorf("requires %s %s, but runtime %s version is %s", name, required, name, runtime)
 	}
 
 	return nil

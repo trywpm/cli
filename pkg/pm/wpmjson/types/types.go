@@ -41,19 +41,40 @@ const (
 	VisibilityPrivate PackageVisibility = "private"
 )
 
+// Runtime struct to define runtime requirements
+//
+// Unlike `Requires`, which specifies version constraints for the package itself,
+// `Runtime` specifies the actual runtime environment versions required.
+//
+// Example:
+//
+//	"runtime": {
+//	    "wp": "5.8",
+//	    "php": "7.4"
+//	}
+type Runtime struct {
+	WP  string `json:"wp,omitempty"`
+	PHP string `json:"php,omitempty"`
+}
+
 // PackageConfig struct to define the package configuration
 type PackageConfig struct {
-	BinDir        string `json:"bin-dir,omitempty"`
-	ContentDir    string `json:"content-dir,omitempty"`
-	RuntimeStrict bool   `json:"runtime-strict,omitempty"`
-	RuntimeWP     string `json:"runtime-wp,omitempty"`
-	RuntimePHP    string `json:"runtime-php,omitempty"`
+	BinDir     string   `json:"bin-dir,omitempty"`
+	ContentDir string   `json:"content-dir,omitempty"`
+	Runtime    *Runtime `json:"runtime,omitempty"`
 }
 
 // Requires holds wp and php version constraints for a package
+//
+// Example:
+//
+//	"requires": {
+//	    "wp": ">=5.7 <6.0",
+//	    "php": ">=7.4 <8.1"
+//	}
 type Requires struct {
-	WP  string `json:"wp,omitempty" validate:"omitempty,wpm_semver_constraint"`
-	PHP string `json:"php,omitempty" validate:"omitempty,wpm_semver_constraint"`
+	WP  string `json:"wp,omitempty"`
+	PHP string `json:"php,omitempty"`
 }
 
 type Bin map[string]string
