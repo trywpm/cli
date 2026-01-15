@@ -167,7 +167,9 @@ func (i *Installer) replaceDir(sourceDir, targetDir string) error {
 		return errors.Wrap(err, "failed to install new version, rolled back")
 	}
 
-	go i.removeAll(backupPath)
+	go func() {
+		_ = i.removeAll(backupPath)
+	}()
 
 	return nil
 }
