@@ -21,11 +21,6 @@ func NewWhoamiCommand(wpmCli command.Cli) *cobra.Command {
 }
 
 func runWhoami(ctx context.Context, wpmCli command.Cli) error {
-	cfg := wpmCli.ConfigFile()
-	if cfg.AuthToken == "" {
-		return errors.New("user must be logged in to perform this action")
-	}
-
 	client, err := wpmCli.RegistryClient()
 	if err != nil {
 		return err
@@ -34,7 +29,7 @@ func runWhoami(ctx context.Context, wpmCli command.Cli) error {
 	var username string
 	if err = wpmCli.Progress().RunWithProgress("", func() error {
 		var err error
-		username, err = client.Whoami(ctx, cfg.AuthToken)
+		username, err = client.Whoami(ctx)
 		return err
 	}, wpmCli.Err()); err != nil {
 		return err

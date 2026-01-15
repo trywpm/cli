@@ -23,7 +23,7 @@ type client struct {
 // Client is a client used to communicate with a wpm distribution
 // registry
 type Client interface {
-	Whoami(ctx context.Context, token string) (string, error)
+	Whoami(ctx context.Context) (string, error)
 	DownloadTarball(ctx context.Context, url string) (io.ReadCloser, error)
 	PutPackage(ctx context.Context, data *manifest.Package, tarball io.Reader) error
 	GetPackageManifest(ctx context.Context, packageName string, versionOrTag string) (*manifest.Package, error)
@@ -99,12 +99,11 @@ func (c *client) DownloadTarball(ctx context.Context, url string) (io.ReadCloser
 }
 
 // Whoami validates the provided token and returns the associated username
-func (c *client) Whoami(ctx context.Context, token string) (string, error) {
+func (c *client) Whoami(ctx context.Context) (string, error) {
 	var response string
 	err := c.restClient.Get(
 		"/-/whoami",
 		&response,
-		api.WithHeader("Authorization", "Bearer "+token),
 	)
 	if err != nil {
 		return "", err
