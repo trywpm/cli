@@ -39,7 +39,7 @@ func runWhoami(ctx context.Context, wpmCli command.Cli) error {
 		return errors.New("failed to retrieve username")
 	}
 
-	_, _ = wpmCli.Out().WriteString(username + "\n")
+	wpmCli.Out().WriteString(username + "\n")
 
 	return nil
 }

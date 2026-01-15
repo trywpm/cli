@@ -101,7 +101,7 @@ func Run(ctx context.Context, cwd string, wpmCli command.Cli, opts RunOptions) e
 	}
 
 	// Add empty line after resolution output for better readability
-	_, _ = wpmCli.Out().WriteString("\n")
+	wpmCli.Out().WriteString("\n")
 
 	// absBinDir := filepath.Join(cwd, wpmCfg.BinDir())
 	absContentDir := filepath.Join(cwd, wpmCfg.ContentDir())
@@ -114,7 +114,7 @@ func Run(ctx context.Context, cwd string, wpmCli command.Cli, opts RunOptions) e
 			}
 		}
 
-		_, _ = wpmCli.Out().WriteString("Already up-to-date!\n")
+		wpmCli.Out().WriteString("Already up-to-date!\n")
 		return nil
 	}
 

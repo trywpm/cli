@@ -120,7 +120,7 @@ func runInstall(ctx context.Context, wpmCli command.Cli, opts installOptions, pa
 	// Bail if there is no packages to install
 	if (cfg.Dependencies == nil || len(*cfg.Dependencies) == 0) &&
 		(cfg.DevDependencies == nil || len(*cfg.DevDependencies) == 0) {
-		_, _ = wpmCli.Out().WriteString("\nNo packages to install.\n")
+		wpmCli.Out().WriteString("\nNo packages to install.\n")
 		return nil
 	}
 
