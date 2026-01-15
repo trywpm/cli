@@ -38,6 +38,9 @@ type ClientOptions struct {
 	// Timeout specifies a time limit for each API request.
 	// Default is no timeout.
 	Timeout time.Duration
+
+	// CacheDir specifies a directory to use for caching GET requests.
+	CacheDir string
 }
 
 func optionsNeedResolution(opts ClientOptions) bool {
