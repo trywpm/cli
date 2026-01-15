@@ -55,28 +55,6 @@ func Run(ctx context.Context, cwd string, wpmCli command.Cli, opts RunOptions) e
 		return errors.New("wpm.json config is required")
 	}
 
-	var runtimeWP, runtimePHP string
-	if wpmCfg.Config != nil {
-		runtimeWP = wpmCfg.Config.RuntimeWP
-		runtimePHP = wpmCfg.Config.RuntimePHP
-	}
-
-	if wpmCfg.RuntimeStrict() {
-		if runtimeWP == "" {
-			wpmCli.Output().PrettyErrorln(output.Text{
-				Plain: "warn: config.runtime-wp is not specified in wpm.json",
-				Fancy: fmt.Sprintf("%s %s is not specified in wpm.json", aec.YellowF.Apply("warn:"), aec.LightBlueF.Apply("config.runtime-wp")),
-			})
-		}
-
-		if runtimePHP == "" {
-			wpmCli.Output().PrettyErrorln(output.Text{
-				Plain: "warn: config.runtime-php is not specified in wpm.json",
-				Fancy: fmt.Sprintf("%s %s is not specified in wpm.json", aec.YellowF.Apply("warn:"), aec.LightBlueF.Apply("config.runtime-php")),
-			})
-		}
-	}
-
 	lock, err := wpmlock.Read(cwd)
 	if err != nil {
 		return errors.Wrap(err, "failed to read lockfile")
@@ -93,7 +71,7 @@ func Run(ctx context.Context, cwd string, wpmCli command.Cli, opts RunOptions) e
 		return errors.Wrap(err, "failed to create registry client")
 	}
 
-	resolver := resolution.New(wpmCfg, lock, client, runtimeWP, runtimePHP)
+	resolver := resolution.New(wpmCfg, lock, client)
 	resolved, err := resolver.Resolve(ctx, wpmCli.Progress(), wpmCli.Err())
 	if err != nil {
 		return err
