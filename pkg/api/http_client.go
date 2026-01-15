@@ -57,6 +57,7 @@ func NewHTTPClient(opts ClientOptions) (*http.Client, error) {
 			ForceAttemptHTTP2:   true,
 			DisableCompression:  true,
 		},
+		cacheDir: opts.CacheDir,
 	}
 
 	var rt http.RoundTripper = transport
