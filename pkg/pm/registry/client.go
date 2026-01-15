@@ -26,7 +26,7 @@ type Client interface {
 	Whoami(ctx context.Context, token string) (string, error)
 	DownloadTarball(ctx context.Context, url string) (io.ReadCloser, error)
 	PutPackage(ctx context.Context, data *manifest.Package, tarball io.Reader) error
-	GetPackageManifest(ctx context.Context, packageName string, versionOrTag string) (*manifest.Package, error)
+	GetPackageManifest(ctx context.Context, packageName, versionOrTag string, force bool) (*manifest.Package, error)
 }
 
 var _ Client = &client{}
@@ -68,17 +68,26 @@ func (c *client) PutPackage(ctx context.Context, data *manifest.Package, tarball
 }
 
 // GetPackageManifest retrieves a package manifest from the registry
-func (c *client) GetPackageManifest(ctx context.Context, packageName string, versionOrTag string) (*manifest.Package, error) {
+func (c *client) GetPackageManifest(ctx context.Context, packageName, versionOrTag string, force bool) (*manifest.Package, error) {
 	var manifest *manifest.Package
 
 	if versionOrTag == "" || versionOrTag == "*" {
 		versionOrTag = "latest"
 	}
 
+	opts := []api.RequestOption{}
+	if force {
+		opts = append(opts, api.WithHeader("x-cache-revalidate", "true"))
+	} else {
+		opts = append(opts, api.WithHeader("x-do-cache", "true"))
+	}
+
+	opts = append(opts, api.WithHeader("Accept", wpmContentTypeManifestV1))
+
 	err := c.restClient.Get(
 		"/"+packageName+"/"+versionOrTag,
 		&manifest,
-		api.WithHeader("Accept", wpmContentTypeManifestV1),
+		opts...,
 	)
 	if err != nil {
 		return nil, err
@@ -95,6 +104,7 @@ func (c *client) DownloadTarball(ctx context.Context, url string) (io.ReadCloser
 		url,
 		nil,
 		api.WithHeader("Accept", contentTypeOctetStream),
+		api.WithHeader("x-do-cache", "true"), // Used by cache round tripper.
 	)
 }
 
