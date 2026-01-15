@@ -22,7 +22,31 @@ const (
 	footerMagic  = 0x57504D5E
 	lockTimeout  = 60 * time.Second
 	maxLockAge   = 5 * time.Minute
+
+	// headers
+	HeaderEtag                   = "ETag"
+	HeaderSaveCache              = "X-Save-Cache"
+	HeaderLocalCache             = "X-Local-Cache"
+	HeaderIfNoneMatch            = "If-None-Match"
+	HeaderLastModified           = "Last-Modified"
+	HeaderIfModifiedSince        = "If-Modified-Since"
+	HeaderForceCacheRevalidation = "X-Cache-Revalidate"
+	HeaderContentEncoding        = "Content-Encoding"
+	HeaderContentType            = "Content-Type"
+	HeaderCacheControl           = "Cache-Control"
+
+	// header values
+	CacheHit  = "HIT"
+	CacheMiss = "MISS"
 )
+
+var cacheableHeaders = []string{
+	HeaderEtag,
+	HeaderLastModified,
+	HeaderContentType,
+	HeaderCacheControl,
+	HeaderContentEncoding,
+}
 
 type Transport struct {
 	Base     http.RoundTripper
@@ -61,11 +85,11 @@ func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 
 	outReq := req.Clone(req.Context())
 
-	cache := outReq.Header.Get("x-do-cache") == "true"
-	force := outReq.Header.Get("x-cache-revalidate") == "true"
+	cache := outReq.Header.Get(HeaderSaveCache) == "true"
+	force := outReq.Header.Get(HeaderForceCacheRevalidation) == "true"
 
-	outReq.Header.Del("x-do-cache")
-	outReq.Header.Del("x-cache-revalidate")
+	outReq.Header.Del(HeaderSaveCache)
+	outReq.Header.Del(HeaderForceCacheRevalidation)
 
 	if (!cache && !force) || t.cacheDir == "" {
 		return t.base().RoundTrip(outReq)
@@ -79,7 +103,7 @@ func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 
 	if !force {
 		if body, h, err := t.open(finalPath); err == nil {
-			h.Set("x-local-cache", "hit")
+			h.Set(HeaderLocalCache, CacheHit)
 			return t.response(outReq, body, h), nil
 		}
 	}
@@ -99,7 +123,7 @@ func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	// ensure we return a cached response.
 	if shared {
 		if body, h, err := t.open(finalPath); err == nil {
-			h.Set("x-local-cache", "hit")
+			h.Set(HeaderLocalCache, CacheHit)
 			return t.response(outReq, body, h), nil
 		}
 
@@ -126,18 +150,18 @@ func (t *Transport) executeRequest(req *http.Request, path string, force bool) (
 
 	if !force {
 		if body, h, err := t.open(path); err == nil {
-			h.Set("x-local-cache", "hit")
+			h.Set(HeaderLocalCache, CacheHit)
 			return t.response(req, body, h), nil
 		}
 	}
 
 	if force {
 		if body, h, err := t.open(path); err == nil {
-			if lm := h.Get("Last-Modified"); lm != "" {
-				req.Header.Set("If-Modified-Since", lm)
+			if lm := h.Get(HeaderLastModified); lm != "" {
+				req.Header.Set(HeaderIfModifiedSince, lm)
 			}
-			if et := h.Get("ETag"); et != "" {
-				req.Header.Set("If-None-Match", et)
+			if et := h.Get(HeaderEtag); et != "" {
+				req.Header.Set(HeaderIfNoneMatch, et)
 			}
 
 			body.Close()
@@ -153,12 +177,13 @@ func (t *Transport) executeRequest(req *http.Request, path string, force bool) (
 	if resp.StatusCode == http.StatusNotModified {
 		resp.Body.Close()
 		if b, h, err := t.open(path); err == nil {
+			h.Set(HeaderLocalCache, CacheHit)
 			return t.response(req, b, h), nil
 		}
 
 		// Cache file missing/corrupt, redo the request without conditions
-		req.Header.Del("If-None-Match")
-		req.Header.Del("If-Modified-Since")
+		req.Header.Del(HeaderIfNoneMatch)
+		req.Header.Del(HeaderIfModifiedSince)
 		resp, err = t.base().RoundTrip(req)
 		if err != nil {
 			return nil, err
@@ -291,7 +316,7 @@ func (t *Transport) writeMeta(w io.Writer, h http.Header) error {
 	}
 
 	metaHeaders := http.Header{}
-	for _, key := range []string{"ETag", "Last-Modified", "Content-Type", "Cache-Control"} {
+	for _, key := range cacheableHeaders {
 		if values, ok := h[key]; ok {
 			for _, v := range values {
 				metaHeaders.Add(key, v)
