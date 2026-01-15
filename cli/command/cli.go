@@ -2,6 +2,7 @@ package command
 
 import (
 	"io"
+	"os"
 	"runtime"
 
 	"wpm/cli/debug"
@@ -153,10 +154,16 @@ func (cli *WpmCli) Initialize(opts *cliflags.ClientOptions, ops ...CLIOption) er
 
 // RegistryClient returns a client for communicating with wpm registry
 func (cli *WpmCli) RegistryClient() (registry.Client, error) {
+	token := cli.configFile.AuthToken
+	if token == "" {
+		token = os.Getenv("WPM_TOKEN")
+	}
+
 	return registry.New(
 		cli.Registry(),
-		cli.configFile.AuthToken,
+		token,
 		UserAgent(),
+		config.InstallCacheDir(),
 		cli.out.IsColorEnabled(),
 		cli.err,
 	)

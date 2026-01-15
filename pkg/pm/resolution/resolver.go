@@ -322,5 +322,5 @@ func (r *Resolver) fetchMetadata(ctx context.Context, name, version string) (*ma
 		}
 	}
 
-	return r.client.GetPackageManifest(ctx, name, version)
+	return r.client.GetPackageManifest(ctx, name, version, false)
 }

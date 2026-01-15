@@ -120,7 +120,7 @@ func runInstall(ctx context.Context, wpmCli command.Cli, opts installOptions, pa
 	// Bail if there is no packages to install
 	if (cfg.Dependencies == nil || len(*cfg.Dependencies) == 0) &&
 		(cfg.DevDependencies == nil || len(*cfg.DevDependencies) == 0) {
-		_, _ = wpmCli.Out().WriteString("\nNo packages to install.\n")
+		wpmCli.Out().WriteString("\nNo packages to install.\n")
 		return nil
 	}
 
@@ -166,7 +166,7 @@ func addPackages(ctx context.Context, config *wpmjson.Config, wpmCli command.Cli
 		progress.Stream(wpmCli.Err(), fmt.Sprintf("  Resolving %s@%s [%d/%d]", name, versionOrTag, i+1, len(packages)))
 
 		g.Go(func() error {
-			manifest, err := client.GetPackageManifest(ctx, name, versionOrTag)
+			manifest, err := client.GetPackageManifest(ctx, name, versionOrTag, true)
 			if err != nil {
 				return errors.Wrapf(err, "failed to fetch package %s@%s", name, versionOrTag)
 			}

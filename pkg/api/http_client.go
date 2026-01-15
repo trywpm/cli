@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"wpm/pkg/asciisanitizer"
-	"wpm/pkg/config"
 
 	"github.com/henvic/httpretty"
 	"github.com/klauspost/compress/zstd"
@@ -20,14 +19,27 @@ import (
 )
 
 const (
-	accept          = "Accept"
-	wpm             = "wpm.so"
-	localhost       = "wpm.local"
-	timeZone        = "Time-Zone"
-	userAgent       = "User-Agent"
-	contentType     = "Content-Type"
-	authorization   = "Authorization"
 	jsonContentType = "application/json; charset=utf-8"
+
+	// headers
+	HeaderEtag            = "ETag"
+	HeaderSaveCache       = "X-Save-Cache"
+	HeaderLocalCache      = "X-Local-Cache"
+	HeaderIfNoneMatch     = "If-None-Match"
+	HeaderLastModified    = "Last-Modified"
+	HeaderIfModifiedSince = "If-Modified-Since"
+	HeaderCacheRevalidate = "X-Cache-Revalidate"
+	HeaderContentEncoding = "Content-Encoding"
+	HeaderContentType     = "Content-Type"
+	HeaderCacheControl    = "Cache-Control"
+	HeaderAccept          = "Accept"
+	HeaderAuthorization   = "Authorization"
+	HeaderUserAgent       = "User-Agent"
+	HeaderTimeZone        = "Time-Zone"
+
+	// header values
+	CacheHit  = "HIT"
+	CacheMiss = "MISS"
 )
 
 var (
@@ -43,10 +55,6 @@ var (
 	}
 )
 
-func DefaultHTTPClient() (*http.Client, error) {
-	return NewHTTPClient(ClientOptions{})
-}
-
 func NewHTTPClient(opts ClientOptions) (*http.Client, error) {
 	if optionsNeedResolution(opts) {
 		var err error
@@ -56,25 +64,18 @@ func NewHTTPClient(opts ClientOptions) (*http.Client, error) {
 		}
 	}
 
-	transport := &http.Transport{
-		MaxIdleConns:        100,
-		MaxIdleConnsPerHost: 100,
-		IdleConnTimeout:     90 * time.Second,
-		ForceAttemptHTTP2:   true,
-		DisableCompression:  true,
+	transport := &Transport{
+		Base: &http.Transport{
+			MaxIdleConns:        100,
+			MaxIdleConnsPerHost: 100,
+			IdleConnTimeout:     90 * time.Second,
+			ForceAttemptHTTP2:   true,
+			DisableCompression:  true,
+		},
+		cacheDir: opts.CacheDir,
 	}
 
 	var rt http.RoundTripper = transport
-
-	if opts.CacheDir == "" {
-		opts.CacheDir = config.CacheDir()
-	}
-
-	if opts.EnableCache && opts.CacheTTL == 0 {
-		opts.CacheTTL = time.Hour * 24
-		c := cache{dir: opts.CacheDir, ttl: opts.CacheTTL}
-		rt = c.RoundTripper(rt)
-	}
 
 	if opts.Log != nil && logrus.GetLevel() == logrus.DebugLevel {
 		opts.LogVerboseHTTP = true
@@ -91,7 +92,7 @@ func NewHTTPClient(opts ClientOptions) (*http.Client, error) {
 		}
 		logger.SetOutput(opts.Log)
 		logger.SetBodyFilter(func(h http.Header) (skip bool, err error) {
-			return !inspectableMIMEType(h.Get(contentType)), nil
+			return !inspectableMIMEType(h.Get(HeaderContentType)), nil
 		})
 		rt = logger.RoundTripper(rt)
 	}
@@ -128,25 +129,25 @@ type headerRoundTripper struct {
 }
 
 func resolveHeaders(headers map[string]string) {
-	if _, ok := headers[contentType]; !ok {
-		headers[contentType] = jsonContentType
+	if _, ok := headers[HeaderContentType]; !ok {
+		headers[HeaderContentType] = jsonContentType
 	}
-	if _, ok := headers[userAgent]; !ok {
-		headers[userAgent] = "wpm-cli"
+	if _, ok := headers[HeaderUserAgent]; !ok {
+		headers[HeaderUserAgent] = "wpm-cli"
 	}
-	if _, ok := headers[timeZone]; !ok {
+	if _, ok := headers[HeaderTimeZone]; !ok {
 		if tz, err := tzlocal.RuntimeTZ(); err == nil && tz != "" {
-			headers[timeZone] = tz
+			headers[HeaderTimeZone] = tz
 		}
 	}
-	if _, ok := headers[accept]; !ok {
-		headers[accept] = "application/json"
+	if _, ok := headers[HeaderAccept]; !ok {
+		headers[HeaderAccept] = "application/json"
 	}
 }
 
 func newHeaderRoundTripper(host string, authToken string, headers map[string]string, rt http.RoundTripper) http.RoundTripper {
-	if _, ok := headers[authorization]; !ok && authToken != "" {
-		headers[authorization] = fmt.Sprintf("Bearer %s", authToken)
+	if _, ok := headers[HeaderAuthorization]; !ok && authToken != "" {
+		headers[HeaderAuthorization] = fmt.Sprintf("Bearer %s", authToken)
 	}
 	if len(headers) == 0 {
 		return headerRoundTripper{host: host, headers: nil, rt: rt}
@@ -159,7 +160,7 @@ func (hrt headerRoundTripper) RoundTrip(req *http.Request) (*http.Response, erro
 	reqCopy.Header.Set("Accept-Encoding", "zstd")
 
 	for k, v := range hrt.headers {
-		if k == authorization && !isSameDomain(reqCopy.URL.Hostname(), hrt.host) {
+		if k == HeaderAuthorization && !isSameDomain(reqCopy.URL.Hostname(), hrt.host) {
 			continue
 		}
 		if reqCopy.Header.Get(k) == "" {
@@ -183,7 +184,7 @@ func (srt sanitizerRoundTripper) RoundTrip(req *http.Request) (*http.Response, e
 	if err != nil {
 		return resp, err
 	}
-	if !inspectableMIMEType(resp.Header.Get(contentType)) {
+	if !inspectableMIMEType(resp.Header.Get(HeaderContentType)) {
 		return resp, nil
 	}
 	resp.Body = &wrappedBody{

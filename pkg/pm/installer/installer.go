@@ -10,13 +10,13 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"syscall"
 	"time"
 
 	"wpm/pkg/archive"
 	"wpm/pkg/pm/registry"
 	"wpm/pkg/pm/wpmjson/types"
 
-	"github.com/otiai10/copy"
 	"github.com/pkg/errors"
 	"golang.org/x/sync/errgroup"
 )
@@ -24,30 +24,29 @@ import (
 type Installer struct {
 	concurrency int
 	contentDir  string
-	cacheDir    string
+	tmpDir      string
 	client      registry.Client
 	extractSem  chan struct{}
 }
 
-func New(contentDir, cacheDir string, concurrency int, client registry.Client) *Installer {
+func New(contentDir string, concurrency int, client registry.Client) *Installer {
 	if concurrency <= 0 {
 		concurrency = 16
 	}
 
+	tmpDir := filepath.Join(contentDir, ".tmp")
+	_ = os.MkdirAll(tmpDir, 0755)
+
 	return &Installer{
 		client:      client,
 		contentDir:  contentDir,
-		cacheDir:    cacheDir,
+		tmpDir:      tmpDir,
 		concurrency: concurrency,
 		extractSem:  make(chan struct{}, max(runtime.NumCPU(), 1)),
 	}
 }
 
 func (i *Installer) InstallAll(ctx context.Context, plan []Action, progressFn func(Action)) error {
-	if err := os.MkdirAll(i.cacheDir, 0755); err != nil {
-		return errors.Wrap(err, "failed to create cache directory")
-	}
-
 	g, ctx := errgroup.WithContext(ctx)
 	g.SetLimit(i.concurrency)
 
@@ -66,7 +65,9 @@ func (i *Installer) InstallAll(ctx context.Context, plan []Action, progressFn fu
 		})
 	}
 
-	return g.Wait()
+	err := g.Wait()
+	os.RemoveAll(i.tmpDir)
+	return err
 }
 
 func (i *Installer) Install(ctx context.Context, action Action) error {
@@ -86,12 +87,15 @@ func (i *Installer) Install(ctx context.Context, action Action) error {
 }
 
 func (i *Installer) installOrUpdate(ctx context.Context, action Action, targetDir string) error {
-	tarPath, err := i.ensureCached(ctx, action.Resolved, action.Digest)
+	resp, err := i.client.DownloadTarball(ctx, action.Resolved)
 	if err != nil {
-		return err
+		return errors.Wrapf(err, "failed to download %s", action.Resolved)
 	}
+	defer resp.Close()
 
-	// Limit concurrent extraction operations
+	hasher := sha256.New()
+	stream := io.TeeReader(resp, hasher)
+
 	select {
 	case i.extractSem <- struct{}{}:
 	case <-ctx.Done():
@@ -99,190 +103,142 @@ func (i *Installer) installOrUpdate(ctx context.Context, action Action, targetDi
 	}
 	defer func() { <-i.extractSem }()
 
-	contentPath, err := i.unpackToStaging(tarPath)
-	if err != nil {
-		return err
-	}
+	extractedPath, tempContainer, err := i.unpackToStaging(stream)
 	defer func() {
-		_ = i.removeAll(contentPath)
+		_ = i.removeAll(tempContainer)
 	}()
 
-	return i.replaceDir(contentPath, targetDir)
-}
-
-func verifyDigest(tarPath, expectedDigest string) error {
-	f, err := os.Open(tarPath)
 	if err != nil {
-		return errors.Wrap(err, "failed to open tarball for digest verification")
-	}
-	defer f.Close()
-
-	hasher := sha256.New()
-	if _, err := io.Copy(hasher, f); err != nil {
-		return errors.Wrap(err, "failed to read tarball for digest verification")
+		return errors.Wrap(err, "failed to unpack package")
 	}
 
-	calculated := base64.StdEncoding.EncodeToString(hasher.Sum(nil))
-	if calculated != expectedDigest {
-		return errors.Errorf("digest mismatch: expected %s, got %s", expectedDigest, calculated)
-	}
-
-	return nil
-}
-
-func (i *Installer) ensureCached(ctx context.Context, url, digest string) (string, error) {
-	cleanDigest := strings.TrimPrefix(digest, "sha256:")
-	safeFilename := strings.ReplaceAll(cleanDigest, "/", "_")
-	tarPath := filepath.Join(i.cacheDir, safeFilename+".tar.zst")
-
-	if _, err := os.Stat(tarPath); err == nil {
-		if err := verifyDigest(tarPath, cleanDigest); err == nil {
-			return tarPath, nil
-		}
-
-		if err := i.removeAll(tarPath); err != nil {
-			return "", errors.Wrap(err, "failed to remove corrupted cache file; cannot proceed")
-		}
-	}
-
-	f, err := os.CreateTemp(i.cacheDir, safeFilename+".tmp.*")
-	if err != nil {
-		return "", errors.Wrap(err, "failed to create temporary tarball file")
-	}
-
-	tmpPath := f.Name()
-	defer func() {
-		_ = f.Close()
-		_ = os.Remove(tmpPath)
-	}()
-
-	resp, err := i.client.DownloadTarball(ctx, url)
-	if err != nil {
-		return "", errors.Wrapf(err, "failed to download %s", url)
-	}
-	defer resp.Close()
-
-	hasher := sha256.New()
-	tee := io.TeeReader(resp, hasher)
-
-	if _, err := io.Copy(f, tee); err != nil {
-		return "", errors.Wrap(err, "failed to write tarball to disk")
-	}
-
-	if err := f.Close(); err != nil {
-		return "", err
-	}
-
+	cleanDigest := strings.TrimPrefix(action.Digest, "sha256:")
 	calculated := base64.StdEncoding.EncodeToString(hasher.Sum(nil))
 	if calculated != cleanDigest {
-		return "", errors.Errorf("digest mismatch: expected %s, got %s", cleanDigest, calculated)
+		return errors.Errorf("digest mismatch: expected %s, got %s", cleanDigest, calculated)
 	}
 
-	if err := os.Rename(tmpPath, tarPath); err != nil {
-		return "", errors.Wrap(err, "failed to move tarball to cache")
-	}
-
-	return tarPath, nil
+	return i.replaceDir(extractedPath, targetDir)
 }
 
-// unpackToStaging extracts the tarball to a temporary staging directory.
-func (i *Installer) unpackToStaging(tarPath string) (contentDir string, err error) {
-	rootTemp, err := os.MkdirTemp("", "wpm-staging-*")
+// unpackToStaging extracts to a temporary directory inside .tmp.
+// Returns the path to the inner single-root folder, the path to the outer temp container, and error.
+func (i *Installer) unpackToStaging(r io.Reader) (string, string, error) {
+	rootTemp, err := os.MkdirTemp(i.tmpDir, "wpm-pkg-*")
 	if err != nil {
-		return "", err
+		return "", "", errors.Wrap(err, "failed to create temporary directory")
 	}
 
-	file, err := os.Open(tarPath)
-	if err != nil {
-		_ = os.RemoveAll(rootTemp)
-		return "", err
-	}
-	defer file.Close()
-
-	if err := archive.Untar(file, rootTemp, nil); err != nil {
-		_ = os.RemoveAll(rootTemp)
-		return "", errors.Wrap(err, "failed to extract tarball")
+	if err := archive.Untar(r, rootTemp, nil); err != nil {
+		return "", rootTemp, errors.Wrap(err, "failed to extract tarball")
 	}
 
 	entries, err := os.ReadDir(rootTemp)
 	if err != nil {
-		_ = os.RemoveAll(rootTemp)
-		return "", err
+		return "", rootTemp, err
 	}
 
-	if len(entries) == 1 && entries[0].IsDir() {
-		return filepath.Join(rootTemp, entries[0].Name()), nil
+	// Strict Single Root Check
+	if len(entries) != 1 || !entries[0].IsDir() {
+		return "", rootTemp, errors.New("invalid package structure: expected exactly one root directory")
 	}
 
-	return "", errors.New("unexpected tarball structure: expected single root directory")
+	return filepath.Join(rootTemp, entries[0].Name()), rootTemp, nil
 }
 
-// replaceDir atomically replaces targetDir with sourceDir.
+// replaceDir atomically replaces targetDir
 func (i *Installer) replaceDir(sourceDir, targetDir string) error {
 	if err := os.MkdirAll(filepath.Dir(targetDir), 0755); err != nil {
 		return err
 	}
 
-	// Simply move since target does not exist
 	if _, err := os.Stat(targetDir); os.IsNotExist(err) {
-		return i.moveDir(sourceDir, targetDir)
+		return i.rename(sourceDir, targetDir)
 	}
 
-	// Create backup path before replacing
 	backupPath := targetDir + ".bak." + fmt.Sprint(time.Now().UnixNano())
-
-	// Backup the existing package first
-	if err := os.Rename(targetDir, backupPath); err != nil {
-		return errors.Wrap(err, "failed to move existing package version to backup")
+	if err := i.rename(targetDir, backupPath); err != nil {
+		return errors.Wrap(err, "failed to move existing package to backup")
 	}
 
-	// Move in the new version
-	if err := i.moveDir(sourceDir, targetDir); err != nil {
-		_ = os.Rename(backupPath, targetDir)
-		return errors.Wrap(err, "failed to install new version; rollback attempted")
+	if err := i.rename(sourceDir, targetDir); err != nil {
+		// ROLLBACK: Try to restore backup
+		_ = i.rename(backupPath, targetDir)
+		return errors.Wrap(err, "failed to install new version, rolled back")
 	}
 
-	//nolint:staticcheck
-	if err := i.removeAll(backupPath); err != nil {
-		// @todo: log warning about failed backup removal once telemetry/logging is in place
-	}
+	go func() {
+		_ = i.removeAll(backupPath)
+	}()
 
 	return nil
 }
 
-// moveDir attempts an atomic rename, falling back to copy+delete if across devices.
-func (i *Installer) moveDir(source, dest string) error {
-	err := os.Rename(source, dest)
-	if err == nil {
-		return nil
-	}
-
-	// cross-device can happen in case when same system has different volumes/mounts
-	isCrossDevice := strings.Contains(err.Error(), "cross-device") ||
-		strings.Contains(err.Error(), "different device") ||
-		strings.Contains(err.Error(), "different disk")
-
-	if isCrossDevice {
-		if err := copy.Copy(source, dest); err != nil {
-			_ = os.RemoveAll(dest)
-			return errors.Wrap(err, "failed to copy package files across devices")
+// rename with retries for Windows file locking stability
+func (i *Installer) rename(src, dst string) error {
+	var err error
+	for attempt := range 5 {
+		err = os.Rename(src, dst)
+		if err == nil {
+			return nil
 		}
-		return os.RemoveAll(source)
-	}
 
-	return err
+		if isLinkError(err) {
+			return err
+		}
+
+		if !isRetriableError(err) {
+			return err
+		}
+
+		time.Sleep(50 * time.Millisecond * time.Duration(attempt+1))
+
+		// On the 4th attempt, try to force GC to release file handles on Windows
+		if attempt == 4 {
+			runtime.GC()
+		}
+	}
+	return errors.Wrapf(err, "failed to rename %s to %s after retries", filepath.Base(src), filepath.Base(dst))
 }
 
-// removeAll retries deletion to handle transient file locks (Windows specific mostly).
+func isRetriableError(err error) bool {
+	if os.IsPermission(err) {
+		return true
+	}
+
+	var pathErr *os.PathError
+	if errors.As(err, &pathErr) {
+		var errno syscall.Errno
+		if errors.As(pathErr.Err, &errno) {
+			// ERROR_ACCESS_DENIED (5) or ERROR_SHARING_VIOLATION (32)
+			if errno == 5 || errno == 32 {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func isLinkError(err error) bool {
+	var linkErr *os.LinkError
+	return errors.As(err, &linkErr)
+}
+
+// removeAll with retries for Windows file locking stability
 func (i *Installer) removeAll(path string) error {
 	var err error
-	for range 3 {
+	for j := range 5 {
 		err = os.RemoveAll(path)
 		if err == nil || os.IsNotExist(err) {
 			return nil
 		}
 
 		time.Sleep(100 * time.Millisecond)
+
+		if j == 2 {
+			// attempt to force GC to release file handles on Windows
+			runtime.GC()
+		}
 	}
 	return err
 }

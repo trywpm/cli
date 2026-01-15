@@ -21,8 +21,8 @@ func (o *Out) Write(p []byte) (int, error) {
 	return o.out.Write(p)
 }
 
-func (o *Out) WriteString(s string) (int, error) {
-	return o.out.Write(unsafeconv.UnsafeStringToBytes(s))
+func (o *Out) WriteString(s string) {
+	_, _ = o.out.Write(unsafeconv.UnsafeStringToBytes(s))
 }
 
 // IsColorEnabled returns true if color output is enabled for this stream.

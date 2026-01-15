@@ -8,7 +8,6 @@ import (
 	"slices"
 	"strconv"
 	"wpm/cli/command"
-	"wpm/pkg/config"
 	"wpm/pkg/output"
 	"wpm/pkg/pm/installer"
 	"wpm/pkg/pm/resolution"
@@ -101,7 +100,7 @@ func Run(ctx context.Context, cwd string, wpmCli command.Cli, opts RunOptions) e
 	}
 
 	// Add empty line after resolution output for better readability
-	_, _ = wpmCli.Out().WriteString("\n")
+	wpmCli.Out().WriteString("\n")
 
 	// absBinDir := filepath.Join(cwd, wpmCfg.BinDir())
 	absContentDir := filepath.Join(cwd, wpmCfg.ContentDir())
@@ -114,7 +113,7 @@ func Run(ctx context.Context, cwd string, wpmCli command.Cli, opts RunOptions) e
 			}
 		}
 
-		_, _ = wpmCli.Out().WriteString("Already up-to-date!\n")
+		wpmCli.Out().WriteString("Already up-to-date!\n")
 		return nil
 	}
 
@@ -134,7 +133,7 @@ func Run(ctx context.Context, cwd string, wpmCli command.Cli, opts RunOptions) e
 	}
 
 	// -- Actual Install --
-	inst := installer.New(absContentDir, config.TarballsCacheDir(), opts.NetworkConcurrency, client)
+	inst := installer.New(absContentDir, opts.NetworkConcurrency, client)
 	if err := inst.InstallAll(ctx, plan, installerProgress(wpmCli.Output())); err != nil {
 		return errors.Wrap(err, "installation failed")
 	}

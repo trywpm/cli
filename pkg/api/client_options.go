@@ -12,18 +12,6 @@ type ClientOptions struct {
 	// to authenticate against API endpoints.
 	AuthToken string
 
-	// CacheDir is the directory to use for cached API requests.
-	// Default is the same directory that gh uses for caching.
-	CacheDir string
-
-	// CacheTTL is the time that cached API requests are valid for.
-	// Default is 24 hours.
-	CacheTTL time.Duration
-
-	// EnableCache specifies if API requests will be cached or not.
-	// Default is no caching.
-	EnableCache bool
-
 	// Headers are the headers that will be sent with every API request.
 	// Default headers set are Accept, Content-Type, Time-Zone, and User-Agent.
 	// Default headers will be overridden by keys specified in Headers.
@@ -50,6 +38,9 @@ type ClientOptions struct {
 	// Timeout specifies a time limit for each API request.
 	// Default is no timeout.
 	Timeout time.Duration
+
+	// CacheDir specifies a directory to use for caching GET requests.
+	CacheDir string
 }
 
 func optionsNeedResolution(opts ClientOptions) bool {

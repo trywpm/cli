@@ -155,10 +155,6 @@ func CacheDir() string {
 	return filepath.Join(Dir(), "cache")
 }
 
-func UserAuthCacheDir() string {
-	return filepath.Join(Dir(), "cache", "auth")
-}
-
-func TarballsCacheDir() string {
-	return filepath.Join(Dir(), "cache", "tarballs")
+func InstallCacheDir() string {
+	return filepath.Join(Dir(), "cache", "install")
 }
