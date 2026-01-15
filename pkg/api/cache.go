@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	cacheVersion = "wpm-cache-v2"
+	cacheVersion = "wpm-cache-v1"
 	headerMagic  = 0x57504D43
 	footerMagic  = 0x57504D5E
 	lockTimeout  = 60 * time.Second
