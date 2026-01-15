@@ -271,37 +271,35 @@ func (r *Resolver) checkRuntimeCompatibility(manifest *manifest.Package) error {
 	runtimePHP := r.rootConfig.Config.Runtime.PHP
 
 	// Check WordPress runtime compatibility.
-	if requiresWP != "" && runtimeWP != "" {
-		c, err := semver.NewConstraint(requiresWP)
-		if err != nil {
-			return errors.Wrap(err, "Invalid WP requirement in package")
-		}
-
-		v, err := semver.NewVersion(runtimeWP)
-		if err != nil {
-			return errors.Wrap(err, "Invalid runtime WP version provided")
-		}
-
-		if !c.Check(v) {
-			return fmt.Errorf("requires WordPress %s, but runtime WordPress version is %s", requiresWP, runtimeWP)
-		}
+	if err := checkVersionCompatibility("WordPress", requiresWP, runtimeWP); err != nil {
+		return err
 	}
 
-	// Check PHP
-	if requiresPHP != "" && runtimePHP != "" {
-		c, err := semver.NewConstraint(requiresPHP)
-		if err != nil {
-			return errors.Wrap(err, "Invalid PHP requirement in package")
-		}
+	// Check PHP runtime compatibility.
+	if err := checkVersionCompatibility("PHP", requiresPHP, runtimePHP); err != nil {
+		return err
+	}
 
-		v, err := semver.NewVersion(runtimePHP)
-		if err != nil {
-			return errors.Wrap(err, "Invalid runtime PHP version provided")
-		}
+	return nil
+}
 
-		if !c.Check(v) {
-			return fmt.Errorf("requires PHP %s, but runtime PHP version is %s", requiresPHP, runtimePHP)
-		}
+func checkVersionCompatibility(name, required, runtime string) error {
+	if required == "" || runtime == "" {
+		return nil
+	}
+
+	constraint, err := semver.NewConstraint(required)
+	if err != nil {
+		return errors.Wrapf(err, "invalid %s requirement in package", name)
+	}
+
+	version, err := semver.NewVersion(runtime)
+	if err != nil {
+		return errors.Wrapf(err, "invalid runtime %s version provided", name)
+	}
+
+	if !constraint.Check(version) {
+		return fmt.Errorf("requires %s %s, but runtime %s version is %s", name, required, name, runtime)
 	}
 
 	return nil
