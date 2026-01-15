@@ -16,7 +16,6 @@ require (
 	github.com/moby/sys/sequential v0.6.0
 	github.com/moby/term v0.5.2
 	github.com/morikuni/aec v1.1.0
-	github.com/otiai10/copy v1.14.1
 	github.com/pkg/errors v0.9.1
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cobra v1.10.2
@@ -33,7 +32,6 @@ require (
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/mattn/go-colorable v0.1.2 // indirect
 	github.com/mattn/go-isatty v0.0.8 // indirect
-	github.com/otiai10/mint v1.6.3 // indirect
 	github.com/stretchr/testify v1.9.0 // indirect
 	golang.org/x/term v0.38.0 // indirect
 )
