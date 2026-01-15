@@ -29,7 +29,7 @@ func runWhoami(ctx context.Context, wpmCli command.Cli) error {
 	var username string
 	if err = wpmCli.Progress().RunWithProgress("", func() error {
 		var err error
-		username, err = client.Whoami(ctx)
+		username, err = client.Whoami(ctx, "")
 		return err
 	}, wpmCli.Err()); err != nil {
 		return err
