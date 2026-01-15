@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"wpm/pkg/asciisanitizer"
-	"wpm/pkg/config"
 
 	"github.com/henvic/httpretty"
 	"github.com/klauspost/compress/zstd"
@@ -21,8 +20,6 @@ import (
 
 const (
 	accept          = "Accept"
-	wpm             = "wpm.so"
-	localhost       = "wpm.local"
 	timeZone        = "Time-Zone"
 	userAgent       = "User-Agent"
 	contentType     = "Content-Type"
@@ -65,16 +62,6 @@ func NewHTTPClient(opts ClientOptions) (*http.Client, error) {
 	}
 
 	var rt http.RoundTripper = transport
-
-	if opts.CacheDir == "" {
-		opts.CacheDir = config.CacheDir()
-	}
-
-	if opts.EnableCache && opts.CacheTTL == 0 {
-		opts.CacheTTL = time.Hour * 24
-		c := cache{dir: opts.CacheDir, ttl: opts.CacheTTL}
-		rt = c.RoundTripper(rt)
-	}
 
 	if opts.Log != nil && logrus.GetLevel() == logrus.DebugLevel {
 		opts.LogVerboseHTTP = true
