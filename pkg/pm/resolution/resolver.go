@@ -35,17 +35,13 @@ type Resolver struct {
 	rootConfig *wpmjson.Config
 	lockfile   *wpmlock.Lockfile
 	client     registry.Client
-	runtimeWp  string
-	runtimePhp string
 }
 
-func New(rootConfig *wpmjson.Config, lockfile *wpmlock.Lockfile, client registry.Client, runtimeWp, runtimePhp string) *Resolver {
+func New(rootConfig *wpmjson.Config, lockfile *wpmlock.Lockfile, client registry.Client) *Resolver {
 	return &Resolver{
 		rootConfig: rootConfig,
 		lockfile:   lockfile,
 		client:     client,
-		runtimeWp:  runtimeWp,
-		runtimePhp: runtimePhp,
 	}
 }
 
@@ -266,37 +262,45 @@ func (r *Resolver) checkRuntimeCompatibility(manifest *manifest.Package) error {
 		return nil
 	}
 
+	// PHP and WordPress version constraints
+	requiresWP := manifest.Requires.WP
+	requiresPHP := manifest.Requires.PHP
+
+	// PHP and WordPress runtime versions
+	runtimeWP := r.rootConfig.Config.Runtime.WP
+	runtimePHP := r.rootConfig.Config.Runtime.PHP
+
 	// Check WordPress runtime compatibility.
-	if manifest.Requires.WP != "" && r.runtimeWp != "" {
-		c, err := semver.NewConstraint(manifest.Requires.WP)
+	if requiresWP != "" && runtimeWP != "" {
+		c, err := semver.NewConstraint(requiresWP)
 		if err != nil {
-			return errors.Wrap(err, "Invalid wp requirement in package")
+			return errors.Wrap(err, "Invalid WP requirement in package")
 		}
 
-		v, err := semver.NewVersion(r.runtimeWp)
+		v, err := semver.NewVersion(runtimeWP)
 		if err != nil {
-			return errors.Wrap(err, "Invalid runtime-wp version provided")
+			return errors.Wrap(err, "Invalid runtime WP version provided")
 		}
 
 		if !c.Check(v) {
-			return fmt.Errorf("requires WordPress %s, but runtime is %s", manifest.Requires.WP, r.runtimeWp)
+			return fmt.Errorf("requires WordPress %s, but runtime WordPress version is %s", requiresWP, runtimeWP)
 		}
 	}
 
 	// Check PHP
-	if manifest.Requires.PHP != "" && r.runtimePhp != "" {
-		c, err := semver.NewConstraint(manifest.Requires.PHP)
+	if requiresPHP != "" && runtimePHP != "" {
+		c, err := semver.NewConstraint(requiresPHP)
 		if err != nil {
-			return errors.Wrap(err, "Invalid php requirement in package")
+			return errors.Wrap(err, "Invalid PHP requirement in package")
 		}
 
-		v, err := semver.NewVersion(r.runtimePhp)
+		v, err := semver.NewVersion(runtimePHP)
 		if err != nil {
-			return errors.Wrap(err, "Invalid runtime-php version provided")
+			return errors.Wrap(err, "Invalid runtime PHP version provided")
 		}
 
 		if !c.Check(v) {
-			return fmt.Errorf("requires PHP %s, but runtime is %s", manifest.Requires.PHP, r.runtimePhp)
+			return fmt.Errorf("requires PHP %s, but runtime PHP version is %s", requiresPHP, runtimePHP)
 		}
 	}
 
