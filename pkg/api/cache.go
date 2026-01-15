@@ -25,8 +25,9 @@ const (
 )
 
 type Transport struct {
-	Base http.RoundTripper
-	sf   singleflight
+	Base     http.RoundTripper
+	sf       singleflight
+	cacheDir string
 }
 
 type meta struct {
@@ -60,15 +61,13 @@ func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 
 	outReq := req.Clone(req.Context())
 
-	dir := outReq.Header.Get("x-cache-dir")
 	cache := outReq.Header.Get("x-do-cache") == "true"
-	force := outReq.Header.Get("x-do-cache-force") == "true"
+	force := outReq.Header.Get("x-cache-revalidate") == "true"
 
 	outReq.Header.Del("x-do-cache")
-	outReq.Header.Del("x-cache-dir")
-	outReq.Header.Del("x-do-cache-force")
+	outReq.Header.Del("x-cache-revalidate")
 
-	if (!cache && !force) || dir == "" {
+	if (!cache && !force) || t.cacheDir == "" {
 		return t.base().RoundTrip(outReq)
 	}
 
@@ -76,7 +75,7 @@ func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	key := hex.EncodeToString(hash[:])
 
 	// Sharding: cache/a1/b2/key
-	finalPath := filepath.Join(dir, key[:2], key[2:4], key)
+	finalPath := filepath.Join(t.cacheDir, key[:2], key[2:4], key)
 
 	if !force {
 		if body, h, err := t.open(finalPath); err == nil {
