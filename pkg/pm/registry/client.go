@@ -11,6 +11,11 @@ import (
 	"wpm/pkg/pm/wpmjson/manifest"
 )
 
+const (
+	contentTypeOctetStream   = "application/octet-stream"
+	wpmContentTypeManifestV1 = "application/vnd.wpm.install-v1+json"
+)
+
 type client struct {
 	restClient *api.RESTClient
 }
@@ -56,7 +61,7 @@ func (c *client) PutPackage(ctx context.Context, data *manifest.Package, tarball
 		"/",
 		tarball,
 		nil,
-		api.WithHeader("Content-Type", "application/octet-stream"),
+		api.WithHeader("Content-Type", contentTypeOctetStream),
 		api.WithHeader("x-wpm-manifest", base64.StdEncoding.EncodeToString(manifest)),
 	)
 }
@@ -72,6 +77,7 @@ func (c *client) GetPackageManifest(ctx context.Context, packageName string, ver
 	err := c.restClient.Get(
 		"/"+packageName+"/"+versionOrTag,
 		&manifest,
+		api.WithHeader("Accept", wpmContentTypeManifestV1),
 	)
 	if err != nil {
 		return nil, err
@@ -87,5 +93,6 @@ func (c *client) DownloadTarball(ctx context.Context, url string) (io.ReadCloser
 		http.MethodGet,
 		url,
 		nil,
+		api.WithHeader("Accept", contentTypeOctetStream),
 	)
 }
