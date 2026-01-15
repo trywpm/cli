@@ -32,7 +32,7 @@ type Client interface {
 var _ Client = &client{}
 
 // New returns a new REST client for the wpm registry
-func New(host, authToken, userAgent string, colorize bool, out io.Writer) (Client, error) {
+func New(host, authToken, userAgent, cacheDir string, colorize bool, out io.Writer) (Client, error) {
 	opts := api.ClientOptions{
 		Log:         out,
 		Host:        host,
