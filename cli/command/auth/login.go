@@ -3,10 +3,9 @@ package auth
 import (
 	"context"
 	"fmt"
-	"os"
 	"wpm/cli"
 	"wpm/cli/command"
-	"wpm/pkg/api"
+	"wpm/pkg/output"
 
 	"github.com/morikuni/aec"
 	"github.com/pkg/errors"
@@ -34,16 +33,6 @@ func NewLoginCommand(wpmCli command.Cli) *cobra.Command {
 	return cmd
 }
 
-func verifyLoginOptions(wpmCli command.Cli, opts loginOptions) error {
-	isCi := os.Getenv("CI") == "true"
-
-	if opts.token != "" && !isCi {
-		_, _ = fmt.Fprintln(wpmCli.Err(), "WARNING! Using --token via the CLI is insecure.")
-	}
-
-	return nil
-}
-
 func tokenStdinPrompt(ctx context.Context, wpmCli command.Cli, opts *loginOptions) error {
 	restoreInput, err := command.DisableInputEcho(wpmCli.In())
 	if err != nil {
@@ -51,17 +40,19 @@ func tokenStdinPrompt(ctx context.Context, wpmCli command.Cli, opts *loginOption
 	}
 	defer func() {
 		if err := restoreInput(); err != nil {
-			_, _ = fmt.Fprintln(wpmCli.Err(), "Error: failed to restore terminal state to echo input:", err)
+			_, _ = fmt.Fprintln(wpmCli.Err(), "failed to restore terminal state to echo input:", err)
 		}
 	}()
 
-	token, err := command.PromptForInput(ctx, wpmCli.In(), wpmCli.Out(), "Token: ")
+	token, err := command.PromptForInput(ctx, wpmCli.In(), wpmCli.Err(), "Token: ")
 	if err != nil {
 		return err
 	}
-	_, _ = fmt.Fprintln(wpmCli.Out())
+
+	wpmCli.Err().WriteString("\n")
+
 	if token == "" {
-		return errors.Errorf("Error: token cannot be empty")
+		return errors.Errorf("token cannot be empty")
 	}
 
 	opts.token = token
@@ -69,44 +60,41 @@ func tokenStdinPrompt(ctx context.Context, wpmCli command.Cli, opts *loginOption
 	return nil
 }
 
-func validateToken(wpmCli command.Cli, token string) (string, error) {
-	client, err := api.NewRESTClient(api.ClientOptions{
-		Log:         wpmCli.Err(),
-		AuthToken:   token,
-		Host:        wpmCli.Registry(),
-		Headers:     map[string]string{"User-Agent": command.UserAgent()},
-		LogColorize: wpmCli.Err().IsColorEnabled(),
-	})
-	if err != nil {
-		return "", err
-	}
-
-	var response string
-	err = wpmCli.Progress().RunWithProgress("validating token", func() error { return client.Get("/-/whoami", &response) }, wpmCli.Err())
-	if err != nil {
-		return "", err
-	}
-
-	return response, nil
-}
-
 func runLogin(ctx context.Context, wpmCli command.Cli, opts loginOptions) error {
-	if err := verifyLoginOptions(wpmCli, opts); err != nil {
-		return err
+	if opts.token != "" {
+		wpmCli.Output().PrettyErrorln(output.Text{
+			Plain: "WARNING! Using --token via the CLI is insecure.",
+			Fancy: aec.RedF.Apply("WARNING! Using --token via the CLI is insecure."),
+		})
 	}
 
-	if opts.token == "" {
+	if opts.token == "" && wpmCli.In().IsTerminal() {
 		if err := tokenStdinPrompt(ctx, wpmCli, &opts); err != nil {
 			return err
 		}
 	}
 
-	username, err := validateToken(wpmCli, opts.token)
+	client, err := wpmCli.RegistryClient()
 	if err != nil {
 		return err
 	}
+
+	var username string
+	err = wpmCli.Progress().RunWithProgress(
+		"validating token",
+		func() error {
+			var err error
+			username, err = client.Whoami(ctx, opts.token)
+			return err
+		},
+		wpmCli.Err(),
+	)
+	if err != nil {
+		return err
+	}
+
 	if username == "" {
-		return errors.New(aec.RedF.Apply("unable to resolve identity from token"))
+		return errors.New("failed to retrieve username")
 	}
 
 	cfg := wpmCli.ConfigFile()
@@ -117,7 +105,10 @@ func runLogin(ctx context.Context, wpmCli command.Cli, opts loginOptions) error 
 		return err
 	}
 
-	_, _ = fmt.Fprintf(wpmCli.Out(), "welcome %s!\n", username)
+	wpmCli.Output().Prettyln(output.Text{
+		Plain: fmt.Sprintf("welcome %s!", username),
+		Fancy: aec.GreenF.Apply(fmt.Sprintf("welcome %s!", username)),
+	})
 
 	return nil
 }
