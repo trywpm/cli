@@ -33,7 +33,7 @@ func HandleHTTPError(resp *http.Response) error {
 		StatusCode: resp.StatusCode,
 	}
 
-	if !jsonTypeRE.MatchString(resp.Header.Get(contentType)) {
+	if !jsonTypeRE.MatchString(resp.Header.Get(HeaderContentType)) {
 		httpError.Message = resp.Status
 		return httpError
 	}

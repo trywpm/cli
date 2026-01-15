@@ -12,6 +12,7 @@ import (
 )
 
 const (
+	wpmManifestHeader        = "X-WPM-Manifest"
 	contentTypeOctetStream   = "application/octet-stream"
 	wpmContentTypeManifestV1 = "application/vnd.wpm.install-v1+json"
 )
@@ -39,7 +40,7 @@ func New(host, authToken, userAgent, cacheDir string, colorize bool, out io.Writ
 		AuthToken:   authToken,
 		LogColorize: colorize,
 		CacheDir:    cacheDir,
-		Headers:     map[string]string{"User-Agent": userAgent},
+		Headers:     map[string]string{api.HeaderUserAgent: userAgent},
 	}
 
 	_client, err := api.NewRESTClient(opts)
@@ -63,8 +64,8 @@ func (c *client) PutPackage(ctx context.Context, data *manifest.Package, tarball
 		"/",
 		tarball,
 		nil,
-		api.WithHeader("Content-Type", contentTypeOctetStream),
-		api.WithHeader("x-wpm-manifest", base64.StdEncoding.EncodeToString(manifest)),
+		api.WithHeader(api.HeaderContentType, contentTypeOctetStream),
+		api.WithHeader(wpmManifestHeader, base64.StdEncoding.EncodeToString(manifest)),
 	)
 }
 
@@ -76,19 +77,16 @@ func (c *client) GetPackageManifest(ctx context.Context, packageName, versionOrT
 		versionOrTag = "latest"
 	}
 
-	opts := []api.RequestOption{}
+	header := api.HeaderSaveCache
 	if force {
-		opts = append(opts, api.WithHeader("x-cache-revalidate", "true"))
-	} else {
-		opts = append(opts, api.WithHeader("x-do-cache", "true"))
+		header = api.HeaderCacheRevalidate
 	}
-
-	opts = append(opts, api.WithHeader("Accept", wpmContentTypeManifestV1))
 
 	err := c.restClient.Get(
 		"/"+packageName+"/"+versionOrTag,
 		&manifest,
-		opts...,
+		api.WithHeader(header, "true"), // Used by cache round tripper.
+		api.WithHeader(api.HeaderAccept, wpmContentTypeManifestV1),
 	)
 	if err != nil {
 		return nil, err
@@ -104,8 +102,8 @@ func (c *client) DownloadTarball(ctx context.Context, url string) (io.ReadCloser
 		http.MethodGet,
 		url,
 		nil,
-		api.WithHeader("Accept", contentTypeOctetStream),
-		api.WithHeader("x-do-cache", "true"), // Used by cache round tripper.
+		api.WithHeader(api.HeaderAccept, contentTypeOctetStream),
+		api.WithHeader(api.HeaderSaveCache, "true"), // Used by cache round tripper.
 	)
 }
 
@@ -115,7 +113,7 @@ func (c *client) Whoami(ctx context.Context, token string) (string, error) {
 
 	opts := []api.RequestOption{}
 	if token != "" {
-		opts = append(opts, api.WithHeader("Authorization", "Bearer "+token))
+		opts = append(opts, api.WithHeader(api.HeaderAuthorization, "Bearer "+token))
 	}
 
 	if err := c.restClient.Get("/-/whoami", &response, opts...); err != nil {

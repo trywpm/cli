@@ -22,22 +22,6 @@ const (
 	footerMagic  = 0x57504D5E
 	lockTimeout  = 60 * time.Second
 	maxLockAge   = 5 * time.Minute
-
-	// headers
-	HeaderEtag                   = "ETag"
-	HeaderSaveCache              = "X-Save-Cache"
-	HeaderLocalCache             = "X-Local-Cache"
-	HeaderIfNoneMatch            = "If-None-Match"
-	HeaderLastModified           = "Last-Modified"
-	HeaderIfModifiedSince        = "If-Modified-Since"
-	HeaderForceCacheRevalidation = "X-Cache-Revalidate"
-	HeaderContentEncoding        = "Content-Encoding"
-	HeaderContentType            = "Content-Type"
-	HeaderCacheControl           = "Cache-Control"
-
-	// header values
-	CacheHit  = "HIT"
-	CacheMiss = "MISS"
 )
 
 var cacheableHeaders = []string{
@@ -86,10 +70,10 @@ func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	outReq := req.Clone(req.Context())
 
 	cache := outReq.Header.Get(HeaderSaveCache) == "true"
-	force := outReq.Header.Get(HeaderForceCacheRevalidation) == "true"
+	force := outReq.Header.Get(HeaderCacheRevalidate) == "true"
 
 	outReq.Header.Del(HeaderSaveCache)
-	outReq.Header.Del(HeaderForceCacheRevalidation)
+	outReq.Header.Del(HeaderCacheRevalidate)
 
 	if (!cache && !force) || t.cacheDir == "" {
 		return t.base().RoundTrip(outReq)
