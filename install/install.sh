@@ -127,8 +127,6 @@ chmod +x "/tmp/$exe_name" ||
 sudo mv "/tmp/$exe_name" "$exe" ||
   error 'Failed to move extracted wpm to destination'
 
-rm -r "/tmp/$exe_name" 2>/dev/null || true
-
 echo
 success "wpm installed to ${Bold_Green}$exe${Color_Off}"
 
