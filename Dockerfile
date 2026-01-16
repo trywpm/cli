@@ -15,7 +15,7 @@ FROM --platform=$BUILDPLATFORM tonistiigi/xx:${XX_VERSION} AS xx
 FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-alpine${ALPINE_VERSION} AS build-base-alpine
 ENV GOTOOLCHAIN=local
 COPY --link --from=xx / /
-RUN apk add --no-cache bash clang lld llvm file git git-daemon
+RUN apk add --no-cache bash clang lld llvm file git git-daemon ca-certificates
 WORKDIR /go/src/wpm
 
 FROM build-base-alpine AS build-alpine
@@ -53,4 +53,5 @@ RUN --mount=type=bind,target=.,ro \
 
 FROM scratch AS binary
 COPY --from=build /out .
-CMD [ "./wpm" ]
+COPY --from=build-base-alpine /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+ENTRYPOINT [ "./wpm" ]
