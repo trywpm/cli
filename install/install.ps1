@@ -50,14 +50,13 @@ try {
     }
 
     Show-Info "Downloading from $Uri..."
-    $WebClient = New-Object System.Net.WebClient
-    $WebClient.DownloadFile($Uri, $ExePath)
+    Invoke-WebRequest -Uri $Uri -OutFile $ExePath
 
     # Check if InstallDir is in the User's persistent Path
     $UserPathArgs = "Path", "User"
     $CurrentPath = [Environment]::GetEnvironmentVariable($UserPathArgs)
 
-    if ($CurrentPath -notlike "*$InstallDir*") {
+    if (($CurrentPath -split ';') -notcontains $InstallDir) {
         Show-Info "Adding $InstallDir to User PATH..."
 
         # Add to persistent Registry PATH
@@ -73,7 +72,6 @@ try {
     Show-Info "To get started, run:"
     Write-Host ""
     Show-Bold "  wpm --help"
-
 } catch {
     Show-Error $_.Exception.Message
     exit 1
