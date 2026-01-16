@@ -95,7 +95,7 @@ case $platform in
     ;;
 esac
 
-if [[ $target = darwin-x64 ]]; then
+if [[ $target = darwin-amd64 ]]; then
   # Is this process running in Rosetta?
   # redirect stderr to devnull to avoid error message when not running in Rosetta
   if [[ $(sysctl -n sysctl.proc_translated 2>/dev/null) = 1 ]]; then
