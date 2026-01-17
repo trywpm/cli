@@ -6,6 +6,7 @@ import (
 	pmInit "wpm/cli/command/init"
 	"wpm/cli/command/install"
 	"wpm/cli/command/publish"
+	"wpm/cli/command/uninstall"
 	"wpm/cli/command/whoami"
 
 	"github.com/spf13/cobra"
@@ -18,5 +19,6 @@ func AddCommands(cmd *cobra.Command, wpmCli command.Cli) {
 		whoami.NewWhoamiCommand(wpmCli),
 		publish.NewPublishCommand(wpmCli),
 		install.NewInstallCommand(wpmCli),
+		uninstall.NewUninstallCommand(wpmCli),
 	)
 }

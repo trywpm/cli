@@ -18,6 +18,14 @@ import (
 	"github.com/pkg/errors"
 )
 
+type Trigger int
+
+const (
+	TriggerUpdate Trigger = iota
+	TriggerInstall
+	TriggerUninstall
+)
+
 type RunOptions struct {
 	NoDev              bool
 	IgnoreScripts      bool
@@ -25,6 +33,7 @@ type RunOptions struct {
 	Config             *wpmjson.Config
 	SaveConfig         bool
 	NetworkConcurrency int
+	Trigger            Trigger
 }
 
 func installerProgress(out *output.Output) func(action installer.Action) {
@@ -148,10 +157,22 @@ func Run(ctx context.Context, cwd string, wpmCli command.Cli, opts RunOptions) e
 	}
 
 	// -- Print Summary --
-	wpmCli.Output().Prettyln(output.Text{
-		Plain: fmt.Sprintf("\n%d %s installed", len(plan), command.Pluralize("package", "s", len(plan))),
-		Fancy: fmt.Sprintf("\n%s %s installed", aec.GreenF.Apply(strconv.Itoa(len(plan))), command.Pluralize("package", "s", len(plan))),
-	})
+	var action string
+	switch opts.Trigger {
+	case TriggerInstall:
+		action = "installed"
+	case TriggerUpdate:
+		action = "updated"
+	case TriggerUninstall:
+		action = "uninstalled"
+	}
+
+	if action != "" {
+		wpmCli.Output().Prettyln(output.Text{
+			Plain: fmt.Sprintf("\n%d %s %s", len(plan), command.Pluralize("package", "s", len(plan)), action),
+			Fancy: fmt.Sprintf("\n%s %s %s", aec.GreenF.Apply(strconv.Itoa(len(plan))), command.Pluralize("package", "s", len(plan)), action),
+		})
+	}
 
 	return nil
 }
