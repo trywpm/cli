@@ -34,7 +34,7 @@ func NewInstallCommand(wpmCli command.Cli) *cobra.Command {
 	var opts installOptions
 
 	cmd := &cobra.Command{
-		Use:   "install [OPTIONS]",
+		Use:   "install [OPTIONS] [PACKAGE]...",
 		Short: "Install project dependencies and add new packages",
 		Args:  cobra.ArbitraryArgs,
 		Example: `  wpm install
@@ -131,6 +131,7 @@ func runInstall(ctx context.Context, wpmCli command.Cli, opts installOptions, pa
 		Config:             cfg,
 		SaveConfig:         configModified,
 		NetworkConcurrency: opts.networkConcurrency,
+		Trigger:            TriggerInstall,
 	})
 }
 
