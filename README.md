@@ -23,9 +23,22 @@
 
 ## Installation
 
-*Coming soon - prebuilt binaries for various platforms will be available via a install script.*
+**Linux and Mac**
+```
+curl -fsSL https://wpm.so/install | bash
+```
 
-For now, you can build from source:
+**Windows**
+```
+powershell -c "irm wpm.so/install.ps1|iex"
+```
+
+**Docker**
+```
+docker pull trywpm/cli
+```
+
+**Build from Source**
 ```bash
 git clone git@github.com:trywpm/cli.git wpm
 cd wpm
