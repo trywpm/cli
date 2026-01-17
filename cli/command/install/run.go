@@ -157,21 +157,20 @@ func Run(ctx context.Context, cwd string, wpmCli command.Cli, opts RunOptions) e
 	}
 
 	// -- Print Summary --
+	var action string
 	switch opts.Trigger {
 	case TriggerInstall:
-		wpmCli.Output().Prettyln(output.Text{
-			Plain: fmt.Sprintf("\n%d %s installed", len(plan), command.Pluralize("package", "s", len(plan))),
-			Fancy: fmt.Sprintf("\n%s %s installed", aec.GreenF.Apply(strconv.Itoa(len(plan))), command.Pluralize("package", "s", len(plan))),
-		})
+		action = "installed"
 	case TriggerUpdate:
-		wpmCli.Output().Prettyln(output.Text{
-			Plain: fmt.Sprintf("\n%d %s updated", len(plan), command.Pluralize("package", "s", len(plan))),
-			Fancy: fmt.Sprintf("\n%s %s updated", aec.GreenF.Apply(strconv.Itoa(len(plan))), command.Pluralize("package", "s", len(plan))),
-		})
+		action = "updated"
 	case TriggerUninstall:
+		action = "uninstalled"
+	}
+
+	if action != "" {
 		wpmCli.Output().Prettyln(output.Text{
-			Plain: fmt.Sprintf("\n%d %s uninstalled", len(plan), command.Pluralize("package", "s", len(plan))),
-			Fancy: fmt.Sprintf("\n%s %s uninstalled", aec.GreenF.Apply(strconv.Itoa(len(plan))), command.Pluralize("package", "s", len(plan))),
+			Plain: fmt.Sprintf("\n%d %s %s", len(plan), command.Pluralize("package", "s", len(plan)), action),
+			Fancy: fmt.Sprintf("\n%s %s %s", aec.GreenF.Apply(strconv.Itoa(len(plan))), command.Pluralize("package", "s", len(plan)), action),
 		})
 	}
 
