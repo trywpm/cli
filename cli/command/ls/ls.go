@@ -2,6 +2,7 @@ package ls
 
 import (
 	"fmt"
+	"io"
 	"maps"
 	"os"
 	"path/filepath"
@@ -92,13 +93,9 @@ func runLs(wpmCli command.Cli, opts lsOptions) error {
 }
 
 type treePrinter struct {
-	out      usersWriter
+	out      io.Writer
 	lock     *wpmlock.Lockfile
 	maxDepth int
-}
-
-type usersWriter interface {
-	Write(p []byte) (n int, err error)
 }
 
 // printLevel recursively prints dependencies.
@@ -139,18 +136,20 @@ func (p *treePrinter) printLevel(deps map[string]string, colorize bool, prefix s
 			}
 
 			if pkg.Version != requestedVersion && requestedVersion != "*" {
+				invalidMsg := fmt.Sprintf("(invalid: \"%s\")", requestedVersion)
 				if colorize {
-					info += " " + aec.RedF.Apply(fmt.Sprintf("(invalid: \"%s\")", requestedVersion))
+					info += " " + aec.RedF.Apply(invalidMsg)
 				} else {
-					info += fmt.Sprintf(" (invalid: \"%s\")", requestedVersion)
+					info += " " + invalidMsg
 				}
 			}
 
 			if isCycle {
+				cycleMsg := "(cycle)"
 				if colorize {
-					info += aec.MagentaF.Apply(" (cycle)")
+					info += " " + aec.MagentaF.Apply(cycleMsg)
 				} else {
-					info += " (cycle)"
+					info += " " + cycleMsg
 				}
 			}
 
