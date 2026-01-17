@@ -11,7 +11,7 @@ require (
 	github.com/docker/go-units v0.5.0
 	github.com/fvbommel/sortorder v1.1.0
 	github.com/henvic/httpretty v0.1.4
-	github.com/klauspost/compress v1.18.2
+	github.com/klauspost/compress v1.18.3
 	github.com/moby/patternmatcher v0.6.0
 	github.com/moby/sys/sequential v0.6.0
 	github.com/moby/term v0.5.2
