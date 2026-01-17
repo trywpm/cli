@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
@@ -16,6 +17,11 @@ import (
 	"github.com/morikuni/aec"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
+)
+
+const (
+	depsSuffix    = " (dependencies)"
+	devDepsSuffix = " (devDependencies)"
 )
 
 func NewWhyCommand(wpmCli command.Cli) *cobra.Command {
@@ -64,18 +70,9 @@ func runWhy(wpmCli command.Cli, targetPkg string) error {
 	}
 
 	colorize := wpmCli.Out().IsColorEnabled()
-
-	rootNodeIdDeps := rootNode + " (dependencies)"
-	if colorize {
-		rootNodeIdDeps = fmt.Sprintf("%s %s", aec.Bold.Apply(rootNode), aec.Faint.Apply("(dependencies)"))
-	}
-
-	rootNodeIdDevDeps := rootNode + " (devDependencies)"
-	if colorize {
-		rootNodeIdDevDeps = fmt.Sprintf("%s %s", aec.Bold.Apply(rootNode), aec.Faint.Apply("(devDependencies)"))
-	}
-
 	dependents := make(map[string][]string)
+	rootNodeIdDeps := getRootNodeID(rootNode, depsSuffix, colorize)
+	rootNodeIdDevDeps := getRootNodeID(rootNode, devDepsSuffix, colorize)
 
 	if config.Dependencies != nil {
 		for name := range *config.Dependencies {
@@ -146,8 +143,6 @@ func findPathsToRoot(start string, dependents map[string][]string) [][]string {
 	// Queue holds paths: ["target", "parent", "grandparent", "root"]
 	queue := [][]string{{start}}
 
-	seen := make(map[string]bool)
-
 	for len(queue) > 0 {
 		path := queue[0]
 		queue = queue[1:]
@@ -160,8 +155,6 @@ func findPathsToRoot(start string, dependents map[string][]string) [][]string {
 			continue
 		}
 
-		seen[current] = true
-
 		parents, hasParents := dependents[current]
 		if !hasParents {
 			// Dead end (orphaned package)
@@ -171,6 +164,11 @@ func findPathsToRoot(start string, dependents map[string][]string) [][]string {
 		sort.Strings(parents)
 
 		for _, parent := range parents {
+			// Prevent cycles by ensuring we don't add a parent that's already in the path.
+			if slices.Contains(path, parent) {
+				continue
+			}
+
 			// Create new path: target -> ... -> current -> parent
 			newPath := make([]string, len(path))
 			copy(newPath, path)
@@ -184,4 +182,11 @@ func findPathsToRoot(start string, dependents map[string][]string) [][]string {
 
 func stringsContainsRoot(s string) bool {
 	return strings.Contains(s, "(dependencies)") || strings.Contains(s, "(devDependencies)")
+}
+
+func getRootNodeID(rootNode, suffix string, colorize bool) string {
+	if colorize {
+		return fmt.Sprintf("%s %s", aec.Bold.Apply(rootNode), aec.Faint.Apply(suffix))
+	}
+	return rootNode + suffix
 }
