@@ -43,7 +43,7 @@ func runUninstall(ctx context.Context, wpmCli command.Cli, packages []string) er
 	}
 
 	if cfg == nil {
-		return fmt.Errorf("No wpm.json, so nothing to remove")
+		return fmt.Errorf("no wpm.json found, nothing to uninstall")
 	}
 
 	wpmCli.Output().Prettyln(output.Text{
