@@ -13,7 +13,6 @@ import (
 	"wpm/cli/version"
 	"wpm/pkg/output"
 	"wpm/pkg/pm/wpmjson"
-	"wpm/pkg/pm/wpmjson/types"
 	"wpm/pkg/pm/wpmlock"
 
 	"github.com/Masterminds/semver/v3"
@@ -136,14 +135,6 @@ func findOutdatedPackages(ctx context.Context, config *wpmjson.Config, wpmCli co
 		progress.StopProgressIndicator()
 	}()
 
-	if config.DevDependencies == nil {
-		config.DevDependencies = &types.Dependencies{}
-	}
-
-	if config.Dependencies == nil {
-		config.Dependencies = &types.Dependencies{}
-	}
-
 	var (
 		mu      sync.Mutex
 		results []outdatedInfo
@@ -158,7 +149,10 @@ func findOutdatedPackages(ctx context.Context, config *wpmjson.Config, wpmCli co
 				return errors.Wrapf(err, "failed to fetch package %s@%s", check.name, "latest")
 			}
 
-			if manifest.Version != check.version {
+			currentVer, err1 := semver.NewVersion(check.version)
+			latestVer, err2 := semver.NewVersion(manifest.Version)
+
+			if err1 == nil && err2 == nil && latestVer.GreaterThan(currentVer) {
 				diff := getDiffType(check.version, manifest.Version)
 
 				info := outdatedInfo{
@@ -241,6 +235,7 @@ func printOutdatedList(out io.Writer, colorize bool, results []outdatedInfo) {
 			diffLabel = "(patch update)"
 		default:
 			severityColor = aec.DefaultF
+			diffLabel = "(unknown update)"
 		}
 
 		treeEnd := c(aec.LightBlackF, "└──")
