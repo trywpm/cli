@@ -73,6 +73,10 @@ func (p *Progress) RunWithProgress(label string, run func() error, out io.Writer
 }
 
 func (p *Progress) Stream(out io.Writer, text string) {
+	if !p.ProgressIndicatorEnabled {
+		return
+	}
+
 	p.progressIndicatorMu.Lock()
 	defer p.progressIndicatorMu.Unlock()
 
