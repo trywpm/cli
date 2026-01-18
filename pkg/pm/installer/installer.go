@@ -49,7 +49,7 @@ func New(contentDir string, concurrency int, client registry.Client) *Installer 
 }
 
 func (i *Installer) InstallAll(ctx context.Context, plan []Action, progressFn func(Action)) error {
-	keys, err := i.client.GetKeysJson(context.Background())
+	keys, err := i.client.GetKeysJson(ctx)
 	if err != nil {
 		return errors.Wrap(err, "failed to fetch public keys for signature verification")
 	}

@@ -48,7 +48,7 @@ func Verify(keys KeysJson, keyId string, signatureBase64 string, originalMessage
 
 	keyBytes, err := base64.StdEncoding.DecodeString(rawPublicKeyBase64)
 	if err != nil {
-		return fmt.Errorf("failed to decode base64 public key: %v", err)
+		return errors.Wrap(err, "failed to decode base64 public key")
 	}
 
 	genericPublicKey, err := x509.ParsePKIXPublicKey(keyBytes)
