@@ -8,6 +8,7 @@ import (
 	"net/http"
 
 	"wpm/pkg/api"
+	"wpm/pkg/pm/signatures"
 	"wpm/pkg/pm/wpmjson/manifest"
 )
 
@@ -25,6 +26,7 @@ type client struct {
 // registry
 type Client interface {
 	Whoami(ctx context.Context, token string) (string, error)
+	GetKeysJson(ctx context.Context) (signatures.KeysJson, error)
 	DownloadTarball(ctx context.Context, url string) (io.ReadCloser, error)
 	PutPackage(ctx context.Context, data *manifest.Package, tarball io.Reader) error
 	GetPackageManifest(ctx context.Context, packageName, versionOrTag string, force bool) (*manifest.Package, error)
@@ -121,4 +123,19 @@ func (c *client) Whoami(ctx context.Context, token string) (string, error) {
 	}
 
 	return response, nil
+}
+
+// GetKeysJson retrieves the public keys from the registry
+func (c *client) GetKeysJson(ctx context.Context) (signatures.KeysJson, error) {
+	var keys signatures.KeysJson
+
+	err := c.restClient.Get(
+		"/keys.json",
+		&keys,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return keys, nil
 }
