@@ -2,12 +2,18 @@ package manifest
 
 import "wpm/pkg/pm/wpmjson/types"
 
+type Signature struct {
+	KeyID string `json:"keyid"`
+	Sig   string `json:"sig"`
+}
+
 // Dist struct to define the distribution metadata
 type Dist struct {
-	Digest       string `json:"digest"`
-	TotalFiles   int64  `json:"totalFiles"`
-	PackedSize   int64  `json:"packedSize"`
-	UnpackedSize int64  `json:"unpackedSize"`
+	Digest       string      `json:"digest"`
+	Signatures   []Signature `json:"signatures"`
+	TotalFiles   int64       `json:"totalFiles"`
+	PackedSize   int64       `json:"packedSize"`
+	UnpackedSize int64       `json:"unpackedSize"`
 }
 
 // Package struct to define the package manifest in registry

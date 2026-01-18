@@ -15,6 +15,7 @@ import (
 
 	"wpm/pkg/archive"
 	"wpm/pkg/pm/registry"
+	"wpm/pkg/pm/signatures"
 	"wpm/pkg/pm/wpmjson/types"
 
 	"github.com/pkg/errors"
@@ -27,6 +28,7 @@ type Installer struct {
 	tmpDir      string
 	client      registry.Client
 	extractSem  chan struct{}
+	keysJson    signatures.KeysJson
 }
 
 func New(contentDir string, concurrency int, client registry.Client) *Installer {
@@ -47,6 +49,13 @@ func New(contentDir string, concurrency int, client registry.Client) *Installer 
 }
 
 func (i *Installer) InstallAll(ctx context.Context, plan []Action, progressFn func(Action)) error {
+	keys, err := i.client.GetKeysJson(ctx)
+	if err != nil {
+		return errors.Wrap(err, "failed to fetch public keys for signature verification")
+	}
+
+	i.keysJson = keys
+
 	g, ctx := errgroup.WithContext(ctx)
 	g.SetLimit(i.concurrency)
 
@@ -65,7 +74,7 @@ func (i *Installer) InstallAll(ctx context.Context, plan []Action, progressFn fu
 		})
 	}
 
-	err := g.Wait()
+	err = g.Wait()
 	os.RemoveAll(i.tmpDir)
 	return err
 }
@@ -87,6 +96,26 @@ func (i *Installer) Install(ctx context.Context, action Action) error {
 }
 
 func (i *Installer) installOrUpdate(ctx context.Context, action Action, targetDir string) error {
+	manifest, err := i.client.GetPackageManifest(ctx, action.Name, action.Version, true)
+	if err != nil {
+		return errors.Wrapf(err, "failed to fetch manifest for %s@%s", action.Name, action.Version)
+	}
+
+	sigs := manifest.Dist.Signatures
+	if len(sigs) == 0 {
+		return errors.Errorf("no signatures found for package %s@%s", action.Name, action.Version)
+	}
+
+	err = signatures.Verify(
+		i.keysJson,
+		sigs[0].KeyID,
+		sigs[0].Sig,
+		fmt.Appendf(nil, "%s:%s:%s", action.Name, action.Version, action.Digest),
+	)
+	if err != nil {
+		return errors.Wrapf(err, "signature verification failed for package %s@%s", action.Name, action.Version)
+	}
+
 	resp, err := i.client.DownloadTarball(ctx, action.Resolved)
 	if err != nil {
 		return errors.Wrapf(err, "failed to download %s", action.Resolved)
