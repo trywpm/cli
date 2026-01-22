@@ -43,7 +43,7 @@ jobs:
         uses: github/codeql-action/autobuild@7434149006143a4d75b82a2f411ef15b03ccc2d7 #v4.31.10
 
       - name: perform codeql analysis
-        uses: github/codeql-action/analyze@74c8748a6f2dada2c01b25ae170d7858ac90f4af #v4.31.10
+        uses: github/codeql-action/analyze@7434149006143a4d75b82a2f411ef15b03ccc2d7 #v4.31.10
         with: 
           category:  "/language:go"
           
