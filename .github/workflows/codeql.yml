@@ -46,3 +46,4 @@ jobs:
         uses: github/codeql-action/analyze@74c8748a6f2dada2c01b25ae170d7858ac90f4af #v4.31.10
         with: 
           category:  "/language:go"
+          
