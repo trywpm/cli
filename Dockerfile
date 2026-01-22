@@ -54,4 +54,6 @@ RUN --mount=type=bind,target=.,ro \
 FROM scratch AS binary
 COPY --from=build /out .
 COPY --from=build-base-alpine /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
-ENTRYPOINT [ "./wpm" ]
+ENV PATH="/"
+WORKDIR /app
+ENTRYPOINT [ "wpm" ]
