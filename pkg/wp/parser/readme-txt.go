@@ -66,12 +66,17 @@ func (p *ReadmeParser) Parse(content string) {
 
 	lineIndex := 0
 
-	// Parse plugin name from === Plugin Name ===
+	// Parse plugin name from === Plugin Name === OR # Plugin Name
 	lineIndex = p.skipEmptyLines(lines, lineIndex)
 	if lineIndex < len(lines) {
 		trimmedLine := strings.TrimSpace(lines[lineIndex])
-		if strings.HasPrefix(trimmedLine, "===") && strings.HasSuffix(trimmedLine, "===") && len(trimmedLine) > 6 { // e.g. "===A==="
-			p.Name = p.parsePluginName(trimmedLine)
+
+		// Check Classic (===)
+		if strings.HasPrefix(trimmedLine, "===") && strings.HasSuffix(trimmedLine, "===") && len(trimmedLine) > 6 {
+			p.Name = p.parsePluginName(trimmedLine, "===")
+			lineIndex++
+		} else if strings.HasPrefix(trimmedLine, "# ") {
+			p.Name = p.parsePluginName(trimmedLine, "#")
 			lineIndex++
 		}
 	}
@@ -89,10 +94,12 @@ func (p *ReadmeParser) stripBOM(lines []string) []string {
 	return lines
 }
 
-// parsePluginName extracts the plugin name.
-func (p *ReadmeParser) parsePluginName(line string) string {
-	name := strings.TrimPrefix(line, "===")
-	name = strings.TrimSuffix(name, "===")
+// parsePluginName extracts the plugin name stripping markers.
+func (p *ReadmeParser) parsePluginName(line, marker string) string {
+	name := strings.TrimPrefix(line, marker)
+	if marker == "===" {
+		name = strings.TrimSuffix(name, marker)
+	}
 	return strings.TrimSpace(name)
 }
 
@@ -143,8 +150,10 @@ func (p *ReadmeParser) parseHeaders(lines []string, start int) int {
 			continue
 		}
 
-		// Headers end when a section (==) or plugin title (===) starts.
-		if strings.HasPrefix(trimmedLine, "==") {
+		// Headers end when a section starts.
+		// Classic: starts with "=="
+		// Markdown: starts with "##"
+		if strings.HasPrefix(trimmedLine, "==") || strings.HasPrefix(trimmedLine, "##") {
 			break
 		}
 
@@ -195,7 +204,7 @@ func (p *ReadmeParser) parseMetaDescription(lines []string, start int) int {
 
 	if i < len(lines) {
 		line := strings.TrimSpace(lines[i])
-		if !strings.HasPrefix(line, "==") {
+		if !strings.HasPrefix(line, "==") && !strings.HasPrefix(line, "##") {
 			p.MetaDescription = line
 			i++
 		}
@@ -220,10 +229,23 @@ func (p *ReadmeParser) parseSections(lines []string, start int) {
 		line := lines[i]
 		trimmedLine := strings.TrimSpace(line)
 
-		if strings.HasPrefix(trimmedLine, "==") && strings.HasSuffix(trimmedLine, "==") &&
-			!strings.HasPrefix(trimmedLine, "===") && len(trimmedLine) >= 4 { // Min: "== =="
+		isClassicSection := strings.HasPrefix(trimmedLine, "==") && strings.HasSuffix(trimmedLine, "==") &&
+			!strings.HasPrefix(trimmedLine, "===") && len(trimmedLine) >= 4
+
+		isMarkdownSection := strings.HasPrefix(trimmedLine, "##")
+
+		if isClassicSection || isMarkdownSection {
 			saveSection()
-			sectionTitle := strings.TrimSpace(trimmedLine[2 : len(trimmedLine)-2])
+			var sectionTitle string
+
+			if isClassicSection {
+				sectionTitle = strings.TrimSpace(trimmedLine[2 : len(trimmedLine)-2])
+			} else {
+				sectionTitle = strings.TrimPrefix(trimmedLine, "##")
+				sectionTitle = strings.TrimSuffix(sectionTitle, "##")
+				sectionTitle = strings.TrimSpace(sectionTitle)
+			}
+
 			currentSectionKey = strings.ToLower(strings.ReplaceAll(sectionTitle, " ", "_"))
 		} else {
 			if currentSectionKey != "" {
@@ -261,7 +283,8 @@ func (p *ReadmeParser) processSpecialSections() {
 	}
 }
 
-// parseBlockStyleItems parses sections like FAQ or UpgradeNotice where items are "= Item Title =".
+// parseBlockStyleItems parses sections like FAQ or UpgradeNotice.
+// Handles Classic "= Item Title =" and Markdown "### Item Title".
 func (p *ReadmeParser) parseBlockStyleItems(content string) map[string]string {
 	itemsMap := make(map[string]string)
 	lines := strings.Split(content, "\n")
@@ -278,10 +301,20 @@ func (p *ReadmeParser) parseBlockStyleItems(content string) map[string]string {
 	for _, line := range lines {
 		trimmedLine := strings.TrimSpace(line)
 
-		if strings.HasPrefix(trimmedLine, "=") && strings.HasSuffix(trimmedLine, "=") &&
-			!strings.HasPrefix(trimmedLine, "==") && len(trimmedLine) >= 3 { // Min: "=A=" or "= ="
+		isClassicItem := strings.HasPrefix(trimmedLine, "=") && strings.HasSuffix(trimmedLine, "=") &&
+			!strings.HasPrefix(trimmedLine, "==") && len(trimmedLine) >= 3
+
+		isMarkdownItem := strings.HasPrefix(trimmedLine, "###")
+
+		if isClassicItem || isMarkdownItem {
 			saveItem()
-			currentItemTitle = strings.TrimSpace(trimmedLine[1 : len(trimmedLine)-1])
+			if isClassicItem {
+				currentItemTitle = strings.TrimSpace(trimmedLine[1 : len(trimmedLine)-1])
+			} else {
+				currentItemTitle = strings.TrimPrefix(trimmedLine, "###")
+				currentItemTitle = strings.TrimSuffix(currentItemTitle, "###")
+				currentItemTitle = strings.TrimSpace(currentItemTitle)
+			}
 		} else if currentItemTitle != "" { // Only append if we have an active item title
 			currentItemContent.WriteString(line + "\n")
 		}
@@ -338,6 +371,7 @@ func renderFAQMarkdown(parser *ReadmeParser, _ string, md *strings.Builder) bool
 		for q := range parser.FAQ {
 			questions = append(questions, q)
 		}
+		// Sort carefully to keep things somewhat stable
 		sort.Strings(questions)
 		for _, question := range questions {
 			md.WriteString("### " + question + "\n\n")
@@ -355,10 +389,14 @@ func renderScreenshotsMarkdown(parser *ReadmeParser, _ string, md *strings.Build
 			keys = append(keys, k)
 		}
 		sort.Ints(keys)
+
 		for _, k := range keys {
-			fmt.Fprintf(md, "![Screenshot %d](%s)\n", k, parser.Screenshots[k])
+			title := parser.Screenshots[k]
+			safeAltTitle := strings.ReplaceAll(title, "\"", "&quot;")
+
+			md.WriteString("### " + title + "\n")
+			fmt.Fprintf(md, `<img id="screenshot-%d" src="/screenshot-%d.png" alt="%s" />`+"\n\n", k, k, safeAltTitle)
 		}
-		md.WriteString("\n") // Extra newline after the list
 		return true
 	}
 	return false
@@ -370,7 +408,7 @@ func renderUpgradeNoticeMarkdown(parser *ReadmeParser, _ string, md *strings.Bui
 		for v := range parser.UpgradeNotice {
 			versions = append(versions, v)
 		}
-		sort.Strings(versions) // Note: simple string sort for versions
+		sort.Strings(versions)
 		for _, version := range versions {
 			md.WriteString("### " + version + "\n\n")
 			md.WriteString(parser.UpgradeNotice[version] + "\n\n")
@@ -397,14 +435,12 @@ func (p *ReadmeParser) ToMarkdown() string {
 	for _, config := range standardSectionConfigs {
 		content, keyUsed, found := p.getSectionContent(config.primaryKey, config.alternateKeys...)
 
-		// If not found, or found but the content is empty, skip rendering its title/content.
-		// Mark as "handled" if found (even if empty) to prevent it appearing in "Other sections".
 		if !found {
 			continue
 		}
-		renderedSectionKeys[keyUsed] = true // Mark key as handled
+		renderedSectionKeys[keyUsed] = true
 		if content == "" {
-			continue // Don't render title for empty sections
+			continue
 		}
 
 		md.WriteString(config.markdownTitle + "\n\n")
@@ -425,15 +461,14 @@ func (p *ReadmeParser) ToMarkdown() string {
 			otherSectionKeys = append(otherSectionKeys, key)
 		}
 	}
-	sort.Strings(otherSectionKeys) // Sort for consistent output
+	sort.Strings(otherSectionKeys)
 
 	titleCaser := cases.Title(language.English)
 	for _, sectionKey := range otherSectionKeys {
 		content := p.Sections[sectionKey]
-		if content == "" { // Should not happen if `renderedSectionKeys` logic is correct for empty sections
+		if content == "" {
 			continue
 		}
-		// Convert snake_case_key to Title Case
 		title := titleCaser.String(strings.ReplaceAll(sectionKey, "_", " "))
 		md.WriteString("## " + title + "\n\n")
 		md.WriteString(p.convertSubsections(content) + "\n\n")
@@ -443,7 +478,7 @@ func (p *ReadmeParser) ToMarkdown() string {
 }
 
 func (p *ReadmeParser) GetMetadata() map[string]interface{} {
-	return map[string]interface{}{
+	return map[string]any{
 		"name":             p.Name,
 		"meta_description": p.MetaDescription,
 		"contributors":     p.Contributors,
