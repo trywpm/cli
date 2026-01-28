@@ -97,9 +97,7 @@ func (p *ReadmeParser) stripBOM(lines []string) []string {
 // parsePluginName extracts the plugin name stripping markers.
 func (p *ReadmeParser) parsePluginName(line, marker string) string {
 	name := strings.TrimPrefix(line, marker)
-	if marker == "===" {
-		name = strings.TrimSuffix(name, marker)
-	}
+	name = strings.TrimSuffix(name, marker)
 	return strings.TrimSpace(name)
 }
 
@@ -477,7 +475,7 @@ func (p *ReadmeParser) ToMarkdown() string {
 	return strings.TrimSpace(md.String())
 }
 
-func (p *ReadmeParser) GetMetadata() map[string]interface{} {
+func (p *ReadmeParser) GetMetadata() map[string]any {
 	return map[string]any{
 		"name":             p.Name,
 		"meta_description": p.MetaDescription,
