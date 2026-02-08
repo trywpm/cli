@@ -182,7 +182,7 @@ jobs:
         uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
 
       - name: Setup Blacksmith Builder
-        uses: useblacksmith/setup-docker-builder@33fed32c1ba8775f20366ec9e8d0cd9fe8fc1dd3 # v1.3.0
+        uses: useblacksmith/setup-docker-builder@ef12d5b165b596e3aa44ea8198d8fde563eab402 # v1.4.0
 
       - name: docker login
         uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
