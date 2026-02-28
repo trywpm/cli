@@ -35,14 +35,14 @@ jobs:
           go-version-file: "go.mod"
 
       - name: initialize codeql
-        uses: github/codeql-action/init@710e2945787622b429f8982cacb154faa182de18 #v4.31.10
+        uses: github/codeql-action/init@0ec47d036c68ae0cf94c629009b1029407111281 #v4.31.10
         with:
           languages: go
 
       - name: autobuild
-        uses: github/codeql-action/autobuild@710e2945787622b429f8982cacb154faa182de18 #v4.31.10
+        uses: github/codeql-action/autobuild@0ec47d036c68ae0cf94c629009b1029407111281 #v4.31.10
 
       - name: perform codeql analysis
-        uses: github/codeql-action/analyze@710e2945787622b429f8982cacb154faa182de18 #v4.31.10
+        uses: github/codeql-action/analyze@0ec47d036c68ae0cf94c629009b1029407111281 #v4.31.10
         with: 
           category:  "/language:go"
