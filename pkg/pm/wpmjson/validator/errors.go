@@ -53,9 +53,9 @@ func (e ErrorList) Err() error {
 
 func (e ErrorList) Error() string {
 	var b strings.Builder
-	b.WriteString(fmt.Sprintf("error: wpm.json validation failed (%d errors):\n", len(e)))
+	fmt.Fprintf(&b, "error: wpm.json validation failed (%d errors):\n", len(e))
 	for _, err := range e {
-		b.WriteString(fmt.Sprintf("error:    %s\n", err.Error()))
+		fmt.Fprintf(&b, "error:    %s\n", err.Error())
 	}
 
 	errStr := b.String()
