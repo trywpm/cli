@@ -619,6 +619,11 @@ func Unpack(decompressedArchive io.Reader, dest string, options *TarOptions) err
 
 	var dirs []*tar.Header
 
+	absDest, err := filepath.Abs(dest)
+	if err != nil {
+		return err
+	}
+
 	// Iterate through the files in the archive.
 loop:
 	for {
@@ -659,12 +664,13 @@ loop:
 		}
 
 		path := filepath.Join(dest, hdr.Name)
-		rel, err := filepath.Rel(dest, path)
-		if err != nil {
-			return err
-		}
-		if strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
-			return breakoutError(fmt.Errorf("%q is outside of %q", hdr.Name, dest))
+
+		parentDir := filepath.Dir(path)
+		if resolvedParentDir, err := filepath.EvalSymlinks(parentDir); err == nil {
+			rel, err := filepath.Rel(absDest, resolvedParentDir)
+			if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
+				return breakoutError(fmt.Errorf("path escapes destination using symlink: %q", hdr.Name))
+			}
 		}
 
 		// If path exits we almost always just want to remove and replace it
