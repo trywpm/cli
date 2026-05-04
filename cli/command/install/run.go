@@ -120,7 +120,9 @@ func Run(ctx context.Context, cwd string, wpmCli command.Cli, opts RunOptions) e
 	}
 
 	// -- Actual Install --
-	inst := installer.New(absContentDir, opts.NetworkConcurrency, client)
+	inst := installer.New(absContentDir, opts.NetworkConcurrency, client, func(format string, args ...any) {
+		wpmCli.Output().ErrorWrite(fmt.Sprintf(format+"\n", args...))
+	})
 	if err := inst.InstallAll(ctx, plan, installerProgress(wpmCli.Output())); err != nil {
 		return errors.Wrap(err, "installation failed")
 	}

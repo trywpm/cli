@@ -29,9 +29,10 @@ type Installer struct {
 	client      registry.Client
 	extractSem  chan struct{}
 	keysJson    signatures.KeysJson
+	logger      func(format string, args ...any)
 }
 
-func New(contentDir string, concurrency int, client registry.Client) *Installer {
+func New(contentDir string, concurrency int, client registry.Client, logger func(format string, args ...any)) *Installer {
 	if concurrency <= 0 {
 		concurrency = 16
 	}
@@ -45,6 +46,7 @@ func New(contentDir string, concurrency int, client registry.Client) *Installer 
 		tmpDir:      tmpDir,
 		concurrency: concurrency,
 		extractSem:  make(chan struct{}, max(runtime.NumCPU(), 1)),
+		logger:      logger,
 	}
 }
 
@@ -158,7 +160,11 @@ func (i *Installer) unpackToStaging(r io.Reader) (string, string, error) {
 		return "", "", errors.Wrap(err, "failed to create temporary directory")
 	}
 
-	if err := archive.Untar(r, rootTemp, nil); err != nil {
+	opts := &archive.TarOptions{
+		Logger: i.logger,
+	}
+
+	if err := archive.Untar(r, rootTemp, opts); err != nil {
 		return "", rootTemp, errors.Wrap(err, "failed to extract tarball")
 	}
 
