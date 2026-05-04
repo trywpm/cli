@@ -152,7 +152,7 @@ func DecompressStream(archive io.Reader) (io.ReadCloser, error) {
 
 	// check if the stream is compressed with zstd
 	if !isZstd(bs) {
-		return nil, fmt.Errorf("unsupported archive format, expected zstd compressed tarball")
+		return nil, fmt.Errorf("unsupported archive format: expected zstd compressed archive")
 	}
 
 	zstdReader, err := zstd.NewReader(buf)
@@ -231,7 +231,7 @@ func (ta *tarAppender) addTarFile(path, name string) error {
 	}
 
 	if fi.Mode()&os.ModeSymlink != 0 {
-		return fmt.Errorf("symlinks are not permitted in the archive, remove or replace the symlink at %s to continue", path)
+		return fmt.Errorf("cannot add %q: symlinks are not supported", path)
 	}
 
 	var link string
@@ -256,7 +256,7 @@ func (ta *tarAppender) addTarFile(path, name string) error {
 	// if it's not a directory and has more than 1 link, it's hard linked
 	// and we don't allow hard links in the archive, so return an error
 	if !fi.IsDir() && hasHardlinks(fi) {
-		return fmt.Errorf("hard links are not permitted in the archive, remove or replace the hard link at %s to continue", path)
+		return fmt.Errorf("cannot add %q: hard links are not supported", path)
 	}
 
 	if err := ta.TarWriter.WriteHeader(hdr); err != nil {
@@ -310,9 +310,9 @@ func createTarFile(path, extractDir string, hdr *tar.Header, reader io.Reader, o
 	case tar.TypeLink, tar.TypeSymlink:
 		if options != nil && options.Logger != nil {
 			if hdr.Typeflag == tar.TypeLink {
-				options.Logger("skipped hard link at %q -> %q", path, hdr.Linkname)
+				options.Logger("\tskipping hard link: %q -> %q", path, hdr.Linkname)
 			} else {
-				options.Logger("skipped symlink at %q -> %q", path, hdr.Linkname)
+				options.Logger("\tskipping symlink: %q -> %q", path, hdr.Linkname)
 			}
 		}
 
@@ -322,7 +322,7 @@ func createTarFile(path, extractDir string, hdr *tar.Header, reader io.Reader, o
 		return nil
 
 	default:
-		return fmt.Errorf("unhandled tar header type %d", hdr.Typeflag)
+		return fmt.Errorf("unhandled archive header type %d", hdr.Typeflag)
 	}
 
 	mTime := boundTime(hdr.ModTime)
@@ -395,12 +395,12 @@ func (t *Tarballer) Reader() io.ReadCloser {
 	return t.pipeReader
 }
 
-// FileCount returns the number of files added to the tarball.
+// FileCount returns the number of files added to the archive.
 func (t *Tarballer) FileCount() int64 {
 	return t.fileCount.Load()
 }
 
-// UnpackedSize returns the total size of the files added to the tarball.
+// UnpackedSize returns the total size of the files added to the archive.
 func (t *Tarballer) UnpackedSize() int64 {
 	return t.unpackedSize.Load()
 }
@@ -415,7 +415,7 @@ func (t *Tarballer) Do() {
 
 	defer func() {
 		if err := ta.TarWriter.Close(); err != nil && doErr == nil {
-			doErr = fmt.Errorf("failed to close tar writer: %w", err)
+			doErr = fmt.Errorf("failed to close archive writer: %w", err)
 		}
 
 		if err := t.compressWriter.Close(); err != nil && doErr == nil {
@@ -431,12 +431,12 @@ func (t *Tarballer) Do() {
 
 	stat, err := os.Lstat(t.srcPath)
 	if err != nil {
-		doErr = fmt.Errorf("unable to read source path %s: %s", t.srcPath, err)
+		doErr = fmt.Errorf("unable to read source path %q: %w", t.srcPath, err)
 		return
 	}
 
 	if !stat.IsDir() {
-		doErr = fmt.Errorf("source path %s is not a directory", t.srcPath)
+		doErr = fmt.Errorf("source path %q is not a directory", t.srcPath)
 		return
 	}
 
@@ -455,7 +455,7 @@ func (t *Tarballer) Do() {
 		walkRoot := filepath.Join(t.srcPath, include)
 		doErr = filepath.WalkDir(walkRoot, func(filePath string, f os.DirEntry, err error) error {
 			if err != nil {
-				return fmt.Errorf("unable to stat file %s: %s", t.srcPath, err)
+				return fmt.Errorf("unable to stat file %q: %w", t.srcPath, err)
 			}
 
 			relFilePath, err := filepath.Rel(t.srcPath, filePath)
@@ -487,7 +487,7 @@ func (t *Tarballer) Do() {
 					skip, matchInfo, err = t.pm.MatchesUsingParentResults(relFilePath, patternmatcher.MatchInfo{})
 				}
 				if err != nil {
-					doErr = fmt.Errorf("error matching %s: %v", relFilePath, err)
+					doErr = fmt.Errorf("error matching %q: %w", relFilePath, err)
 					return err
 				}
 
@@ -540,12 +540,12 @@ func (t *Tarballer) Do() {
 					return err
 				}
 
-				return fmt.Errorf("unable to add file %s to tar: %s", filePath, err)
+				return fmt.Errorf("unable to add file %q to archive: %w", filePath, err)
 			}
 
 			fileInfo, err := f.Info()
 			if err != nil {
-				return fmt.Errorf("unable to get file info for %s: %s", filePath, err)
+				return fmt.Errorf("unable to get file info for %q: %w", filePath, err)
 			}
 
 			if !f.IsDir() {
@@ -576,7 +576,7 @@ loop:
 	for {
 		hdr, err := tr.Next()
 		if errors.Is(err, io.EOF) {
-			// end of tar archive
+			// end of archive
 			break
 		}
 		if err != nil {
@@ -595,7 +595,7 @@ loop:
 
 		// Check for absolute paths or paths with ".." that would escape the destination directory
 		if !filepath.IsLocal(hdr.Name) {
-			return breakoutError(fmt.Errorf("invalid tarball with non-local file path %q", hdr.Name))
+			return breakoutError(fmt.Errorf("invalid archive: insecure path %q (potential directory traversal)", hdr.Name))
 		}
 
 		for _, exclude := range options.ExcludePatterns {
@@ -705,7 +705,7 @@ func (b *extractionLimiter) Read(p []byte) (int, error) {
 	b.decompressedBytes += int64(n)
 
 	if b.decompressedBytes > maxDecompressedSize {
-		return 0, fmt.Errorf("invalid tarball with decompressed size exceeding 512MB (potential zip bomb)")
+		return 0, fmt.Errorf("invalid archive: decompressed size exceeds 512MB limit (potential zip bomb)")
 	}
 
 	if b.decompressedBytes > ratioCheckThreshold {
@@ -715,7 +715,7 @@ func (b *extractionLimiter) Read(p []byte) (int, error) {
 		}
 
 		if (b.decompressedBytes / cBytes) > maxCompressionRatio {
-			return 0, fmt.Errorf("invalid tarball with compression ratio exceeding >99.6%% (potential zip bomb)")
+			return 0, fmt.Errorf("invalid archive: compression ratio exceeds 99.6%% (potential zip bomb)")
 		}
 	}
 
@@ -726,7 +726,7 @@ func (b *extractionLimiter) Read(p []byte) (int, error) {
 // and unpacks it into the directory at `dest`.
 func Untar(tarArchive io.Reader, dest string, options *TarOptions) error {
 	if tarArchive == nil {
-		return fmt.Errorf("empty archive")
+		return errors.New("empty archive")
 	}
 
 	dest = filepath.Clean(dest)
