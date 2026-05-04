@@ -325,10 +325,13 @@ func createTarFile(path, extractDir string, hdr *tar.Header, reader io.Reader) e
 
 	case tar.TypeLink:
 		targetPath := filepath.Join(extractDir, hdr.Linkname)
+
 		// check for hardlink breakout
-		if !strings.HasPrefix(targetPath, extractDir) {
+		rel, err := filepath.Rel(extractDir, targetPath)
+		if err != nil || !filepath.IsLocal(rel) {
 			return breakoutError(fmt.Errorf("invalid hardlink %q -> %q", targetPath, hdr.Linkname))
 		}
+
 		if err := os.Link(targetPath, path); err != nil {
 			return err
 		}
@@ -342,11 +345,11 @@ func createTarFile(path, extractDir string, hdr *tar.Header, reader io.Reader) e
 		// e.g. /extractDir/path/to/symlink 	-> ../2/file	= /extractDir/path/2/file
 		targetPath := filepath.Join(filepath.Dir(path), hdr.Linkname)
 
-		// the reason we don't need to check symlinks in the path (with FollowSymlinkInScope) is because
-		// that symlink would first have to be created, which would be caught earlier, at this very check:
-		if !strings.HasPrefix(targetPath, extractDir) {
+		rel, err := filepath.Rel(extractDir, targetPath)
+		if err != nil || !filepath.IsLocal(rel) {
 			return breakoutError(fmt.Errorf("invalid symlink %q -> %q", path, hdr.Linkname))
 		}
+
 		if err := os.Symlink(hdr.Linkname, path); err != nil {
 			return err
 		}
@@ -637,6 +640,11 @@ loop:
 		// This keeps "../" as-is, but normalizes "/../" to "/". Or Windows:
 		// This keeps "..\" as-is, but normalizes "\..\" to "\".
 		hdr.Name = filepath.Clean(hdr.Name)
+
+		// Check for absolute paths or paths with ".." that would escape the destination directory
+		if !filepath.IsLocal(hdr.Name) {
+			return breakoutError(fmt.Errorf("invalid archive path: %q", hdr.Name))
+		}
 
 		for _, exclude := range options.ExcludePatterns {
 			if strings.HasPrefix(hdr.Name, exclude) {
