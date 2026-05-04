@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -25,6 +26,9 @@ const (
 	ImpliedDirectoryMode    = 0o755
 	zstdMagicSkippableStart = 0x184D2A50
 	zstdMagicSkippableMask  = 0xFFFFFFF0
+
+	maxCompressionRatio = 250
+	maxUncompressedSize = 512 * 1024 * 1024
 )
 
 var (
@@ -197,14 +201,10 @@ func FileInfoHeader(name string, fi os.FileInfo, link string) (*tar.Header, erro
 
 type tarAppender struct {
 	TarWriter *tar.Writer
-
-	// for hardlink mapping
-	SeenFiles map[uint64]string
 }
 
 func newTarAppender(writer io.Writer) *tarAppender {
 	return &tarAppender{
-		SeenFiles: make(map[uint64]string),
 		TarWriter: tar.NewWriter(writer),
 	}
 }
@@ -228,14 +228,11 @@ func (ta *tarAppender) addTarFile(path, name string) error {
 		return err
 	}
 
-	var link string
 	if fi.Mode()&os.ModeSymlink != 0 {
-		var err error
-		link, err = os.Readlink(path)
-		if err != nil {
-			return err
-		}
+		return fmt.Errorf("symlinks are not permitted in the archive, remove or replace the symlink at %s to continue", path)
 	}
+
+	var link string
 
 	hdr, err := FileInfoHeader(name, fi, link)
 	if err != nil {
@@ -254,22 +251,10 @@ func (ta *tarAppender) addTarFile(path, name string) error {
 		hdr.Name = filepath.ToSlash(filepath.Join("package", originalHdrName))
 	}
 
-	// if it's not a directory and has more than 1 link,
-	// it's hard linked, so set the type flag accordingly
+	// if it's not a directory and has more than 1 link, it's hard linked
+	// and we don't allow hard links in the archive, so return an error
 	if !fi.IsDir() && hasHardlinks(fi) {
-		inode, err := getInodeFromStat(fi.Sys())
-		if err != nil {
-			return err
-		}
-		// a link should have a name that it links too
-		// and that linked name should be first in the tar archive
-		if oldpath, ok := ta.SeenFiles[inode]; ok {
-			hdr.Typeflag = tar.TypeLink
-			hdr.Linkname = oldpath
-			hdr.Size = 0 // This Must be here for the writer math to add up!
-		} else {
-			ta.SeenFiles[inode] = hdr.Name
-		}
+		return fmt.Errorf("hard links are not permitted in the archive, remove or replace the hard link at %s to continue", path)
 	}
 
 	if err := ta.TarWriter.WriteHeader(hdr); err != nil {
@@ -295,9 +280,6 @@ func (ta *tarAppender) addTarFile(path, name string) error {
 }
 
 func createTarFile(path, extractDir string, hdr *tar.Header, reader io.Reader) error {
-	// hdr.Mode is in linux format, which we can use for sycalls,
-	// but for os.Foo() calls we need the mode converted to os.FileMode,
-	// so use hdrInfo.Mode() (they differ for e.g. setuid bits)
 	hdrInfo := hdr.FileInfo()
 
 	switch hdr.Typeflag {
@@ -313,7 +295,7 @@ func createTarFile(path, extractDir string, hdr *tar.Header, reader io.Reader) e
 	case tar.TypeReg:
 		// Source is regular file. We use sequential file access to avoid depleting
 		// the standby list on Windows. On Linux, this equates to a regular os.OpenFile.
-		file, err := sequential.OpenFile(path, os.O_CREATE|os.O_WRONLY, hdrInfo.Mode())
+		file, err := sequential.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, hdrInfo.Mode())
 		if err != nil {
 			return err
 		}
@@ -323,36 +305,9 @@ func createTarFile(path, extractDir string, hdr *tar.Header, reader io.Reader) e
 		}
 		file.Close()
 
-	case tar.TypeLink:
-		targetPath := filepath.Join(extractDir, hdr.Linkname)
-
-		// check for hardlink breakout
-		rel, err := filepath.Rel(extractDir, targetPath)
-		if err != nil || !filepath.IsLocal(rel) {
-			return breakoutError(fmt.Errorf("invalid hardlink %q -> %q", targetPath, hdr.Linkname))
-		}
-
-		if err := os.Link(targetPath, path); err != nil {
-			return err
-		}
-
-	case tar.TypeSymlink:
-		if filepath.IsAbs(hdr.Linkname) {
-			return breakoutError(fmt.Errorf("invalid symlink with absolute target %q -> %q", path, hdr.Linkname))
-		}
-
-		// 	path 				-> hdr.Linkname = targetPath
-		// e.g. /extractDir/path/to/symlink 	-> ../2/file	= /extractDir/path/2/file
-		targetPath := filepath.Join(filepath.Dir(path), hdr.Linkname)
-
-		rel, err := filepath.Rel(extractDir, targetPath)
-		if err != nil || !filepath.IsLocal(rel) {
-			return breakoutError(fmt.Errorf("invalid symlink %q -> %q", path, hdr.Linkname))
-		}
-
-		if err := os.Symlink(hdr.Linkname, path); err != nil {
-			return err
-		}
+	case tar.TypeLink, tar.TypeSymlink:
+		log.Printf("Warning: Skipped unsupported link at %q -> %q", path, hdr.Linkname)
+		return nil
 
 	case tar.TypeXGlobalHeader:
 		return nil
@@ -361,25 +316,13 @@ func createTarFile(path, extractDir string, hdr *tar.Header, reader io.Reader) e
 		return fmt.Errorf("unhandled tar header type %d", hdr.Typeflag)
 	}
 
-	aTime := boundTime(latestTime(hdr.AccessTime, hdr.ModTime))
 	mTime := boundTime(hdr.ModTime)
+	aTime := boundTime(latestTime(hdr.AccessTime, hdr.ModTime))
 
-	// chtimes doesn't support a NOFOLLOW flag atm
-	if hdr.Typeflag == tar.TypeLink {
-		if fi, err := os.Lstat(hdr.Linkname); err == nil && (fi.Mode()&os.ModeSymlink == 0) {
-			if err := chtimes(path, aTime, mTime); err != nil {
-				return err
-			}
-		}
-	} else if hdr.Typeflag != tar.TypeSymlink {
-		if err := chtimes(path, aTime, mTime); err != nil {
-			return err
-		}
-	} else {
-		if err := lchtimes(path, aTime, mTime); err != nil {
-			return err
-		}
+	if err := chtimes(path, aTime, mTime); err != nil {
+		return err
 	}
+
 	return nil
 }
 
@@ -651,8 +594,9 @@ loop:
 			return breakoutError(fmt.Errorf("invalid archive path: %q", hdr.Name))
 		}
 
+		normalizedName := filepath.ToSlash(hdr.Name)
 		for _, exclude := range options.ExcludePatterns {
-			if strings.HasPrefix(hdr.Name, exclude) {
+			if strings.HasPrefix(normalizedName, exclude) {
 				continue loop
 			}
 		}
