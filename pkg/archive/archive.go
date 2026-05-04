@@ -6,6 +6,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -308,7 +309,11 @@ func createTarFile(path, extractDir string, hdr *tar.Header, reader io.Reader, o
 
 	case tar.TypeLink, tar.TypeSymlink:
 		if options != nil && options.Logger != nil {
-			options.Logger("Warning: Skipped unsupported link at %q -> %q", path, hdr.Linkname)
+			if hdr.Typeflag == tar.TypeLink {
+				options.Logger("skipped hard link at %q -> %q", path, hdr.Linkname)
+			} else {
+				options.Logger("skipped symlink at %q -> %q", path, hdr.Linkname)
+			}
 		}
 
 		return nil
@@ -566,16 +571,11 @@ func Unpack(decompressedArchive io.Reader, dest string, options *TarOptions) err
 
 	var dirs []*tar.Header
 
-	absDest, err := filepath.Abs(dest)
-	if err != nil {
-		return err
-	}
-
 	// Iterate through the files in the archive.
 loop:
 	for {
 		hdr, err := tr.Next()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			// end of tar archive
 			break
 		}
@@ -595,12 +595,11 @@ loop:
 
 		// Check for absolute paths or paths with ".." that would escape the destination directory
 		if !filepath.IsLocal(hdr.Name) {
-			return breakoutError(fmt.Errorf("invalid archive path: %q", hdr.Name))
+			return breakoutError(fmt.Errorf("invalid tarball with non-local file path %q", hdr.Name))
 		}
 
-		normalizedName := filepath.ToSlash(hdr.Name)
 		for _, exclude := range options.ExcludePatterns {
-			if strings.HasPrefix(normalizedName, exclude) {
+			if strings.HasPrefix(filepath.ToSlash(hdr.Name), filepath.ToSlash(exclude)) {
 				continue loop
 			}
 		}
@@ -612,13 +611,12 @@ loop:
 		}
 
 		path := filepath.Join(dest, hdr.Name)
-
-		parentDir := filepath.Dir(path)
-		if resolvedParentDir, err := filepath.EvalSymlinks(parentDir); err == nil {
-			rel, err := filepath.Rel(absDest, resolvedParentDir)
-			if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
-				return breakoutError(fmt.Errorf("path escapes destination using symlink: %q", hdr.Name))
-			}
+		rel, err := filepath.Rel(dest, path)
+		if err != nil {
+			return err
+		}
+		if strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
+			return breakoutError(fmt.Errorf("%q is outside of %q", hdr.Name, dest))
 		}
 
 		// If path exits we almost always just want to remove and replace it
@@ -707,7 +705,7 @@ func (b *extractionLimiter) Read(p []byte) (int, error) {
 	b.decompressedBytes += int64(n)
 
 	if b.decompressedBytes > maxDecompressedSize {
-		return 0, fmt.Errorf("archive extraction failed: maximum decompressed size of 512MB exceeded (potential zip bomb)")
+		return 0, fmt.Errorf("invalid tarball with decompressed size exceeding 512MB (potential zip bomb)")
 	}
 
 	if b.decompressedBytes > ratioCheckThreshold {
@@ -717,7 +715,7 @@ func (b *extractionLimiter) Read(p []byte) (int, error) {
 		}
 
 		if (b.decompressedBytes / cBytes) > maxCompressionRatio {
-			return 0, fmt.Errorf("archive extraction failed: maximum compression ratio of 250x exceeded (potential zip bomb)")
+			return 0, fmt.Errorf("invalid tarball with compression ratio exceeding >99.6%% (potential zip bomb)")
 		}
 	}
 
