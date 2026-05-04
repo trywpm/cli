@@ -334,6 +334,10 @@ func createTarFile(path, extractDir string, hdr *tar.Header, reader io.Reader) e
 		}
 
 	case tar.TypeSymlink:
+		if filepath.IsAbs(hdr.Linkname) {
+			return breakoutError(fmt.Errorf("invalid symlink with absolute target %q -> %q", path, hdr.Linkname))
+		}
+
 		// 	path 				-> hdr.Linkname = targetPath
 		// e.g. /extractDir/path/to/symlink 	-> ../2/file	= /extractDir/path/2/file
 		targetPath := filepath.Join(filepath.Dir(path), hdr.Linkname)
