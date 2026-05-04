@@ -5,8 +5,6 @@ package archive
 import (
 	"os"
 	"time"
-
-	"golang.org/x/sys/unix"
 )
 
 // chtimes changes the access time and modified time of a file at the given path.
@@ -15,14 +13,4 @@ import (
 // case, Chtimes defaults to Unix Epoch, just in case.
 func chtimes(name string, atime time.Time, mtime time.Time) error {
 	return os.Chtimes(name, atime, mtime)
-}
-
-func timeToTimespec(time time.Time) (ts unix.Timespec) {
-	if time.IsZero() {
-		// Return UTIME_OMIT special value
-		ts.Sec = 0
-		ts.Nsec = (1 << 30) - 2
-		return
-	}
-	return unix.NsecToTimespec(time.UnixNano())
 }
