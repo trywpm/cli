@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -39,6 +38,7 @@ var (
 type TarOptions struct {
 	IncludeFiles    []string
 	ExcludePatterns []string
+	Logger          func(format string, args ...any)
 }
 
 // breakoutError is used to differentiate errors related to breaking out
@@ -280,7 +280,7 @@ func (ta *tarAppender) addTarFile(path, name string) error {
 	return nil
 }
 
-func createTarFile(path, extractDir string, hdr *tar.Header, reader io.Reader) error {
+func createTarFile(path, extractDir string, hdr *tar.Header, reader io.Reader, options *TarOptions) error {
 	hdrInfo := hdr.FileInfo()
 
 	switch hdr.Typeflag {
@@ -307,7 +307,10 @@ func createTarFile(path, extractDir string, hdr *tar.Header, reader io.Reader) e
 		file.Close()
 
 	case tar.TypeLink, tar.TypeSymlink:
-		log.Printf("Warning: Skipped unsupported link at %q -> %q", path, hdr.Linkname)
+		if options != nil && options.Logger != nil {
+			options.Logger("Warning: Skipped unsupported link at %q -> %q", path, hdr.Linkname)
+		}
+
 		return nil
 
 	case tar.TypeXGlobalHeader:
@@ -642,7 +645,7 @@ loop:
 			}
 		}
 
-		if err := createTarFile(path, dest, hdr, tr); err != nil {
+		if err := createTarFile(path, dest, hdr, tr, options); err != nil {
 			return err
 		}
 
