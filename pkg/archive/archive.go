@@ -27,8 +27,9 @@ const (
 	zstdMagicSkippableStart = 0x184D2A50
 	zstdMagicSkippableMask  = 0xFFFFFFF0
 
-	maxCompressionRatio = 250
-	maxUncompressedSize = 512 * 1024 * 1024
+	maxCompressionRatio int64 = 250
+	ratioCheckThreshold int64 = 5 * 1024 * 1024   // 5 MB
+	maxDecompressedSize int64 = 512 * 1024 * 1024 // 512 MB
 )
 
 var (
@@ -679,6 +680,47 @@ func createImpliedDirectories(dest string, hdr *tar.Header) error {
 	return nil
 }
 
+// readTracker wraps an io.Reader to track the total number of bytes read.
+type readTracker struct {
+	reader    io.Reader
+	bytesRead int64
+}
+
+func (t *readTracker) Read(p []byte) (int, error) {
+	n, err := t.reader.Read(p)
+	t.bytesRead += int64(n)
+	return n, err
+}
+
+// extractionLimiter wraps the decompressed stream and enforces size and ratio limits.
+type extractionLimiter struct {
+	decompressedStream io.Reader
+	compressedTracker  *readTracker
+	decompressedBytes  int64
+}
+
+func (b *extractionLimiter) Read(p []byte) (int, error) {
+	n, err := b.decompressedStream.Read(p)
+	b.decompressedBytes += int64(n)
+
+	if b.decompressedBytes > maxDecompressedSize {
+		return 0, fmt.Errorf("archive extraction failed: maximum decompressed size of 512MB exceeded (potential zip bomb)")
+	}
+
+	if b.decompressedBytes > ratioCheckThreshold {
+		cBytes := b.compressedTracker.bytesRead
+		if cBytes == 0 {
+			cBytes = 1 // prevent division by zero
+		}
+
+		if (b.decompressedBytes / cBytes) > maxCompressionRatio {
+			return 0, fmt.Errorf("archive extraction failed: maximum compression ratio of 250x exceeded (potential zip bomb)")
+		}
+	}
+
+	return n, err
+}
+
 // Untar reads a stream of bytes from `archive`, parses it as a tar archive,
 // and unpacks it into the directory at `dest`.
 func Untar(tarArchive io.Reader, dest string, options *TarOptions) error {
@@ -694,11 +736,18 @@ func Untar(tarArchive io.Reader, dest string, options *TarOptions) error {
 		options.ExcludePatterns = []string{}
 	}
 
-	decompressedArchive, err := DecompressStream(tarArchive)
+	compressedTracker := &readTracker{reader: tarArchive}
+
+	decompressedArchive, err := DecompressStream(compressedTracker)
 	if err != nil {
 		return err
 	}
 	defer decompressedArchive.Close()
 
-	return Unpack(decompressedArchive, dest, options)
+	detector := &extractionLimiter{
+		compressedTracker:  compressedTracker,
+		decompressedStream: decompressedArchive,
+	}
+
+	return Unpack(detector, dest, options)
 }
