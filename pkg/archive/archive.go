@@ -27,6 +27,8 @@ const (
 	zstdMagicSkippableStart = 0x184D2A50
 	zstdMagicSkippableMask  = 0xFFFFFFF0
 
+	zstdMaxWindowSize = uint64(1 << 25) // 32 MB
+
 	maxCompressionRatio int64 = 250
 	ratioCheckThreshold int64 = 5 * 1024 * 1024   // 5 MB
 	maxDecompressedSize int64 = 512 * 1024 * 1024 // 512 MB
@@ -155,7 +157,7 @@ func DecompressStream(archive io.Reader) (io.ReadCloser, error) {
 		return nil, fmt.Errorf("unsupported archive format: expected zstd compressed archive")
 	}
 
-	zstdReader, err := zstd.NewReader(buf)
+	zstdReader, err := zstd.NewReader(buf, zstd.WithDecoderMaxWindow(zstdMaxWindowSize))
 	if err != nil {
 		return nil, err
 	}
