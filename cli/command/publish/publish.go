@@ -62,9 +62,14 @@ func pack(path string, opts publishOptions, out *output.Output) (*archive.Tarbal
 		return nil, err
 	}
 
-	tar, err := archive.Tar(path, &archive.TarOptions{
+	tarOptions := &archive.TarOptions{
 		ExcludePatterns: ignorePatterns,
-	}, func(fileInfo os.FileInfo) {
+		Logger: func(format string, args ...any) {
+			out.ErrorWrite(fmt.Sprintf(format+"\n", args...))
+		},
+	}
+
+	tar, err := archive.Tar(path, tarOptions, func(fileInfo os.FileInfo) {
 		if opts.verbose {
 			sizeString := units.HumanSize(float64(fileInfo.Size()))
 			sizeString = fmt.Sprintf("%-7s", sizeString) // pad to 7 spaces since size string is capped to 4 numbers

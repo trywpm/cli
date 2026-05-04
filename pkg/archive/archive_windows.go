@@ -21,8 +21,3 @@ func addLongPathPrefix(srcPath string) string {
 	}
 	return longPathPrefix + srcPath
 }
-
-func getInodeFromStat(stat interface{}) (inode uint64, err error) {
-	// do nothing. no notion of Inode in stat on Windows
-	return
-}

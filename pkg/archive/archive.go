@@ -6,6 +6,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -25,6 +26,12 @@ const (
 	ImpliedDirectoryMode    = 0o755
 	zstdMagicSkippableStart = 0x184D2A50
 	zstdMagicSkippableMask  = 0xFFFFFFF0
+
+	zstdMaxWindowSize = uint64(1 << 25) // 32 MB
+
+	maxCompressionRatio int64 = 250
+	ratioCheckThreshold int64 = 5 * 1024 * 1024   // 5 MB
+	maxDecompressedSize int64 = 512 * 1024 * 1024 // 512 MB
 )
 
 var (
@@ -34,6 +41,7 @@ var (
 type TarOptions struct {
 	IncludeFiles    []string
 	ExcludePatterns []string
+	Logger          func(format string, args ...any)
 }
 
 // breakoutError is used to differentiate errors related to breaking out
@@ -146,10 +154,10 @@ func DecompressStream(archive io.Reader) (io.ReadCloser, error) {
 
 	// check if the stream is compressed with zstd
 	if !isZstd(bs) {
-		return nil, fmt.Errorf("unsupported archive format, expected zstd compressed tarball")
+		return nil, fmt.Errorf("unsupported archive format: expected zstd compressed archive")
 	}
 
-	zstdReader, err := zstd.NewReader(buf)
+	zstdReader, err := zstd.NewReader(buf, zstd.WithDecoderMaxWindow(zstdMaxWindowSize))
 	if err != nil {
 		return nil, err
 	}
@@ -197,14 +205,10 @@ func FileInfoHeader(name string, fi os.FileInfo, link string) (*tar.Header, erro
 
 type tarAppender struct {
 	TarWriter *tar.Writer
-
-	// for hardlink mapping
-	SeenFiles map[uint64]string
 }
 
 func newTarAppender(writer io.Writer) *tarAppender {
 	return &tarAppender{
-		SeenFiles: make(map[uint64]string),
 		TarWriter: tar.NewWriter(writer),
 	}
 }
@@ -228,14 +232,11 @@ func (ta *tarAppender) addTarFile(path, name string) error {
 		return err
 	}
 
-	var link string
 	if fi.Mode()&os.ModeSymlink != 0 {
-		var err error
-		link, err = os.Readlink(path)
-		if err != nil {
-			return err
-		}
+		return fmt.Errorf("cannot add %q: symlinks are not supported", path)
 	}
+
+	var link string
 
 	hdr, err := FileInfoHeader(name, fi, link)
 	if err != nil {
@@ -254,22 +255,10 @@ func (ta *tarAppender) addTarFile(path, name string) error {
 		hdr.Name = filepath.ToSlash(filepath.Join("package", originalHdrName))
 	}
 
-	// if it's not a directory and has more than 1 link,
-	// it's hard linked, so set the type flag accordingly
+	// if it's not a directory and has more than 1 link, it's hard linked
+	// and we don't allow hard links in the archive, so return an error
 	if !fi.IsDir() && hasHardlinks(fi) {
-		inode, err := getInodeFromStat(fi.Sys())
-		if err != nil {
-			return err
-		}
-		// a link should have a name that it links too
-		// and that linked name should be first in the tar archive
-		if oldpath, ok := ta.SeenFiles[inode]; ok {
-			hdr.Typeflag = tar.TypeLink
-			hdr.Linkname = oldpath
-			hdr.Size = 0 // This Must be here for the writer math to add up!
-		} else {
-			ta.SeenFiles[inode] = hdr.Name
-		}
+		return fmt.Errorf("cannot add %q: hard links are not supported", path)
 	}
 
 	if err := ta.TarWriter.WriteHeader(hdr); err != nil {
@@ -294,10 +283,7 @@ func (ta *tarAppender) addTarFile(path, name string) error {
 	return nil
 }
 
-func createTarFile(path, extractDir string, hdr *tar.Header, reader io.Reader) error {
-	// hdr.Mode is in linux format, which we can use for sycalls,
-	// but for os.Foo() calls we need the mode converted to os.FileMode,
-	// so use hdrInfo.Mode() (they differ for e.g. setuid bits)
+func createTarFile(path, extractDir string, hdr *tar.Header, reader io.Reader, options *TarOptions) error {
 	hdrInfo := hdr.FileInfo()
 
 	switch hdr.Typeflag {
@@ -313,7 +299,7 @@ func createTarFile(path, extractDir string, hdr *tar.Header, reader io.Reader) e
 	case tar.TypeReg:
 		// Source is regular file. We use sequential file access to avoid depleting
 		// the standby list on Windows. On Linux, this equates to a regular os.OpenFile.
-		file, err := sequential.OpenFile(path, os.O_CREATE|os.O_WRONLY, hdrInfo.Mode())
+		file, err := sequential.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, hdrInfo.Mode())
 		if err != nil {
 			return err
 		}
@@ -323,63 +309,31 @@ func createTarFile(path, extractDir string, hdr *tar.Header, reader io.Reader) e
 		}
 		file.Close()
 
-	case tar.TypeLink:
-		targetPath := filepath.Join(extractDir, hdr.Linkname)
-
-		// check for hardlink breakout
-		rel, err := filepath.Rel(extractDir, targetPath)
-		if err != nil || !filepath.IsLocal(rel) {
-			return breakoutError(fmt.Errorf("invalid hardlink %q -> %q", targetPath, hdr.Linkname))
+	case tar.TypeLink, tar.TypeSymlink:
+		if options != nil && options.Logger != nil {
+			if hdr.Typeflag == tar.TypeLink {
+				options.Logger("\tskipping hard link: %q -> %q", path, hdr.Linkname)
+			} else {
+				options.Logger("\tskipping symlink: %q -> %q", path, hdr.Linkname)
+			}
 		}
 
-		if err := os.Link(targetPath, path); err != nil {
-			return err
-		}
-
-	case tar.TypeSymlink:
-		if filepath.IsAbs(hdr.Linkname) {
-			return breakoutError(fmt.Errorf("invalid symlink with absolute target %q -> %q", path, hdr.Linkname))
-		}
-
-		// 	path 				-> hdr.Linkname = targetPath
-		// e.g. /extractDir/path/to/symlink 	-> ../2/file	= /extractDir/path/2/file
-		targetPath := filepath.Join(filepath.Dir(path), hdr.Linkname)
-
-		rel, err := filepath.Rel(extractDir, targetPath)
-		if err != nil || !filepath.IsLocal(rel) {
-			return breakoutError(fmt.Errorf("invalid symlink %q -> %q", path, hdr.Linkname))
-		}
-
-		if err := os.Symlink(hdr.Linkname, path); err != nil {
-			return err
-		}
+		return nil
 
 	case tar.TypeXGlobalHeader:
 		return nil
 
 	default:
-		return fmt.Errorf("unhandled tar header type %d", hdr.Typeflag)
+		return fmt.Errorf("unhandled archive header type %d", hdr.Typeflag)
 	}
 
-	aTime := boundTime(latestTime(hdr.AccessTime, hdr.ModTime))
 	mTime := boundTime(hdr.ModTime)
+	aTime := boundTime(latestTime(hdr.AccessTime, hdr.ModTime))
 
-	// chtimes doesn't support a NOFOLLOW flag atm
-	if hdr.Typeflag == tar.TypeLink {
-		if fi, err := os.Lstat(hdr.Linkname); err == nil && (fi.Mode()&os.ModeSymlink == 0) {
-			if err := chtimes(path, aTime, mTime); err != nil {
-				return err
-			}
-		}
-	} else if hdr.Typeflag != tar.TypeSymlink {
-		if err := chtimes(path, aTime, mTime); err != nil {
-			return err
-		}
-	} else {
-		if err := lchtimes(path, aTime, mTime); err != nil {
-			return err
-		}
+	if err := chtimes(path, aTime, mTime); err != nil {
+		return err
 	}
+
 	return nil
 }
 
@@ -443,12 +397,12 @@ func (t *Tarballer) Reader() io.ReadCloser {
 	return t.pipeReader
 }
 
-// FileCount returns the number of files added to the tarball.
+// FileCount returns the number of files added to the archive.
 func (t *Tarballer) FileCount() int64 {
 	return t.fileCount.Load()
 }
 
-// UnpackedSize returns the total size of the files added to the tarball.
+// UnpackedSize returns the total size of the files added to the archive.
 func (t *Tarballer) UnpackedSize() int64 {
 	return t.unpackedSize.Load()
 }
@@ -463,7 +417,7 @@ func (t *Tarballer) Do() {
 
 	defer func() {
 		if err := ta.TarWriter.Close(); err != nil && doErr == nil {
-			doErr = fmt.Errorf("failed to close tar writer: %w", err)
+			doErr = fmt.Errorf("failed to close archive writer: %w", err)
 		}
 
 		if err := t.compressWriter.Close(); err != nil && doErr == nil {
@@ -479,12 +433,12 @@ func (t *Tarballer) Do() {
 
 	stat, err := os.Lstat(t.srcPath)
 	if err != nil {
-		doErr = fmt.Errorf("unable to read source path %s: %s", t.srcPath, err)
+		doErr = fmt.Errorf("unable to read source path %q: %w", t.srcPath, err)
 		return
 	}
 
 	if !stat.IsDir() {
-		doErr = fmt.Errorf("source path %s is not a directory", t.srcPath)
+		doErr = fmt.Errorf("source path %q is not a directory", t.srcPath)
 		return
 	}
 
@@ -503,7 +457,7 @@ func (t *Tarballer) Do() {
 		walkRoot := filepath.Join(t.srcPath, include)
 		doErr = filepath.WalkDir(walkRoot, func(filePath string, f os.DirEntry, err error) error {
 			if err != nil {
-				return fmt.Errorf("unable to stat file %s: %s", t.srcPath, err)
+				return fmt.Errorf("unable to stat file %q: %w", t.srcPath, err)
 			}
 
 			relFilePath, err := filepath.Rel(t.srcPath, filePath)
@@ -535,7 +489,7 @@ func (t *Tarballer) Do() {
 					skip, matchInfo, err = t.pm.MatchesUsingParentResults(relFilePath, patternmatcher.MatchInfo{})
 				}
 				if err != nil {
-					doErr = fmt.Errorf("error matching %s: %v", relFilePath, err)
+					doErr = fmt.Errorf("error matching %q: %w", relFilePath, err)
 					return err
 				}
 
@@ -588,12 +542,12 @@ func (t *Tarballer) Do() {
 					return err
 				}
 
-				return fmt.Errorf("unable to add file %s to tar: %s", filePath, err)
+				return fmt.Errorf("unable to add file %q to archive: %w", filePath, err)
 			}
 
 			fileInfo, err := f.Info()
 			if err != nil {
-				return fmt.Errorf("unable to get file info for %s: %s", filePath, err)
+				return fmt.Errorf("unable to get file info for %q: %w", filePath, err)
 			}
 
 			if !f.IsDir() {
@@ -623,8 +577,8 @@ func Unpack(decompressedArchive io.Reader, dest string, options *TarOptions) err
 loop:
 	for {
 		hdr, err := tr.Next()
-		if err == io.EOF {
-			// end of tar archive
+		if errors.Is(err, io.EOF) {
+			// end of archive
 			break
 		}
 		if err != nil {
@@ -643,11 +597,11 @@ loop:
 
 		// Check for absolute paths or paths with ".." that would escape the destination directory
 		if !filepath.IsLocal(hdr.Name) {
-			return breakoutError(fmt.Errorf("invalid archive path: %q", hdr.Name))
+			return breakoutError(fmt.Errorf("invalid archive: insecure path %q (potential directory traversal)", hdr.Name))
 		}
 
 		for _, exclude := range options.ExcludePatterns {
-			if strings.HasPrefix(hdr.Name, exclude) {
+			if strings.HasPrefix(filepath.ToSlash(hdr.Name), filepath.ToSlash(exclude)) {
 				continue loop
 			}
 		}
@@ -691,7 +645,7 @@ loop:
 			}
 		}
 
-		if err := createTarFile(path, dest, hdr, tr); err != nil {
+		if err := createTarFile(path, dest, hdr, tr, options); err != nil {
 			return err
 		}
 
@@ -729,11 +683,63 @@ func createImpliedDirectories(dest string, hdr *tar.Header) error {
 	return nil
 }
 
+// readTracker wraps an io.Reader to track the total number of bytes read.
+type readTracker struct {
+	reader    io.Reader
+	bytesRead int64
+}
+
+func (t *readTracker) Read(p []byte) (int, error) {
+	n, err := t.reader.Read(p)
+	t.bytesRead += int64(n)
+	return n, err
+}
+
+// extractionLimiter wraps the decompressed stream and enforces size and ratio limits.
+type extractionLimiter struct {
+	decompressedStream io.Reader
+	compressedTracker  *readTracker
+	decompressedBytes  int64
+}
+
+func (b *extractionLimiter) Read(p []byte) (int, error) {
+	if b.decompressedBytes > maxDecompressedSize {
+		return 0, fmt.Errorf("invalid archive: decompressed size exceeds 512MB limit (potential zip bomb)")
+	}
+
+	remaining := maxDecompressedSize - b.decompressedBytes
+	readBuf := p
+
+	if int64(len(readBuf)) > remaining {
+		readBuf = readBuf[:remaining+1]
+	}
+
+	n, err := b.decompressedStream.Read(readBuf)
+	b.decompressedBytes += int64(n)
+
+	if b.decompressedBytes > maxDecompressedSize {
+		return n, fmt.Errorf("invalid archive: decompressed size exceeds 512MB limit (potential zip bomb)")
+	}
+
+	if b.decompressedBytes > ratioCheckThreshold {
+		cBytes := b.compressedTracker.bytesRead
+		if cBytes == 0 {
+			cBytes = 1 // prevent division by zero
+		}
+
+		if b.decompressedBytes >= int64(maxCompressionRatio)*cBytes {
+			return n, fmt.Errorf("invalid archive: compression ratio exceeds 99.6%% (potential zip bomb)")
+		}
+	}
+
+	return n, err
+}
+
 // Untar reads a stream of bytes from `archive`, parses it as a tar archive,
 // and unpacks it into the directory at `dest`.
 func Untar(tarArchive io.Reader, dest string, options *TarOptions) error {
 	if tarArchive == nil {
-		return fmt.Errorf("empty archive")
+		return errors.New("empty archive")
 	}
 
 	dest = filepath.Clean(dest)
@@ -744,11 +750,18 @@ func Untar(tarArchive io.Reader, dest string, options *TarOptions) error {
 		options.ExcludePatterns = []string{}
 	}
 
-	decompressedArchive, err := DecompressStream(tarArchive)
+	compressedTracker := &readTracker{reader: tarArchive}
+
+	decompressedArchive, err := DecompressStream(compressedTracker)
 	if err != nil {
 		return err
 	}
 	defer decompressedArchive.Close()
 
-	return Unpack(decompressedArchive, dest, options)
+	detector := &extractionLimiter{
+		compressedTracker:  compressedTracker,
+		decompressedStream: decompressedArchive,
+	}
+
+	return Unpack(detector, dest, options)
 }
