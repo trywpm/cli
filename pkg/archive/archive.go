@@ -701,11 +701,22 @@ type extractionLimiter struct {
 }
 
 func (b *extractionLimiter) Read(p []byte) (int, error) {
-	n, err := b.decompressedStream.Read(p)
+	if b.decompressedBytes > maxDecompressedSize {
+		return 0, fmt.Errorf("invalid archive: decompressed size exceeds 512MB limit (potential zip bomb)")
+	}
+
+	remaining := maxDecompressedSize - b.decompressedBytes
+	readBuf := p
+
+	if int64(len(readBuf)) > remaining {
+		readBuf = readBuf[:remaining+1]
+	}
+
+	n, err := b.decompressedStream.Read(readBuf)
 	b.decompressedBytes += int64(n)
 
 	if b.decompressedBytes > maxDecompressedSize {
-		return 0, fmt.Errorf("invalid archive: decompressed size exceeds 512MB limit (potential zip bomb)")
+		return n, fmt.Errorf("invalid archive: decompressed size exceeds 512MB limit (potential zip bomb)")
 	}
 
 	if b.decompressedBytes > ratioCheckThreshold {
@@ -714,8 +725,8 @@ func (b *extractionLimiter) Read(p []byte) (int, error) {
 			cBytes = 1 // prevent division by zero
 		}
 
-		if (b.decompressedBytes / cBytes) > maxCompressionRatio {
-			return 0, fmt.Errorf("invalid archive: compression ratio exceeds 99.6%% (potential zip bomb)")
+		if b.decompressedBytes >= int64(maxCompressionRatio)*cBytes {
+			return n, fmt.Errorf("invalid archive: compression ratio exceeds 99.6%% (potential zip bomb)")
 		}
 	}
 
