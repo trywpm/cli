@@ -666,14 +666,10 @@ loop:
 		// just apply the metadata from the layer).
 		if fi, err := os.Lstat(path); err == nil {
 			if fi.IsDir() && hdr.Typeflag != tar.TypeDir {
-				// If NoOverwriteDirNonDir is true then we cannot replace
-				// an existing directory with a non-directory from the archive.
 				return fmt.Errorf("cannot overwrite directory %q with non-directory %q", path, dest)
 			}
 
 			if !fi.IsDir() && hdr.Typeflag == tar.TypeDir {
-				// If NoOverwriteDirNonDir is true then we cannot replace
-				// an existing non-directory with a directory from the archive.
 				return fmt.Errorf("cannot overwrite non-directory %q with directory %q", path, dest)
 			}
 
