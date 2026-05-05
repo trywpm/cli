@@ -418,6 +418,11 @@ func (t *Tarballer) UnpackedSize() int64 {
 	return t.unpackedSize.Load()
 }
 
+// Close closes the reader and writer of the Tarballer.
+func (t *Tarballer) Close() error {
+	return t.pipeReader.Close()
+}
+
 // Do performs the archiving operation in the background. The resulting archive
 // can be read from t.Reader(). Do should only be called once on each Tarballer
 // instance.

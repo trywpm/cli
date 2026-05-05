@@ -169,6 +169,7 @@ func runPublish(ctx context.Context, wpmCli command.Cli, opts publishOptions) er
 	if err != nil {
 		return errors.Wrap(err, "failed to pack the package into a tarball")
 	}
+	defer tarballer.Close()
 
 	hasher := sha256.New()
 	counter := &tarballSizeCounter{}
