@@ -2,6 +2,7 @@ package wpmjson
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"wpm/pkg/pm"
@@ -120,6 +121,22 @@ func (c *Config) Validate() error {
 		}
 	}
 
+	return errs.Err()
+}
+
+// ValidateDependencyNames checks only the keys of dependencies / devDependencies.
+func (c *Config) ValidateDependencyNames() error {
+	var errs validator.ErrorList
+	if c.Dependencies != nil {
+		for name := range *c.Dependencies {
+			errs.Add(fmt.Sprintf("dependencies[%s]", name), validator.IsValidPackageName(name))
+		}
+	}
+	if c.DevDependencies != nil {
+		for name := range *c.DevDependencies {
+			errs.Add(fmt.Sprintf("devDependencies[%s]", name), validator.IsValidPackageName(name))
+		}
+	}
 	return errs.Err()
 }
 
