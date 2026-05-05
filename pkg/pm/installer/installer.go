@@ -17,6 +17,7 @@ import (
 	"wpm/pkg/pm/registry"
 	"wpm/pkg/pm/signatures"
 	"wpm/pkg/pm/wpmjson/types"
+	"wpm/pkg/pm/wpmjson/validator"
 
 	"github.com/pkg/errors"
 	"golang.org/x/sync/errgroup"
@@ -82,7 +83,10 @@ func (i *Installer) InstallAll(ctx context.Context, plan []Action, progressFn fu
 }
 
 func (i *Installer) Install(ctx context.Context, action Action) error {
-	targetDir := i.getTargetDir(action.PkgType, action.Name)
+	targetDir, err := i.getTargetDir(action.PkgType, action.Name)
+	if err != nil {
+		return err
+	}
 
 	switch action.Type {
 	case ActionRemove:
@@ -278,7 +282,11 @@ func (i *Installer) removeAll(path string) error {
 	return err
 }
 
-func (i *Installer) getTargetDir(pkgType types.PackageType, name string) string {
+func (i *Installer) getTargetDir(pkgType types.PackageType, name string) (string, error) {
+	if err := validator.IsValidPackageName(name); err != nil {
+		return "", errors.Wrapf(err, "refusing to operate on package with invalid name %q", name)
+	}
+
 	subDir := "plugins"
 	switch pkgType {
 	case types.TypeTheme:
@@ -286,5 +294,13 @@ func (i *Installer) getTargetDir(pkgType types.PackageType, name string) string 
 	case types.TypeMuPlugin:
 		subDir = "mu-plugins"
 	}
-	return filepath.Join(i.contentDir, subDir, name)
+
+	target := filepath.Join(i.contentDir, subDir, name)
+
+	rel, err := filepath.Rel(i.contentDir, target)
+	if err != nil || !filepath.IsLocal(rel) {
+		return "", errors.Errorf("package %q resolves outside content directory", name)
+	}
+
+	return target, nil
 }

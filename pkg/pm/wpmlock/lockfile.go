@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"wpm/pkg/pm"
 	"wpm/pkg/pm/wpmjson/types"
+	"wpm/pkg/pm/wpmjson/validator"
 
 	"github.com/pkg/errors"
 )
@@ -64,6 +65,12 @@ func Read(cwd string) (*Lockfile, error) {
 
 	if lockfile.Packages == nil {
 		lockfile.Packages = make(map[string]LockPackage)
+	}
+
+	for name := range lockfile.Packages {
+		if err := validator.IsValidPackageName(name); err != nil {
+			return nil, errors.Wrapf(err, "invalid package name %q in lockfile", name)
+		}
 	}
 
 	lockfile.Indentation = pm.DetectIndentation(data)
