@@ -1,7 +1,6 @@
 package api
 
 import (
-	"context"
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
@@ -13,7 +12,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"sync"
 	"time"
 )
 
@@ -38,7 +36,6 @@ var cacheableHeaders = []string{
 
 type Transport struct {
 	Base     http.RoundTripper
-	sf       singleflight
 	cacheDir string
 }
 
@@ -96,53 +93,12 @@ func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 		}
 	}
 
-	res, err, shared := t.sf.Do(key, func() (any, error) {
-		return t.executeRequest(outReq, finalPath, force)
-	})
+	res, err := t.executeRequest(outReq, finalPath, force)
 	if err != nil {
 		return t.base().RoundTrip(outReq)
 	}
 
-	// Shared callers: the leader returned its response (headers ready) but
-	// the body may still be streaming and the cache file uncommitted. Poll
-	// the cache briefly so we deduplicate the body fetch in the common case.
-	if shared {
-		if body, h, ok := t.waitForCache(outReq.Context(), finalPath); ok {
-			h.Set(HeaderLocalCache, CacheHit)
-			return t.response(outReq, body, h), nil
-		}
-
-		// If file is not ready, fall back to fresh network request.
-		// We do NOT cache this fallback to avoid race conditions.
-		return t.base().RoundTrip(outReq)
-	}
-
-	return res.(*http.Response), nil
-}
-
-func (t *Transport) waitForCache(ctx context.Context, path string) (io.ReadCloser, http.Header, bool) {
-	const maxAttempts = 6
-	backoff := 25 * time.Millisecond
-
-	for i := range maxAttempts {
-		if i > 0 {
-			select {
-			case <-ctx.Done():
-				return nil, nil, false
-			case <-time.After(backoff):
-			}
-
-			if backoff < 500*time.Millisecond {
-				backoff *= 2
-			}
-		}
-
-		if body, h, err := t.open(path); err == nil {
-			return body, h, true
-		}
-	}
-
-	return nil, nil, false
+	return res, nil
 }
 
 func (t *Transport) executeRequest(req *http.Request, finalPath string, force bool) (*http.Response, error) {
@@ -417,40 +373,4 @@ type safeReader struct {
 
 func (s *safeReader) Close() error {
 	return s.f.Close()
-}
-
-type singleflight struct {
-	mu sync.Mutex
-	m  map[string]*call
-}
-
-type call struct {
-	wg  sync.WaitGroup
-	val any
-	err error
-}
-
-func (g *singleflight) Do(key string, fn func() (any, error)) (any, error, bool) {
-	g.mu.Lock()
-	if g.m == nil {
-		g.m = make(map[string]*call)
-	}
-	if c, ok := g.m[key]; ok {
-		g.mu.Unlock()
-		c.wg.Wait()
-		return c.val, c.err, true
-	}
-	c := new(call)
-	c.wg.Add(1)
-	g.m[key] = c
-	g.mu.Unlock()
-
-	c.val, c.err = fn()
-	c.wg.Done()
-
-	g.mu.Lock()
-	delete(g.m, key)
-	g.mu.Unlock()
-
-	return c.val, c.err, false
 }
