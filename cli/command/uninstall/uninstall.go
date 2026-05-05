@@ -59,7 +59,9 @@ func runUninstall(ctx context.Context, wpmCli command.Cli, packages []string) er
 	if err != nil {
 		return errors.Wrap(err, "failed to acquire workspace lock")
 	}
-	defer lock.Release()
+	defer func() {
+		_ = lock.Release()
+	}()
 
 	cfg, err := wpmjson.Read(cwd)
 	if err != nil {

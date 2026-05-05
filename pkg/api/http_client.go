@@ -244,7 +244,7 @@ func (z *zstdReadCloser) Read(p []byte) (n int, err error) {
 
 func (z *zstdReadCloser) Close() error {
 	err := z.OriginalBody.Close()
-	z.Decoder.Reset(nil)
+	_ = z.Decoder.Reset(nil)
 	zstdDecoderPool.Put(z.Decoder)
 	return err
 }
