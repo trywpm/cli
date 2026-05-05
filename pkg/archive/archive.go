@@ -458,13 +458,14 @@ func (t *Tarballer) Do() {
 		return
 	}
 
-	if len(t.options.IncludeFiles) == 0 {
-		t.options.IncludeFiles = []string{"."}
+	includeFiles := t.options.IncludeFiles
+	if len(includeFiles) == 0 {
+		includeFiles = []string{"."}
 	}
 
 	seen := make(map[string]bool)
 
-	for _, include := range t.options.IncludeFiles {
+	for _, include := range includeFiles {
 		var (
 			parentMatchInfo []patternmatcher.MatchInfo
 			parentDirs      []string
