@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -17,11 +18,14 @@ import (
 )
 
 const (
+	headerMagic = 0x57504D43
+	footerMagic = 0x57504D5E
+
+	// Meta length sanity check: 512KB should be more than enough for headers.
+	maxMetaLen = 512 * 1024
+
+	// Bump cache version to invalidate old caches after metadata format change.
 	cacheVersion = "wpm-cache-v1"
-	headerMagic  = 0x57504D43
-	footerMagic  = 0x57504D5E
-	lockTimeout  = 60 * time.Second
-	maxLockAge   = 5 * time.Minute
 )
 
 var cacheableHeaders = []string{
@@ -45,7 +49,7 @@ type meta struct {
 func CleanupStale(cacheDir string) error {
 	tmpDir := filepath.Join(cacheDir, "tmp")
 	entries, err := os.ReadDir(tmpDir)
-	if os.IsNotExist(err) {
+	if errors.Is(err, fs.ErrNotExist) {
 		return nil
 	}
 	if err != nil {
@@ -56,7 +60,7 @@ func CleanupStale(cacheDir string) error {
 	for _, e := range entries {
 		info, err := e.Info()
 		if err == nil && info.ModTime().Before(threshold) {
-			os.Remove(filepath.Join(tmpDir, e.Name()))
+			_ = os.Remove(filepath.Join(tmpDir, e.Name()))
 		}
 	}
 	return nil
@@ -82,7 +86,7 @@ func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	hash := sha256.Sum256([]byte(outReq.URL.String()))
 	key := hex.EncodeToString(hash[:])
 
-	// Sharding: cache/a1/b2/key
+	// Sharding: cache/aa/bb/<key> to avoid too many files in a single directory.
 	finalPath := filepath.Join(t.cacheDir, key[:2], key[2:4], key)
 
 	if !force {
@@ -95,18 +99,15 @@ func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	res, err, shared := t.sf.Do(key, func() (any, error) {
 		return t.executeRequest(outReq, finalPath, force)
 	})
-
 	if err != nil {
 		return t.base().RoundTrip(outReq)
 	}
 
-	resp := res.(*http.Response)
-
-	// If this request was shared, another goroutine may have cached it
-	// while we were waiting. In that case, we re-open the cache to
-	// ensure we return a cached response.
+	// Shared callers: the leader returned its response (headers ready) but
+	// the body may still be streaming and the cache file uncommitted. Poll
+	// the cache briefly so we deduplicate the body fetch in the common case.
 	if shared {
-		if body, h, err := t.open(finalPath); err == nil {
+		if body, h, ok := t.waitForCache(outReq.Context(), finalPath); ok {
 			h.Set(HeaderLocalCache, CacheHit)
 			return t.response(outReq, body, h), nil
 		}
@@ -116,38 +117,47 @@ func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 		return t.base().RoundTrip(outReq)
 	}
 
-	return resp, nil
+	return res.(*http.Response), nil
 }
 
-func (t *Transport) executeRequest(req *http.Request, path string, force bool) (*http.Response, error) {
-	unlock, err := t.acquireLock(path + ".lock")
-	if err != nil {
+func (t *Transport) waitForCache(ctx context.Context, path string) (io.ReadCloser, http.Header, bool) {
+	const maxAttempts = 6
+	backoff := 25 * time.Millisecond
+
+	for i := range maxAttempts {
+		if i > 0 {
+			select {
+			case <-ctx.Done():
+				return nil, nil, false
+			case <-time.After(backoff):
+			}
+
+			if backoff < 500*time.Millisecond {
+				backoff *= 2
+			}
+		}
+
+		if body, h, err := t.open(path); err == nil {
+			return body, h, true
+		}
+	}
+
+	return nil, nil, false
+}
+
+func (t *Transport) executeRequest(req *http.Request, finalPath string, force bool) (*http.Response, error) {
+	if err := os.MkdirAll(filepath.Dir(finalPath), 0o755); err != nil {
 		return t.base().RoundTrip(req)
 	}
 
-	lockHeld := true
-	defer func() {
-		if lockHeld {
-			unlock()
-		}
-	}()
-
-	if !force {
-		if body, h, err := t.open(path); err == nil {
-			h.Set(HeaderLocalCache, CacheHit)
-			return t.response(req, body, h), nil
-		}
-	}
-
 	if force {
-		if body, h, err := t.open(path); err == nil {
+		if body, h, err := t.open(finalPath); err == nil {
 			if lm := h.Get(HeaderLastModified); lm != "" {
 				req.Header.Set(HeaderIfModifiedSince, lm)
 			}
 			if et := h.Get(HeaderEtag); et != "" {
 				req.Header.Set(HeaderIfNoneMatch, et)
 			}
-
 			body.Close()
 		}
 	}
@@ -160,12 +170,13 @@ func (t *Transport) executeRequest(req *http.Request, path string, force bool) (
 	// Handle 304 Not Modified
 	if resp.StatusCode == http.StatusNotModified {
 		resp.Body.Close()
-		if b, h, err := t.open(path); err == nil {
+		if body, h, err := t.open(finalPath); err == nil {
 			h.Set(HeaderLocalCache, CacheHit)
-			return t.response(req, b, h), nil
+			return t.response(req, body, h), nil
 		}
 
-		// Cache file missing/corrupt, redo the request without conditions
+		// Cache file missing/corrupt between conditional request and read.
+		// Retry without conditional headers.
 		req.Header.Del(HeaderIfNoneMatch)
 		req.Header.Del(HeaderIfModifiedSince)
 		resp, err = t.base().RoundTrip(req)
@@ -175,9 +186,7 @@ func (t *Transport) executeRequest(req *http.Request, path string, force bool) (
 	}
 
 	if resp.StatusCode == http.StatusOK {
-		wrappedBody := t.write(resp.Body, path, resp.Header, unlock)
-		resp.Body = wrappedBody
-		lockHeld = false
+		resp.Body = t.write(resp.Body, finalPath, resp.Header)
 	}
 
 	return resp, nil
@@ -208,6 +217,9 @@ func (t *Transport) open(path string) (io.ReadCloser, http.Header, error) {
 	if err := binary.Read(f, binary.BigEndian, &metaLen); err != nil {
 		return fail(err)
 	}
+	if metaLen > maxMetaLen {
+		return fail(fmt.Errorf("meta length %d exceeds %d limit", metaLen, maxMetaLen))
+	}
 
 	rawMeta := make([]byte, metaLen)
 	if _, err := io.ReadFull(f, rawMeta); err != nil {
@@ -229,7 +241,6 @@ func (t *Transport) open(path string) (io.ReadCloser, http.Header, error) {
 		return fail(err)
 	}
 
-	// Ensure file ends with valid footer
 	if stat.Size() < bodyStart+4 {
 		return fail(errors.New("truncated"))
 	}
@@ -253,41 +264,30 @@ func (t *Transport) open(path string) (io.ReadCloser, http.Header, error) {
 	}, m.Headers, nil
 }
 
-func (t *Transport) write(src io.ReadCloser, finalPath string, h http.Header, unlock func()) io.ReadCloser {
-	rootDir := filepath.Dir(filepath.Dir(filepath.Dir(finalPath)))
-	tmpDir := filepath.Join(rootDir, "tmp")
-
-	if err := os.MkdirAll(tmpDir, 0755); err != nil {
-		unlock()
-		return src
-	}
-	if err := os.MkdirAll(filepath.Dir(finalPath), 0755); err != nil {
-		unlock()
+func (t *Transport) write(src io.ReadCloser, finalPath string, h http.Header) io.ReadCloser {
+	tmpDir := filepath.Join(t.cacheDir, "tmp")
+	if err := os.MkdirAll(tmpDir, 0o755); err != nil {
 		return src
 	}
 
-	tmpName := fmt.Sprintf("%x.%d.tmp", sha256.Sum256([]byte(finalPath)), time.Now().UnixNano())
-	tmpPath := filepath.Join(tmpDir, tmpName)
-
-	f, err := os.Create(tmpPath)
+	f, err := os.CreateTemp(tmpDir, "cache-*.tmp")
 	if err != nil {
-		unlock()
 		return src
 	}
+
+	_ = os.Chmod(f.Name(), 0o644)
 
 	if err := t.writeMeta(f, h); err != nil {
 		f.Close()
-		os.Remove(tmpPath)
-		unlock()
+		os.Remove(f.Name())
 		return src
 	}
 
 	return &writer{
-		src:    src,
-		dst:    f,
-		tmp:    tmpPath,
-		final:  finalPath,
-		unlock: unlock,
+		src:   src,
+		dst:   f,
+		tmp:   f.Name(),
+		final: finalPath,
 	}
 }
 
@@ -299,20 +299,21 @@ func (t *Transport) writeMeta(w io.Writer, h http.Header) error {
 		return err
 	}
 
-	metaHeaders := http.Header{}
+	cacheable := http.Header{}
 	for _, key := range cacheableHeaders {
 		if values, ok := h[key]; ok {
 			for _, v := range values {
-				metaHeaders.Add(key, v)
+				cacheable.Add(key, v)
 			}
 		}
 	}
 
-	h = metaHeaders
-
-	b, err := json.Marshal(meta{Headers: h})
+	b, err := json.Marshal(meta{Headers: cacheable})
 	if err != nil {
 		return err
+	}
+	if len(b) > maxMetaLen {
+		return fmt.Errorf("cacheable headers too large: %d bytes", len(b))
 	}
 	if err := binary.Write(w, binary.BigEndian, uint32(len(b))); err != nil {
 		return err
@@ -326,23 +327,19 @@ type writer struct {
 	dst         *os.File
 	tmp         string
 	final       string
-	unlock      func()
 	hitEOF      bool
 	cacheFailed bool
 }
 
 func (w *writer) Read(p []byte) (int, error) {
 	n, err := w.src.Read(p)
-
 	if n > 0 && !w.cacheFailed {
 		if _, wErr := w.dst.Write(p[:n]); wErr != nil {
-			// On write failure, stop caching and clean up
 			w.cacheFailed = true
 			w.dst.Close()
 			os.Remove(w.tmp)
 		}
 	}
-
 	if err == io.EOF {
 		w.hitEOF = true
 	}
@@ -350,88 +347,50 @@ func (w *writer) Read(p []byte) (int, error) {
 }
 
 func (w *writer) Close() error {
-	defer w.unlock()
-
 	srcErr := w.src.Close()
-	success := srcErr == nil && w.hitEOF && !w.cacheFailed
-
-	var footerErr error
-	if success {
-		footerErr = binary.Write(w.dst, binary.BigEndian, uint32(footerMagic))
+	if w.cacheFailed {
+		return srcErr
 	}
 
-	if !w.cacheFailed {
-		dstErr := w.dst.Close()
-
-		if success && footerErr == nil && dstErr == nil {
-			if err := renameFile(w.tmp, w.final); err != nil {
-				os.Remove(w.tmp)
-			}
-		} else {
-			os.Remove(w.tmp)
+	success := srcErr == nil && w.hitEOF
+	if success {
+		if err := binary.Write(w.dst, binary.BigEndian, uint32(footerMagic)); err != nil {
+			success = false
 		}
-	} else {
+	}
+
+	closeErr := w.dst.Close()
+	if !success || closeErr != nil {
+		os.Remove(w.tmp)
+		return srcErr
+	}
+
+	if err := renameFile(w.tmp, w.final); err != nil {
 		os.Remove(w.tmp)
 	}
-
 	return srcErr
 }
 
-// rename with retry for Windows compatibility
+// renameFile retries on transient Windows errors (file locked by reader,
+// AV scanner). Exponential backoff up to ~3.5s.
 func renameFile(src, dst string) error {
-	for range 5 {
-		err := os.Rename(src, dst)
+	const maxAttempts = 8
+	backoff := 25 * time.Millisecond
+
+	var err error
+	for i := range maxAttempts {
+		if i > 0 {
+			time.Sleep(backoff)
+			if backoff < time.Second {
+				backoff *= 2
+			}
+		}
+		err = os.Rename(src, dst)
 		if err == nil {
 			return nil
 		}
-
-		// On Windows, if the file is locked by another process (Reader),
-		// both Remove and Rename will fail with "Access Denied".
-		// We retry in hopes the Reader finishes or the AV scanner releases it.
-		time.Sleep(50 * time.Millisecond)
 	}
-
-	// Final attempt: remove destination first
-	os.Remove(dst)
-	return os.Rename(src, dst)
-}
-
-func (t *Transport) acquireLock(path string) (func(), error) {
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
-		return nil, err
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), lockTimeout)
-	defer cancel()
-
-	ticker := time.NewTicker(50 * time.Millisecond)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		case <-ticker.C:
-			// O_EXCL ensures atomic check-and-create
-			f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL, 0666)
-			if err == nil {
-				f.Close()
-				return func() { os.Remove(path) }, nil
-			}
-
-			// If the lock file exists, check its age
-			if os.IsExist(err) {
-				if info, statErr := os.Stat(path); statErr == nil {
-					if time.Since(info.ModTime()) > maxLockAge {
-						os.Remove(path)
-						continue
-					}
-				}
-			} else {
-				return nil, err
-			}
-		}
-	}
+	return err
 }
 
 func (t *Transport) response(req *http.Request, body io.ReadCloser, h http.Header) *http.Response {
