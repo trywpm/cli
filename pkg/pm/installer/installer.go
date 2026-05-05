@@ -35,13 +35,20 @@ type Installer struct {
 	cleanupWg   sync.WaitGroup
 }
 
-func New(contentDir string, concurrency int, client registry.Client, logger func(format string, args ...any)) *Installer {
+func New(contentDir string, concurrency int, client registry.Client, logger func(format string, args ...any)) (*Installer, error) {
 	if concurrency <= 0 {
 		concurrency = 16
 	}
 
-	tmpDir := filepath.Join(contentDir, ".tmp")
-	_ = os.MkdirAll(tmpDir, 0755)
+	parentTmp := filepath.Join(contentDir, ".tmp")
+	if err := os.MkdirAll(parentTmp, 0755); err != nil {
+		return nil, errors.Wrap(err, "failed to create tmp parent")
+	}
+
+	tmpDir, err := os.MkdirTemp(parentTmp, "install-*")
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create install tmp directory")
+	}
 
 	return &Installer{
 		client:      client,
@@ -50,7 +57,7 @@ func New(contentDir string, concurrency int, client registry.Client, logger func
 		concurrency: concurrency,
 		extractSem:  make(chan struct{}, max(runtime.NumCPU(), 1)),
 		logger:      logger,
-	}
+	}, nil
 }
 
 func (i *Installer) InstallAll(ctx context.Context, plan []Action, progressFn func(Action)) error {
