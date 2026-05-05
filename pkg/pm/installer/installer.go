@@ -86,7 +86,7 @@ func (i *Installer) Close() error {
 	if i == nil {
 		return nil
 	}
-	return os.RemoveAll(i.runDir)
+	return os.RemoveAll(i.tmpDir)
 }
 
 // Caller must hold the project lock.
