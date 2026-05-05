@@ -45,6 +45,14 @@ func New(contentDir string, concurrency int, client registry.Client, logger func
 		return nil, errors.Wrap(err, "failed to create tmp parent")
 	}
 
+	if entries, err := os.ReadDir(parentTmp); err == nil {
+		for _, e := range entries {
+			if e.IsDir() && strings.HasPrefix(e.Name(), "install-") {
+				_ = os.RemoveAll(filepath.Join(parentTmp, e.Name()))
+			}
+		}
+	}
+
 	tmpDir, err := os.MkdirTemp(parentTmp, "install-*")
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create install tmp directory")
@@ -89,6 +97,7 @@ func (i *Installer) InstallAll(ctx context.Context, plan []Action, progressFn fu
 	err = g.Wait()
 	i.cleanupWg.Wait()
 	os.RemoveAll(i.tmpDir)
+	os.Remove(filepath.Join(i.contentDir, ".tmp"))
 	return err
 }
 
