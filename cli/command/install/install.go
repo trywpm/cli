@@ -4,14 +4,17 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 
 	"wpm/cli/command"
 	"wpm/cli/version"
 	"wpm/pkg/output"
+	"wpm/pkg/pm/workspace"
 	"wpm/pkg/pm/wpmjson"
 	"wpm/pkg/pm/wpmjson/types"
+	"wpm/pkg/pm/wpmjson/validator"
 
 	"github.com/morikuni/aec"
 	"github.com/pkg/errors"
@@ -81,6 +84,29 @@ func runInstall(ctx context.Context, wpmCli command.Cli, opts installOptions, pa
 		return errors.Wrap(err, "failed to get current working directory")
 	}
 
+	wpmCli.Output().Prettyln(output.Text{
+		Plain: "wpm install v" + version.Version,
+		Fancy: aec.Bold.Apply("wpm install") + " " + aec.LightBlackF.Apply("v"+version.Version),
+	})
+
+	contentDir := wpmjson.New().ContentDir()
+	if probe, _ := wpmjson.Read(cwd); probe != nil {
+		contentDir = probe.ContentDir()
+	}
+
+	lock, err := workspace.AcquireLock(ctx, filepath.Join(cwd, contentDir), func() {
+		wpmCli.Output().PrettyErrorln(output.Text{
+			Plain: "waiting for another wpm process to finish in this workspace...",
+			Fancy: aec.Faint.Apply("waiting for another wpm process to finish in this workspace..."),
+		})
+	})
+	if err != nil {
+		return errors.Wrap(err, "failed to acquire workspace lock")
+	}
+	defer func() {
+		_ = lock.Release()
+	}()
+
 	cfg, err := wpmjson.Read(cwd)
 	if err != nil {
 		return err
@@ -93,11 +119,6 @@ func runInstall(ctx context.Context, wpmCli command.Cli, opts installOptions, pa
 
 		cfg = wpmjson.New()
 	}
-
-	wpmCli.Output().Prettyln(output.Text{
-		Plain: "wpm install v" + version.Version,
-		Fancy: aec.Bold.Apply("wpm install") + " " + aec.LightBlackF.Apply("v"+version.Version),
-	})
 
 	configModified := false
 
@@ -162,7 +183,10 @@ func addPackages(ctx context.Context, config *wpmjson.Config, wpmCli command.Cli
 	var mu sync.Mutex
 
 	for i, pkgArg := range packages {
-		name, versionOrTag := parsePackageArg(pkgArg)
+		name, versionOrTag, err := parsePackageArg(pkgArg)
+		if err != nil {
+			return err
+		}
 
 		progress.Stream(wpmCli.Err(), fmt.Sprintf("  Resolving %s@%s [%d/%d]", name, versionOrTag, i+1, len(packages)))
 
@@ -196,10 +220,33 @@ func addPackages(ctx context.Context, config *wpmjson.Config, wpmCli command.Cli
 	return g.Wait()
 }
 
-func parsePackageArg(arg string) (string, string) {
-	lastAt := strings.LastIndex(arg, "@")
-	if lastAt > 0 {
-		return arg[:lastAt], arg[lastAt+1:]
+func parsePackageArg(arg string) (string, string, error) {
+	if arg == "" {
+		return "", "", errors.New("package argument cannot be empty")
 	}
-	return arg, "latest"
+
+	name := arg
+	versionOrTag := "latest"
+
+	if lastAt := strings.LastIndex(arg, "@"); lastAt > 0 {
+		name = arg[:lastAt]
+		versionOrTag = arg[lastAt+1:]
+
+		if versionOrTag == "" {
+			versionOrTag = "latest"
+		}
+	}
+
+	if err := validator.IsValidPackageName(name); err != nil {
+		return "", "", fmt.Errorf("invalid package name %q: %w", name, err)
+	}
+
+	verErr := validator.IsValidVersion(versionOrTag)
+	tagErr := validator.IsValidDistTag(versionOrTag)
+
+	if verErr != nil && tagErr != nil {
+		return "", "", fmt.Errorf("invalid version or tag %q: must be a valid semver or dist tag", versionOrTag)
+	}
+
+	return name, versionOrTag, nil
 }

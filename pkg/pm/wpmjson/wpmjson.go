@@ -2,6 +2,7 @@ package wpmjson
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"wpm/pkg/pm"
@@ -109,6 +110,33 @@ func (c *Config) Validate() error {
 		errs.MustMerge(validator.ValidateDependencies(*c.DevDependencies, "devDependencies"))
 	}
 
+	// Config field validations
+	if c.Config != nil {
+		if c.Config.BinDir != "" {
+			errs.Add("config.bin-dir", validator.IsValidProjectRelPath(c.Config.BinDir))
+		}
+
+		if c.Config.ContentDir != "" {
+			errs.Add("config.content-dir", validator.IsValidProjectRelPath(c.Config.ContentDir))
+		}
+	}
+
+	return errs.Err()
+}
+
+// ValidateDependencyNames checks only the keys of dependencies / devDependencies.
+func (c *Config) ValidateDependencyNames() error {
+	var errs validator.ErrorList
+	if c.Dependencies != nil {
+		for name := range *c.Dependencies {
+			errs.Add(fmt.Sprintf("dependencies[%s]", name), validator.IsValidPackageName(name))
+		}
+	}
+	if c.DevDependencies != nil {
+		for name := range *c.DevDependencies {
+			errs.Add(fmt.Sprintf("devDependencies[%s]", name), validator.IsValidPackageName(name))
+		}
+	}
 	return errs.Err()
 }
 

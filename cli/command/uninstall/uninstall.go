@@ -4,15 +4,18 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"wpm/cli"
 	"wpm/cli/command"
 	"wpm/cli/command/install"
 	"wpm/cli/version"
 	"wpm/pkg/output"
+	"wpm/pkg/pm/workspace"
 	"wpm/pkg/pm/wpmjson"
 
 	"github.com/morikuni/aec"
+	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 )
 
@@ -37,6 +40,29 @@ func runUninstall(ctx context.Context, wpmCli command.Cli, packages []string) er
 		return err
 	}
 
+	wpmCli.Output().Prettyln(output.Text{
+		Plain: "wpm uninstall v" + version.Version,
+		Fancy: aec.Bold.Apply("wpm uninstall") + " " + aec.LightBlackF.Apply("v"+version.Version),
+	})
+
+	contentDir := wpmjson.New().ContentDir()
+	if probe, _ := wpmjson.Read(cwd); probe != nil {
+		contentDir = probe.ContentDir()
+	}
+
+	lock, err := workspace.AcquireLock(ctx, filepath.Join(cwd, contentDir), func() {
+		wpmCli.Output().PrettyErrorln(output.Text{
+			Plain: "waiting for another wpm process to finish in this workspace...",
+			Fancy: aec.Faint.Apply("waiting for another wpm process to finish in this workspace..."),
+		})
+	})
+	if err != nil {
+		return errors.Wrap(err, "failed to acquire workspace lock")
+	}
+	defer func() {
+		_ = lock.Release()
+	}()
+
 	cfg, err := wpmjson.Read(cwd)
 	if err != nil {
 		return err
@@ -45,11 +71,6 @@ func runUninstall(ctx context.Context, wpmCli command.Cli, packages []string) er
 	if cfg == nil {
 		return fmt.Errorf("no wpm.json found, so nothing to uninstall")
 	}
-
-	wpmCli.Output().Prettyln(output.Text{
-		Plain: "wpm uninstall v" + version.Version,
-		Fancy: aec.Bold.Apply("wpm uninstall") + " " + aec.LightBlackF.Apply("v"+version.Version),
-	})
 
 	changed := false
 	for _, name := range packages {

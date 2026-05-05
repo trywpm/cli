@@ -23,11 +23,15 @@ import (
 )
 
 const (
-	ImpliedDirectoryMode    = 0o755
+	regularFileMode      = 0o644
+	impliedDirectoryMode = 0o755
+
 	zstdMagicSkippableStart = 0x184D2A50
 	zstdMagicSkippableMask  = 0xFFFFFFF0
 
 	zstdMaxWindowSize = uint64(1 << 25) // 32 MB
+
+	maxCompressedSize int64 = 128 * 1024 * 1024 // 128 MB
 
 	maxCompressionRatio int64 = 250
 	ratioCheckThreshold int64 = 5 * 1024 * 1024   // 5 MB
@@ -103,39 +107,48 @@ func (r *readCloserWrapper) Close() error {
 }
 
 var (
-	bufioReader1MPool = &sync.Pool{
-		New: func() interface{} { return bufio.NewReaderSize(nil, 1024*1024) },
+	bufioReader256KPool = &sync.Pool{
+		New: func() any { return bufio.NewReaderSize(nil, 256*1024) },
 	}
 )
 
 type bufferedReader struct {
-	buf *bufio.Reader
+	buf    *bufio.Reader
+	closed atomic.Bool
 }
 
 func newBufferedReader(r io.Reader) *bufferedReader {
-	buf := bufioReader1MPool.Get().(*bufio.Reader)
+	buf := bufioReader256KPool.Get().(*bufio.Reader)
 	buf.Reset(r)
-	return &bufferedReader{buf}
+	return &bufferedReader{buf: buf}
 }
 
 func (r *bufferedReader) Read(p []byte) (n int, err error) {
-	if r.buf == nil {
+	if r.closed.Load() {
 		return 0, io.EOF
 	}
 	n, err = r.buf.Read(p)
 	if err == io.EOF {
-		r.buf.Reset(nil)
-		bufioReader1MPool.Put(r.buf)
-		r.buf = nil
+		r.Close()
 	}
 	return
 }
 
 func (r *bufferedReader) Peek(n int) ([]byte, error) {
-	if r.buf == nil {
+	if r.closed.Load() {
 		return nil, io.EOF
 	}
 	return r.buf.Peek(n)
+}
+
+func (r *bufferedReader) Close() error {
+	if !r.closed.CompareAndSwap(false, true) {
+		return nil
+	}
+	r.buf.Reset(nil)
+	bufioReader256KPool.Put(r.buf)
+	r.buf = nil
+	return nil
 }
 
 // DecompressStream decompresses the archive and returns a ReaderCloser with the decompressed archive.
@@ -143,12 +156,6 @@ func DecompressStream(archive io.Reader) (io.ReadCloser, error) {
 	buf := newBufferedReader(archive)
 	bs, err := buf.Peek(10)
 	if err != nil && err != io.EOF {
-		// Note: we'll ignore any io.EOF error because there are some odd
-		// cases where the layer.tar file will be empty (zero bytes) and
-		// that results in an io.EOF from the Peek() call. So, in those
-		// cases we'll just treat it as a non-compressed stream and
-		// that means just create an empty layer.
-		// See Issue 18170
 		return nil, err
 	}
 
@@ -166,7 +173,7 @@ func DecompressStream(archive io.Reader) (io.ReadCloser, error) {
 		Reader: zstdReader,
 		closer: func() error {
 			zstdReader.Close()
-			return nil
+			return buf.Close()
 		},
 	}, nil
 }
@@ -180,9 +187,9 @@ func FileInfoHeader(name string, fi os.FileInfo, link string) (*tar.Header, erro
 
 	var newPerms os.FileMode
 	if fi.IsDir() {
-		newPerms = ImpliedDirectoryMode
+		newPerms = impliedDirectoryMode
 	} else if fi.Mode().IsRegular() {
-		newPerms = 0o644
+		newPerms = regularFileMode
 	}
 
 	if newPerms != 0 {
@@ -284,14 +291,12 @@ func (ta *tarAppender) addTarFile(path, name string) error {
 }
 
 func createTarFile(path, extractDir string, hdr *tar.Header, reader io.Reader, options *TarOptions) error {
-	hdrInfo := hdr.FileInfo()
-
 	switch hdr.Typeflag {
 	case tar.TypeDir:
 		// Create directory unless it exists as a directory already.
 		// In that case we just want to merge the two
 		if fi, err := os.Lstat(path); err != nil || !fi.IsDir() {
-			if err := os.Mkdir(path, hdrInfo.Mode()); err != nil {
+			if err := os.Mkdir(path, impliedDirectoryMode); err != nil {
 				return err
 			}
 		}
@@ -299,11 +304,11 @@ func createTarFile(path, extractDir string, hdr *tar.Header, reader io.Reader, o
 	case tar.TypeReg:
 		// Source is regular file. We use sequential file access to avoid depleting
 		// the standby list on Windows. On Linux, this equates to a regular os.OpenFile.
-		file, err := sequential.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, hdrInfo.Mode())
+		file, err := sequential.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, regularFileMode)
 		if err != nil {
 			return err
 		}
-		if _, err := copyWithBuffer(file, reader); err != nil {
+		if _, err := copyWithBuffer(file, io.LimitReader(reader, hdr.Size)); err != nil {
 			file.Close()
 			return err
 		}
@@ -407,6 +412,11 @@ func (t *Tarballer) UnpackedSize() int64 {
 	return t.unpackedSize.Load()
 }
 
+// Close closes the reader and writer of the Tarballer.
+func (t *Tarballer) Close() error {
+	return t.pipeReader.Close()
+}
+
 // Do performs the archiving operation in the background. The resulting archive
 // can be read from t.Reader(). Do should only be called once on each Tarballer
 // instance.
@@ -442,13 +452,14 @@ func (t *Tarballer) Do() {
 		return
 	}
 
-	if len(t.options.IncludeFiles) == 0 {
-		t.options.IncludeFiles = []string{"."}
+	includeFiles := t.options.IncludeFiles
+	if len(includeFiles) == 0 {
+		includeFiles = []string{"."}
 	}
 
 	seen := make(map[string]bool)
 
-	for _, include := range t.options.IncludeFiles {
+	for _, include := range includeFiles {
 		var (
 			parentMatchInfo []patternmatcher.MatchInfo
 			parentDirs      []string
@@ -489,8 +500,7 @@ func (t *Tarballer) Do() {
 					skip, matchInfo, err = t.pm.MatchesUsingParentResults(relFilePath, patternmatcher.MatchInfo{})
 				}
 				if err != nil {
-					doErr = fmt.Errorf("error matching %q: %w", relFilePath, err)
-					return err
+					return fmt.Errorf("error matching %q: %w", relFilePath, err)
 				}
 
 				if f.IsDir() {
@@ -572,6 +582,7 @@ func Unpack(decompressedArchive io.Reader, dest string, options *TarOptions) err
 	tr := tar.NewReader(decompressedArchive)
 
 	var dirs []*tar.Header
+	var totalSize int64
 
 	// Iterate through the files in the archive.
 loop:
@@ -598,6 +609,19 @@ loop:
 		// Check for absolute paths or paths with ".." that would escape the destination directory
 		if !filepath.IsLocal(hdr.Name) {
 			return breakoutError(fmt.Errorf("invalid archive: insecure path %q (potential directory traversal)", hdr.Name))
+		}
+
+		if hdr.Size < 0 {
+			return fmt.Errorf("invalid archive: negative size %d for %q", hdr.Size, hdr.Name)
+		}
+
+		if hdr.Size > maxDecompressedSize {
+			return fmt.Errorf("invalid archive: entry %q declares size %d exceeding %d limit", hdr.Name, hdr.Size, maxDecompressedSize)
+		}
+
+		totalSize += hdr.Size
+		if totalSize > maxDecompressedSize {
+			return fmt.Errorf("invalid archive: total declared size exceeds %d limit", maxDecompressedSize)
 		}
 
 		for _, exclude := range options.ExcludePatterns {
@@ -673,7 +697,7 @@ func createImpliedDirectories(dest string, hdr *tar.Header) error {
 		parent := filepath.Dir(hdr.Name)
 		parentPath := filepath.Join(dest, parent)
 		if _, err := os.Lstat(parentPath); err != nil && os.IsNotExist(err) {
-			err = os.MkdirAll(parentPath, ImpliedDirectoryMode)
+			err = os.MkdirAll(parentPath, impliedDirectoryMode)
 			if err != nil {
 				return err
 			}
@@ -703,30 +727,27 @@ type extractionLimiter struct {
 }
 
 func (b *extractionLimiter) Read(p []byte) (int, error) {
-	if b.decompressedBytes > maxDecompressedSize {
+	if b.compressedTracker.bytesRead > maxCompressedSize {
+		return 0, fmt.Errorf("invalid archive: compressed size exceeds 128MB limit")
+	}
+	if b.decompressedBytes >= maxDecompressedSize {
 		return 0, fmt.Errorf("invalid archive: decompressed size exceeds 512MB limit (potential zip bomb)")
 	}
 
 	remaining := maxDecompressedSize - b.decompressedBytes
 	readBuf := p
-
 	if int64(len(readBuf)) > remaining {
-		readBuf = readBuf[:remaining+1]
+		readBuf = readBuf[:remaining]
 	}
 
 	n, err := b.decompressedStream.Read(readBuf)
 	b.decompressedBytes += int64(n)
-
-	if b.decompressedBytes > maxDecompressedSize {
-		return n, fmt.Errorf("invalid archive: decompressed size exceeds 512MB limit (potential zip bomb)")
-	}
 
 	if b.decompressedBytes > ratioCheckThreshold {
 		cBytes := b.compressedTracker.bytesRead
 		if cBytes == 0 {
 			cBytes = 1 // prevent division by zero
 		}
-
 		if b.decompressedBytes >= int64(maxCompressionRatio)*cBytes {
 			return n, fmt.Errorf("invalid archive: compression ratio exceeds 99.6%% (potential zip bomb)")
 		}

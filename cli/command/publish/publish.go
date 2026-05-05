@@ -27,7 +27,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const maxReadmeSize = 50 * 1024 // 50KB
+const (
+	maxReadmeSize       = 50 * 1024         // 50KB
+	maxPackedSize int64 = 128 * 1024 * 1024 // 128MB
+)
 
 type publishOptions struct {
 	dryRun  bool
@@ -121,9 +124,13 @@ func getReadme(dirPath string) (string, error) {
 
 type tarballSizeCounter struct {
 	total int64
+	limit int64
 }
 
 func (c *tarballSizeCounter) Write(p []byte) (n int, err error) {
+	if c.limit > 0 && c.total+int64(len(p)) > c.limit {
+		return 0, fmt.Errorf("tarball size exceeds %d bytes, refusing to continue", c.limit)
+	}
 	c.total += int64(len(p))
 	return len(p), nil
 }
@@ -169,9 +176,10 @@ func runPublish(ctx context.Context, wpmCli command.Cli, opts publishOptions) er
 	if err != nil {
 		return errors.Wrap(err, "failed to pack the package into a tarball")
 	}
+	defer tarballer.Close()
 
 	hasher := sha256.New()
-	counter := &tarballSizeCounter{}
+	counter := &tarballSizeCounter{limit: maxPackedSize}
 	multiWriter := io.MultiWriter(tempFile, hasher, counter)
 
 	packTarball := func() error {
@@ -200,10 +208,6 @@ func runPublish(ctx context.Context, wpmCli command.Cli, opts publishOptions) er
 	// bail if tarball size is zero or greater than 128mb
 	if counter.total == 0 {
 		return errors.New("tarball size is zero, cannot publish empty package")
-	}
-
-	if counter.total > 128*1024*1024 {
-		return errors.New("tarball size exceeds 128mb, cannot publish package")
 	}
 
 	dim := aec.Faint.Apply
