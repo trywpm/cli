@@ -3,6 +3,7 @@ package validator
 import (
 	"fmt"
 	"net/url"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"unicode"
@@ -223,4 +224,19 @@ func ValidateRequires(wp, php string) error {
 		}
 	}
 	return errs.Err()
+}
+
+// IsValidProjectRelPath checks that a path is relative, non-empty, and stays within the project root.
+func IsValidProjectRelPath(p string) error {
+	if p == "" {
+		return fmt.Errorf("must not be empty")
+	}
+	if filepath.IsAbs(p) {
+		return fmt.Errorf("must be a relative path")
+	}
+	cleaned := filepath.Clean(p)
+	if !filepath.IsLocal(cleaned) {
+		return fmt.Errorf("must not contain '..' or escape the project directory")
+	}
+	return nil
 }
