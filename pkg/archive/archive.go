@@ -728,7 +728,7 @@ type extractionLimiter struct {
 
 func (b *extractionLimiter) Read(p []byte) (int, error) {
 	if b.compressedTracker.bytesRead > maxCompressedSize {
-		return 0, fmt.Errorf("invalid archive: compressed size exceeds 256MB limit")
+		return 0, fmt.Errorf("invalid archive: compressed size exceeds 128MB limit")
 	}
 	if b.decompressedBytes >= maxDecompressedSize {
 		return 0, fmt.Errorf("invalid archive: decompressed size exceeds 512MB limit (potential zip bomb)")
