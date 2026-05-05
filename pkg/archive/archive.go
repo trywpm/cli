@@ -308,7 +308,7 @@ func createTarFile(path, extractDir string, hdr *tar.Header, reader io.Reader, o
 		if err != nil {
 			return err
 		}
-		if _, err := copyWithBuffer(file, reader); err != nil {
+		if _, err := copyWithBuffer(file, io.LimitReader(reader, hdr.Size)); err != nil {
 			file.Close()
 			return err
 		}
