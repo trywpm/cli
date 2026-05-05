@@ -500,8 +500,7 @@ func (t *Tarballer) Do() {
 					skip, matchInfo, err = t.pm.MatchesUsingParentResults(relFilePath, patternmatcher.MatchInfo{})
 				}
 				if err != nil {
-					doErr = fmt.Errorf("error matching %q: %w", relFilePath, err)
-					return err
+					return fmt.Errorf("error matching %q: %w", relFilePath, err)
 				}
 
 				if f.IsDir() {
