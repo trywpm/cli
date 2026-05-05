@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -31,6 +32,7 @@ type Installer struct {
 	extractSem  chan struct{}
 	keysJson    signatures.KeysJson
 	logger      func(format string, args ...any)
+	cleanupWg   sync.WaitGroup
 }
 
 func New(contentDir string, concurrency int, client registry.Client, logger func(format string, args ...any)) *Installer {
@@ -78,6 +80,7 @@ func (i *Installer) InstallAll(ctx context.Context, plan []Action, progressFn fu
 	}
 
 	err = g.Wait()
+	i.cleanupWg.Wait()
 	os.RemoveAll(i.tmpDir)
 	return err
 }
@@ -206,9 +209,9 @@ func (i *Installer) replaceDir(sourceDir, targetDir string) error {
 		return errors.Wrap(err, "failed to install new version, rolled back")
 	}
 
-	go func() {
+	i.cleanupWg.Go(func() {
 		_ = i.removeAll(backupPath)
-	}()
+	})
 
 	return nil
 }
