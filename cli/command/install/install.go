@@ -14,6 +14,7 @@ import (
 	"wpm/pkg/pm/workspace"
 	"wpm/pkg/pm/wpmjson"
 	"wpm/pkg/pm/wpmjson/types"
+	"wpm/pkg/pm/wpmjson/validator"
 
 	"github.com/morikuni/aec"
 	"github.com/pkg/errors"
@@ -180,7 +181,10 @@ func addPackages(ctx context.Context, config *wpmjson.Config, wpmCli command.Cli
 	var mu sync.Mutex
 
 	for i, pkgArg := range packages {
-		name, versionOrTag := parsePackageArg(pkgArg)
+		name, versionOrTag, err := parsePackageArg(pkgArg)
+		if err != nil {
+			return err
+		}
 
 		progress.Stream(wpmCli.Err(), fmt.Sprintf("  Resolving %s@%s [%d/%d]", name, versionOrTag, i+1, len(packages)))
 
@@ -214,10 +218,33 @@ func addPackages(ctx context.Context, config *wpmjson.Config, wpmCli command.Cli
 	return g.Wait()
 }
 
-func parsePackageArg(arg string) (string, string) {
-	lastAt := strings.LastIndex(arg, "@")
-	if lastAt > 0 {
-		return arg[:lastAt], arg[lastAt+1:]
+func parsePackageArg(arg string) (string, string, error) {
+	if arg == "" {
+		return "", "", errors.New("package argument cannot be empty")
 	}
-	return arg, "latest"
+
+	name := arg
+	versionOrTag := "latest"
+
+	if lastAt := strings.LastIndex(arg, "@"); lastAt > 0 {
+		name = arg[:lastAt]
+		versionOrTag = arg[lastAt+1:]
+
+		if versionOrTag == "" {
+			versionOrTag = "latest"
+		}
+	}
+
+	if err := validator.IsValidPackageName(name); err != nil {
+		return "", "", fmt.Errorf("invalid package name %q: %w", name, err)
+	}
+
+	verErr := validator.IsValidVersion(versionOrTag)
+	tagErr := validator.IsValidDistTag(versionOrTag)
+
+	if verErr != nil && tagErr != nil {
+		return "", "", fmt.Errorf("invalid version or tag %q: must be a valid semver or dist tag", versionOrTag)
+	}
+
+	return name, versionOrTag, nil
 }
