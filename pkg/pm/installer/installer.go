@@ -149,7 +149,7 @@ func (i *Installer) install(ctx context.Context, action Action) error {
 }
 
 func (i *Installer) installOrUpdate(ctx context.Context, action Action, targetDir string) error {
-	manifest, err := i.client.GetPackageManifest(ctx, action.Name, action.Version, true)
+	manifest, err := i.client.GetPackageManifest(ctx, action.Name, action.Version, false)
 	if err != nil {
 		return errors.Wrapf(err, "failed to fetch manifest for %s@%s", action.Name, action.Version)
 	}
