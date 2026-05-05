@@ -75,7 +75,19 @@ func NewHTTPClient(opts ClientOptions) (*http.Client, error) {
 		cacheDir: opts.CacheDir,
 	}
 
+	if opts.Headers == nil {
+		opts.Headers = map[string]string{}
+	}
+
+	if !opts.SkipDefaultHeaders {
+		resolveHeaders(opts.Headers)
+	}
+
 	var rt http.RoundTripper = transport
+
+	rt = newHeaderRoundTripper(opts.Host, opts.AuthToken, opts.Headers, rt)
+	rt = newDecompressingRoundTripper(rt)
+	rt = newSanitizerRoundTripper(rt)
 
 	if opts.Log != nil && logrus.GetLevel() == logrus.DebugLevel {
 		opts.LogVerboseHTTP = true
@@ -96,18 +108,6 @@ func NewHTTPClient(opts ClientOptions) (*http.Client, error) {
 		})
 		rt = logger.RoundTripper(rt)
 	}
-
-	if opts.Headers == nil {
-		opts.Headers = map[string]string{}
-	}
-
-	if !opts.SkipDefaultHeaders {
-		resolveHeaders(opts.Headers)
-	}
-
-	rt = newHeaderRoundTripper(opts.Host, opts.AuthToken, opts.Headers, rt)
-	rt = newDecompressingRoundTripper(rt)
-	rt = newSanitizerRoundTripper(rt)
 
 	return &http.Client{Transport: rt, Timeout: opts.Timeout}, nil
 }
@@ -244,6 +244,7 @@ func (z *zstdReadCloser) Read(p []byte) (n int, err error) {
 
 func (z *zstdReadCloser) Close() error {
 	err := z.OriginalBody.Close()
+	z.Decoder.Reset(nil)
 	zstdDecoderPool.Put(z.Decoder)
 	return err
 }
