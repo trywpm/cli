@@ -18,8 +18,8 @@ type ProjectLock struct {
 // project, or the ctx is cancelled. Any command that reads then mutates
 // wpm.json or wpm.lock MUST hold this lock for the entire
 // read-modify-write window.
-func AcquireLock(ctx context.Context, cwd string, printWaitMsg func()) (*ProjectLock, error) {
-	wpmDir := filepath.Join(cwd, ".wpm")
+func AcquireLock(ctx context.Context, baseDir string, printWaitMsg func()) (*ProjectLock, error) {
+	wpmDir := filepath.Join(baseDir, ".wpm")
 	if err := os.MkdirAll(wpmDir, 0o755); err != nil {
 		return nil, errors.Wrap(err, "failed to create workspace directory")
 	}
