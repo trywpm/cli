@@ -106,38 +106,47 @@ func (r *readCloserWrapper) Close() error {
 
 var (
 	bufioReader1MPool = &sync.Pool{
-		New: func() interface{} { return bufio.NewReaderSize(nil, 1024*1024) },
+		New: func() any { return bufio.NewReaderSize(nil, 1024*1024) },
 	}
 )
 
 type bufferedReader struct {
-	buf *bufio.Reader
+	buf    *bufio.Reader
+	closed atomic.Bool
 }
 
 func newBufferedReader(r io.Reader) *bufferedReader {
 	buf := bufioReader1MPool.Get().(*bufio.Reader)
 	buf.Reset(r)
-	return &bufferedReader{buf}
+	return &bufferedReader{buf: buf}
 }
 
 func (r *bufferedReader) Read(p []byte) (n int, err error) {
-	if r.buf == nil {
+	if r.closed.Load() {
 		return 0, io.EOF
 	}
 	n, err = r.buf.Read(p)
 	if err == io.EOF {
-		r.buf.Reset(nil)
-		bufioReader1MPool.Put(r.buf)
-		r.buf = nil
+		r.Close()
 	}
 	return
 }
 
 func (r *bufferedReader) Peek(n int) ([]byte, error) {
-	if r.buf == nil {
+	if r.closed.Load() {
 		return nil, io.EOF
 	}
 	return r.buf.Peek(n)
+}
+
+func (r *bufferedReader) Close() error {
+	if !r.closed.CompareAndSwap(false, true) {
+		return nil
+	}
+	r.buf.Reset(nil)
+	bufioReader1MPool.Put(r.buf)
+	r.buf = nil
+	return nil
 }
 
 // DecompressStream decompresses the archive and returns a ReaderCloser with the decompressed archive.
@@ -168,7 +177,7 @@ func DecompressStream(archive io.Reader) (io.ReadCloser, error) {
 		Reader: zstdReader,
 		closer: func() error {
 			zstdReader.Close()
-			return nil
+			return buf.Close()
 		},
 	}, nil
 }
