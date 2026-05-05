@@ -31,6 +31,11 @@ func IsValidPackageName(name string) error {
 	return nil
 }
 
+// IsValidDistTag checks if the dist tag is valid.
+func IsValidDistTag(tag string) error {
+	return IsValidPackageName(tag)
+}
+
 // IsValidPackageType checks if the package type is valid.
 func IsValidPackageType(t types.PackageType) error {
 	if !t.Valid() {
