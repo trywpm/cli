@@ -33,6 +33,10 @@ func IsValidPackageName(name string) error {
 
 // IsValidDistTag checks if the dist tag is valid.
 func IsValidDistTag(tag string) error {
+	if len(tag) > 64 {
+		return fmt.Errorf("must be at most 64 characters")
+	}
+
 	return IsValidPackageName(tag)
 }
 
