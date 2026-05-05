@@ -582,6 +582,7 @@ func Unpack(decompressedArchive io.Reader, dest string, options *TarOptions) err
 	tr := tar.NewReader(decompressedArchive)
 
 	var dirs []*tar.Header
+	var totalSize int64
 
 	// Iterate through the files in the archive.
 loop:
@@ -608,6 +609,19 @@ loop:
 		// Check for absolute paths or paths with ".." that would escape the destination directory
 		if !filepath.IsLocal(hdr.Name) {
 			return breakoutError(fmt.Errorf("invalid archive: insecure path %q (potential directory traversal)", hdr.Name))
+		}
+
+		if hdr.Size < 0 {
+			return fmt.Errorf("invalid archive: negative size %d for %q", hdr.Size, hdr.Name)
+		}
+
+		if hdr.Size > maxDecompressedSize {
+			return fmt.Errorf("invalid archive: entry %q declares size %d exceeding %d limit", hdr.Name, hdr.Size, maxDecompressedSize)
+		}
+
+		totalSize += hdr.Size
+		if totalSize > maxDecompressedSize {
+			return fmt.Errorf("invalid archive: total declared size exceeds %d limit", maxDecompressedSize)
 		}
 
 		for _, exclude := range options.ExcludePatterns {
