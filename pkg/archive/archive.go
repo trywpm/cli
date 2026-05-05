@@ -105,8 +105,8 @@ func (r *readCloserWrapper) Close() error {
 }
 
 var (
-	bufioReader1MPool = &sync.Pool{
-		New: func() any { return bufio.NewReaderSize(nil, 1024*1024) },
+	bufioReader256KPool = &sync.Pool{
+		New: func() any { return bufio.NewReaderSize(nil, 256*1024) },
 	}
 )
 
@@ -116,7 +116,7 @@ type bufferedReader struct {
 }
 
 func newBufferedReader(r io.Reader) *bufferedReader {
-	buf := bufioReader1MPool.Get().(*bufio.Reader)
+	buf := bufioReader256KPool.Get().(*bufio.Reader)
 	buf.Reset(r)
 	return &bufferedReader{buf: buf}
 }
@@ -144,7 +144,7 @@ func (r *bufferedReader) Close() error {
 		return nil
 	}
 	r.buf.Reset(nil)
-	bufioReader1MPool.Put(r.buf)
+	bufioReader256KPool.Put(r.buf)
 	r.buf = nil
 	return nil
 }
