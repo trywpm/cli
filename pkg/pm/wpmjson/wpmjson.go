@@ -109,6 +109,17 @@ func (c *Config) Validate() error {
 		errs.MustMerge(validator.ValidateDependencies(*c.DevDependencies, "devDependencies"))
 	}
 
+	// Config field validations
+	if c.Config != nil {
+		if c.Config.BinDir != "" {
+			errs.Add("config.bin-dir", validator.IsValidProjectRelPath(c.Config.BinDir))
+		}
+
+		if c.Config.ContentDir != "" {
+			errs.Add("config.content-dir", validator.IsValidProjectRelPath(c.Config.ContentDir))
+		}
+	}
+
 	return errs.Err()
 }
 
