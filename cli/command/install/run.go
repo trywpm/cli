@@ -63,6 +63,9 @@ func Run(ctx context.Context, cwd string, wpmCli command.Cli, opts RunOptions) e
 	if wpmCfg == nil {
 		return errors.New("wpm.json config is required")
 	}
+	if err := wpmCfg.ValidateDependencyNames(); err != nil {
+		return errors.Wrap(err, "invalid dependency name in wpm.json")
+	}
 
 	lock, err := wpmlock.Read(cwd)
 	if err != nil {
