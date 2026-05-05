@@ -29,6 +29,8 @@ const (
 
 	zstdMaxWindowSize = uint64(1 << 25) // 32 MB
 
+	maxCompressedSize int64 = 128 * 1024 * 1024 // 128 MB
+
 	maxCompressionRatio int64 = 250
 	ratioCheckThreshold int64 = 5 * 1024 * 1024   // 5 MB
 	maxDecompressedSize int64 = 512 * 1024 * 1024 // 512 MB
@@ -703,30 +705,27 @@ type extractionLimiter struct {
 }
 
 func (b *extractionLimiter) Read(p []byte) (int, error) {
-	if b.decompressedBytes > maxDecompressedSize {
+	if b.compressedTracker.bytesRead > maxCompressedSize {
+		return 0, fmt.Errorf("invalid archive: compressed size exceeds 256MB limit")
+	}
+	if b.decompressedBytes >= maxDecompressedSize {
 		return 0, fmt.Errorf("invalid archive: decompressed size exceeds 512MB limit (potential zip bomb)")
 	}
 
 	remaining := maxDecompressedSize - b.decompressedBytes
 	readBuf := p
-
 	if int64(len(readBuf)) > remaining {
-		readBuf = readBuf[:remaining+1]
+		readBuf = readBuf[:remaining]
 	}
 
 	n, err := b.decompressedStream.Read(readBuf)
 	b.decompressedBytes += int64(n)
-
-	if b.decompressedBytes > maxDecompressedSize {
-		return n, fmt.Errorf("invalid archive: decompressed size exceeds 512MB limit (potential zip bomb)")
-	}
 
 	if b.decompressedBytes > ratioCheckThreshold {
 		cBytes := b.compressedTracker.bytesRead
 		if cBytes == 0 {
 			cBytes = 1 // prevent division by zero
 		}
-
 		if b.decompressedBytes >= int64(maxCompressionRatio)*cBytes {
 			return n, fmt.Errorf("invalid archive: compression ratio exceeds 99.6%% (potential zip bomb)")
 		}
