@@ -4,15 +4,18 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"wpm/cli"
 	"wpm/cli/command"
 	"wpm/cli/command/install"
 	"wpm/cli/version"
 	"wpm/pkg/output"
+	"wpm/pkg/pm/workspace"
 	"wpm/pkg/pm/wpmjson"
 
 	"github.com/morikuni/aec"
+	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 )
 
@@ -36,6 +39,17 @@ func runUninstall(ctx context.Context, wpmCli command.Cli, packages []string) er
 	if err != nil {
 		return err
 	}
+
+	contentDir := wpmjson.New().ContentDir()
+	if probe, _ := wpmjson.Read(cwd); probe != nil {
+		contentDir = probe.ContentDir()
+	}
+
+	lock, err := workspace.AcquireLock(ctx, filepath.Join(cwd, contentDir), func() {})
+	if err != nil {
+		return errors.Wrap(err, "failed to acquire workspace lock")
+	}
+	defer lock.Release()
 
 	cfg, err := wpmjson.Read(cwd)
 	if err != nil {

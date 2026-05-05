@@ -4,12 +4,14 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 
 	"wpm/cli/command"
 	"wpm/cli/version"
 	"wpm/pkg/output"
+	"wpm/pkg/pm/workspace"
 	"wpm/pkg/pm/wpmjson"
 	"wpm/pkg/pm/wpmjson/types"
 
@@ -80,6 +82,17 @@ func runInstall(ctx context.Context, wpmCli command.Cli, opts installOptions, pa
 	if err != nil {
 		return errors.Wrap(err, "failed to get current working directory")
 	}
+
+	contentDir := wpmjson.New().ContentDir()
+	if probe, _ := wpmjson.Read(cwd); probe != nil {
+		contentDir = probe.ContentDir()
+	}
+
+	lock, err := workspace.AcquireLock(ctx, filepath.Join(cwd, contentDir), func() {})
+	if err != nil {
+		return errors.Wrap(err, "failed to acquire workspace lock")
+	}
+	defer lock.Release()
 
 	cfg, err := wpmjson.Read(cwd)
 	if err != nil {
