@@ -23,7 +23,9 @@ import (
 )
 
 const (
-	ImpliedDirectoryMode    = 0o755
+	regularFileMode      = 0o644
+	impliedDirectoryMode = 0o755
+
 	zstdMagicSkippableStart = 0x184D2A50
 	zstdMagicSkippableMask  = 0xFFFFFFF0
 
@@ -185,9 +187,9 @@ func FileInfoHeader(name string, fi os.FileInfo, link string) (*tar.Header, erro
 
 	var newPerms os.FileMode
 	if fi.IsDir() {
-		newPerms = ImpliedDirectoryMode
+		newPerms = impliedDirectoryMode
 	} else if fi.Mode().IsRegular() {
-		newPerms = 0o644
+		newPerms = regularFileMode
 	}
 
 	if newPerms != 0 {
@@ -289,14 +291,12 @@ func (ta *tarAppender) addTarFile(path, name string) error {
 }
 
 func createTarFile(path, extractDir string, hdr *tar.Header, reader io.Reader, options *TarOptions) error {
-	hdrInfo := hdr.FileInfo()
-
 	switch hdr.Typeflag {
 	case tar.TypeDir:
 		// Create directory unless it exists as a directory already.
 		// In that case we just want to merge the two
 		if fi, err := os.Lstat(path); err != nil || !fi.IsDir() {
-			if err := os.Mkdir(path, hdrInfo.Mode()); err != nil {
+			if err := os.Mkdir(path, impliedDirectoryMode); err != nil {
 				return err
 			}
 		}
@@ -304,7 +304,7 @@ func createTarFile(path, extractDir string, hdr *tar.Header, reader io.Reader, o
 	case tar.TypeReg:
 		// Source is regular file. We use sequential file access to avoid depleting
 		// the standby list on Windows. On Linux, this equates to a regular os.OpenFile.
-		file, err := sequential.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, hdrInfo.Mode())
+		file, err := sequential.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, regularFileMode)
 		if err != nil {
 			return err
 		}
@@ -684,7 +684,7 @@ func createImpliedDirectories(dest string, hdr *tar.Header) error {
 		parent := filepath.Dir(hdr.Name)
 		parentPath := filepath.Join(dest, parent)
 		if _, err := os.Lstat(parentPath); err != nil && os.IsNotExist(err) {
-			err = os.MkdirAll(parentPath, ImpliedDirectoryMode)
+			err = os.MkdirAll(parentPath, impliedDirectoryMode)
 			if err != nil {
 				return err
 			}
