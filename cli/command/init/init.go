@@ -15,6 +15,7 @@ import (
 	"wpm/pkg/pm/wpmjson"
 	"wpm/pkg/pm/wpmjson/types"
 	"wpm/pkg/pm/wpmjson/validator"
+	"wpm/pkg/version"
 	"wpm/pkg/wp/parser"
 
 	"github.com/Masterminds/semver/v3"
@@ -237,7 +238,7 @@ func runExistingInit(wpmCli command.Cli, opts *initOptions) error {
 	}
 
 	// Normalize and validate version
-	v, err := normalizeVersion(wpmCfg.Version)
+	v, err := version.Normalize(wpmCfg.Version)
 	if err != nil {
 		return errors.New("invalid version format: " + err.Error())
 	}
@@ -680,80 +681,6 @@ func buildWpmConfig(opts initOptions, pkgType string, mainFileHeaders any, readm
 	}
 
 	return cfg
-}
-
-func normalizeVersion(version string) (string, error) {
-	if version == "" {
-		return "", errors.New("version cannot be empty")
-	}
-
-	v, err := semver.NewVersion(version)
-	if err == nil {
-		return v.String(), nil
-	}
-
-	// Attempt to normalize the version format to be compatible with semver.
-	// If version has more than 2 dots, we replace the last dot with a hyphen
-	// Example:
-	// 1.0.0.0 -> 1.0.0-0
-	// 1.0.0.alpha.1+build -> 1.0.0-alpha.1+build
-	parts := strings.Split(version, ".")
-	if len(parts) > 3 {
-		major := parts[0]
-		minor := parts[1]
-		patch := parts[2]
-		prerelease := strings.Join(parts[3:], ".")
-
-		version = fmt.Sprintf("%s.%s.%s-%s", major, minor, patch, prerelease)
-	}
-
-	// If version part start with 0, we remove it
-	// Example:
-	// 01.0.0 -> 1.0.0
-	// 1.01.0 -> 1.1.0
-	// 1.0.01 -> 1.0.1
-	// 1.0.01-beta -> 1.0.1-beta
-	// Split version into parts
-	parts = strings.Split(version, ".")
-	for i, part := range parts {
-		// Check if part starts with '0' and has more characters
-		if len(part) > 1 && part[0] == '0' {
-			// Split part into numeric and non-numeric (e.g., "01-beta" -> "01" and "-beta")
-			numericPart := part
-			nonNumericPart := ""
-			if hyphenIndex := strings.Index(part, "-"); hyphenIndex != -1 {
-				numericPart = part[:hyphenIndex]
-				nonNumericPart = part[hyphenIndex:]
-			}
-
-			// Check if numeric part is all digits and starts with '0'
-			isNumeric := true
-			for _, r := range numericPart {
-				if !unicode.IsDigit(r) {
-					isNumeric = false
-					break
-				}
-			}
-
-			if isNumeric && len(numericPart) > 1 && numericPart[0] == '0' {
-				// Remove leading zeros from numeric part
-				trimmed := strings.TrimLeft(numericPart, "0")
-				if trimmed == "" {
-					trimmed = "0"
-				}
-				// Reconstruct the part
-				parts[i] = trimmed + nonNumericPart
-			}
-		}
-	}
-	version = strings.Join(parts, ".")
-
-	v, err = semver.NewVersion(version)
-	if err != nil {
-		return "", err
-	}
-
-	return v.String(), nil
 }
 
 func detectPackageType(cwd string) string {

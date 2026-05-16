@@ -31,8 +31,11 @@ func (o *Out) IsColorEnabled() bool {
 		return false
 	}
 
-	force := os.Getenv("CLICOLOR_FORCE")
-	if force != "" && force != "0" {
+	if force := os.Getenv("FORCE_COLOR"); force != "" && force != "0" {
+		return true
+	}
+
+	if force := os.Getenv("CLICOLOR_FORCE"); force != "" && force != "0" {
 		return true
 	}
 

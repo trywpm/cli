@@ -199,8 +199,6 @@ func runPublish(ctx context.Context, wpmCli command.Cli, opts publishOptions) er
 		}
 	}
 
-	digest := base64.StdEncoding.EncodeToString(hasher.Sum(nil))
-
 	if opts.verbose {
 		fmt.Fprint(wpmCli.Err(), "\n")
 	}
@@ -210,18 +208,23 @@ func runPublish(ctx context.Context, wpmCli command.Cli, opts publishOptions) er
 		return errors.New("tarball size is zero, cannot publish empty package")
 	}
 
-	dim := aec.Faint.Apply
-	blue := aec.LightBlueF.Apply
+	c := func(a aec.ANSI, s string) string {
+		if !wpmCli.Err().IsColorEnabled() {
+			return s
+		}
+		return a.Apply(s)
+	}
 	w := tabwriter.NewWriter(wpmCli.Err(), 0, 0, 2, ' ', 0)
 
+	digest := base64.StdEncoding.EncodeToString(hasher.Sum(nil))
 	packedSize := units.HumanSize(float64(counter.total))
 	unpackedSize := units.HumanSize(float64(tarballer.UnpackedSize()))
 
-	fmt.Fprintf(w, "├─ %s:\t%s\n", blue("Tag"), opts.tag)
-	fmt.Fprintf(w, "├─ %s:\t%s\n", blue("Access"), opts.access)
-	fmt.Fprintf(w, "├─ %s:\t%d\n", blue("Files"), tarballer.FileCount())
-	fmt.Fprintf(w, "├─ %s:\t%s %s\n", blue("Size"), packedSize, dim(fmt.Sprintf("(%s unpacked)", unpackedSize)))
-	fmt.Fprintf(w, "└─ %s:\t%s\n", blue("Digest"), digest)
+	fmt.Fprintf(w, "├─ %s:\t%s\n", c(aec.LightBlueF, "Tag"), opts.tag)
+	fmt.Fprintf(w, "├─ %s:\t%s\n", c(aec.LightBlueF, "Access"), opts.access)
+	fmt.Fprintf(w, "├─ %s:\t%d\n", c(aec.LightBlueF, "Files"), tarballer.FileCount())
+	fmt.Fprintf(w, "├─ %s:\t%s %s\n", c(aec.LightBlueF, "Size"), packedSize, c(aec.Faint, fmt.Sprintf("(%s unpacked)", unpackedSize)))
+	fmt.Fprintf(w, "└─ %s:\t%s\n", c(aec.LightBlueF, "Digest"), digest)
 
 	w.Flush()
 	fmt.Fprint(wpmCli.Err(), "\n")
