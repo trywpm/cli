@@ -41,12 +41,9 @@ func Normalize(version string) (string, error) {
 		}
 	}
 
-	// Strip a single leading 'v' or 'V'.
-	if version[0] == 'v' || version[0] == 'V' {
-		version = version[1:]
-		if version == "" {
-			return "", errors.New("version contains only a 'v' prefix")
-		}
+	version = strings.TrimLeft(version, "vV")
+	if version == "" {
+		return "", errors.New("version contains only 'v' prefixes")
 	}
 
 	// Isolate the core version from prerelease/build metadata to prevent
