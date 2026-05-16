@@ -22,7 +22,7 @@ require (
 	github.com/thlib/go-timezone-local v0.0.7
 	golang.org/x/sync v0.20.0
 	golang.org/x/sys v0.44.0
-	golang.org/x/text v0.36.0
+	golang.org/x/text v0.37.0
 )
 
 require (
