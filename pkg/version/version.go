@@ -33,13 +33,12 @@ func Normalize(version string) (string, error) {
 	if version == "" {
 		return "", errors.New("version cannot be empty")
 	}
-	if len(version) > maxVersionLength {
-		return "", fmt.Errorf("input version length %d exceeds maximum of %d", len(version), maxVersionLength)
-	}
 
 	// Fast path for already-normalized versions.
 	if v, err := semver.StrictNewVersion(version); err == nil {
-		return v.String(), nil
+		if len(version) <= maxVersionLength {
+			return v.String(), nil
+		}
 	}
 
 	// Strip a single leading 'v' or 'V'.
@@ -50,9 +49,36 @@ func Normalize(version string) (string, error) {
 		}
 	}
 
+	// Isolate the core version from prerelease/build metadata to prevent
+	// mangling valid semver extensions (e.g., dotted prereleases) below.
+	core := version
+	var meta string
+
+	idxPre := strings.IndexByte(version, '-')
+	idxBld := strings.IndexByte(version, '+')
+	cutoff := -1
+
+	if idxPre != -1 {
+		cutoff = idxPre
+	}
+	if idxBld != -1 && (cutoff == -1 || idxBld < cutoff) {
+		cutoff = idxBld
+	}
+
+	if cutoff != -1 {
+		core = version[:cutoff]
+		meta = version[cutoff:]
+	}
+
 	// Insert hyphen before an alphabetic qualifier with no separator.
 	// 1.0.0beta1 -> 1.0.0-beta1,  2.1rc1 -> 2.1-rc1,  3.0a -> 3.0-a
-	version = trailingAlphaSuffix.ReplaceAllString(version, "$1-$2")
+	core = trailingAlphaSuffix.ReplaceAllString(core, "$1-$2")
+
+	// If the regex introduced a hyphen, move that new suffix into meta.
+	if idx := strings.IndexByte(core, '-'); idx != -1 {
+		meta = core[idx:] + meta
+		core = core[:idx]
+	}
 
 	// Collapse 4+ dotted segments into a prerelease, stripping leading zeros
 	// from any purely numeric segment (semver forbids them in numeric IDs).
@@ -62,18 +88,24 @@ func Normalize(version string) (string, error) {
 	// 1.2.3.4.5     -> 1.2.3-4.5
 	// 1.0.0.alpha.1 -> 1.0.0-alpha.1
 	// 1.0.0.0beta   -> 1.0.0-0beta  (mixed; left alone)
-	if parts := strings.Split(version, "."); len(parts) > 3 {
+	if parts := strings.Split(core, "."); len(parts) > 3 {
 		pre := make([]string, len(parts)-3)
 		for i, p := range parts[3:] {
 			pre[i] = stripLeadingZeros(p)
 		}
-		version = fmt.Sprintf("%s.%s.%s-%s",
-			parts[0], parts[1], parts[2],
-			strings.Join(pre, "."))
+		core = fmt.Sprintf("%s.%s.%s", parts[0], parts[1], parts[2])
+
+		// Prepend the collapsed segments to any existing metadata
+		if meta == "" || meta[0] == '+' {
+			meta = "-" + strings.Join(pre, ".") + meta
+		} else {
+			// Merge with existing prerelease by replacing the initial '-' with a '.'
+			meta = "-" + strings.Join(pre, ".") + "." + meta[1:]
+		}
 	}
 
 	// Coerce to semver, which will handle leading zeros and short forms.
-	v, err := semver.NewVersion(version)
+	v, err := semver.NewVersion(core + meta)
 	if err != nil {
 		return "", fmt.Errorf("cannot normalize %q to semver: %w", version, err)
 	}
