@@ -27,12 +27,15 @@ func (o *Out) WriteString(s string) {
 
 // IsColorEnabled returns true if color output is enabled for this stream.
 func (o *Out) IsColorEnabled() bool {
+	if v, ok := os.LookupEnv("FORCE_COLOR"); ok && v != "" {
+		return true
+	}
+
 	if os.Getenv("NO_COLOR") != "" {
 		return false
 	}
 
-	force := os.Getenv("CLICOLOR_FORCE")
-	if force != "" && force != "0" {
+	if force := os.Getenv("CLICOLOR_FORCE"); force != "" && force != "0" {
 		return true
 	}
 
