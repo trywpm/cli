@@ -38,10 +38,10 @@ group "default" {
 }
 
 target "binary" {
-	inherits = ["_common"]
 	target = "binary"
-	platforms = ["local"]
 	output = ["build"]
+	inherits = ["_common"]
+	platforms = ["local"]
 	args = {
 		VERSION = VERSION
 		PACKAGER_NAME = PACKAGER_NAME
@@ -53,6 +53,7 @@ target "binary-cross" {
 }
 
 target "image-cross" {
-	inherits = ["meta-helper", "binary-cross"]
+	target = "image"
 	output = ["type=image"]
+	inherits = ["meta-helper", "binary-cross"]
 }
