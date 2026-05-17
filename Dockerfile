@@ -53,6 +53,8 @@ RUN --mount=type=bind,target=.,ro \
 
 FROM scratch AS binary
 COPY --from=build /out .
+
+FROM binary AS image
 COPY --from=build-base-alpine /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 ENV PATH="/"
 WORKDIR /app

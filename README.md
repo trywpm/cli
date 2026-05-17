@@ -38,6 +38,11 @@ powershell -c "irm wpm.so/install.ps1|iex"
 docker pull trywpm/cli
 ```
 
+**Go**
+```
+go install go.wpm.so/cli/cmd/wpm@latest
+```
+
 **Build from Source**
 ```bash
 git clone git@github.com:trywpm/cli.git wpm
