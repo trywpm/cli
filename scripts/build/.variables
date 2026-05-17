@@ -91,11 +91,11 @@ fi
 export GO_BUILDMODE
 
 GO_LDFLAGS="${GO_LDFLAGS:-}"
-GO_LDFLAGS="$GO_LDFLAGS -X \"wpm/cli/version.GitCommit=${GITCOMMIT}\""
-GO_LDFLAGS="$GO_LDFLAGS -X \"wpm/cli/version.BuildTime=${BUILDTIME}\""
-GO_LDFLAGS="$GO_LDFLAGS -X \"wpm/cli/version.Version=${VERSION}\""
+GO_LDFLAGS="$GO_LDFLAGS -X \"go.wpm.so/cli/cli/version.GitCommit=${GITCOMMIT}\""
+GO_LDFLAGS="$GO_LDFLAGS -X \"go.wpm.so/cli/cli/version.BuildTime=${BUILDTIME}\""
+GO_LDFLAGS="$GO_LDFLAGS -X \"go.wpm.so/cli/cli/version.Version=${VERSION}\""
 if test -n "${PLATFORM}"; then
-    GO_LDFLAGS="$GO_LDFLAGS -X \"wpm/cli/version.PlatformName=${PLATFORM}\""
+    GO_LDFLAGS="$GO_LDFLAGS -X \"go.wpm.so/cli/cli/version.PlatformName=${PLATFORM}\""
 fi
 if [ "$CGO_ENABLED" = "1" ] && [ "$GO_LINKMODE" = "static" ] && [ "$(go env GOOS)" = "linux" ]; then
     GO_LDFLAGS="$GO_LDFLAGS -linkmode external -extldflags -static"
