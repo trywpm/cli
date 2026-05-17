@@ -2,6 +2,8 @@
 
 set -euo pipefail
 
+cd "$(dirname "$0")/.."
+
 NEXT_MARKER="next-version"
 VERSION_FILE="cli/version/version.go"
 
@@ -24,7 +26,7 @@ bump() {
 
 [[ "$(git rev-parse --abbrev-ref HEAD)" == "main" ]] || die "must be on main"
 [[ -z "$(git status --porcelain)" ]] || die "working tree is dirty"
-git fetch --quiet origin main
+git fetch --quiet --tags origin main
 git merge-base --is-ancestor origin/main HEAD || die "main is behind origin/main; pull first"
 
 read -r -p "Release version (e.g. 0.1.12): " version
