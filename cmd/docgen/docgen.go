@@ -1,9 +1,9 @@
 // Command docgen renders reference documentation for the wpm CLI by
 // walking the cobra command tree with docker/cli-docs-tool.
 //
-// It can emit two formats:
+// It can emit three formats:
 //
-//   - md  — GitHub-flavored Markdown, committed to docs/reference/.
+//   - md   — GitHub-flavored Markdown, committed to docs/reference/.
 //     The source and target directories are the same: each per-command
 //     file is rewritten in place, but only the section between
 //     "<!---MARKER_GEN_START--->" and "<!---MARKER_GEN_END--->" is
@@ -11,8 +11,14 @@
 //     "## Description" and "## Examples" H2 sections) is preserved
 //     across regenerations.
 //
-//   - man — roff(7) man pages. These are build artefact and are NOT
-//     committed; the gitignore excludes their default target.
+//   - man  — roff(7) man pages. Build artefact, NOT committed.
+//
+//   - yaml — structured per-command data, consumed by the docs site.
+//     Each command becomes one YAML file with fields for short, long,
+//     usage, options[], examples, cname[]/clink[], plus annotations
+//     such as experimental, deprecated, hidden. Build artefact, NOT
+//     committed. The docs site converts these to JSON at site-build
+//     time before rendering with MDX.
 
 package main
 
@@ -34,8 +40,9 @@ import (
 )
 
 const (
-	defaultMdDir  = "docs/reference"
-	defaultManDir = "man/man1"
+	defaultMdDir   = "docs/reference"
+	defaultManDir  = "man/man1"
+	defaultYamlDir = "docs/yaml"
 )
 
 type options struct {
@@ -92,8 +99,10 @@ func run() error {
 		return tool.GenMarkdownTree(root)
 	case "man":
 		return tool.GenManTree(root)
+	case "yaml":
+		return tool.GenYamlTree(root)
 	default:
-		return fmt.Errorf("unsupported format %q (want md or man)", opts.format)
+		return fmt.Errorf("unsupported format %q (want md, man, or yaml)", opts.format)
 	}
 }
 
@@ -101,9 +110,9 @@ func parseArgs(args []string) (options, error) {
 	var opts options
 
 	fs := pflag.NewFlagSet("docgen", pflag.ContinueOnError)
-	fs.StringVar(&opts.format, "format", "md", "Output format: md or man")
+	fs.StringVar(&opts.format, "format", "md", "Output format: md, man, or yaml")
 	fs.StringVar(&opts.source, "source", "", "Source directory (defaults to "+defaultMdDir+")")
-	fs.StringVar(&opts.target, "target", "", "Target directory (defaults to "+defaultMdDir+" for md, "+defaultManDir+" for man)")
+	fs.StringVar(&opts.target, "target", "", "Target directory (defaults: "+defaultMdDir+" for md, "+defaultManDir+" for man, "+defaultYamlDir+" for yaml)")
 
 	if err := fs.Parse(args); err != nil {
 		return opts, err
@@ -118,6 +127,8 @@ func parseArgs(args []string) (options, error) {
 			opts.target = opts.source
 		case "man":
 			opts.target = defaultManDir
+		case "yaml":
+			opts.target = defaultYamlDir
 		}
 	}
 	if opts.format == "" {
