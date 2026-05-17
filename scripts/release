@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+
+NEXT_MARKER="next-version"
+VERSION_FILE="cli/version/version.go"
+
+die() { echo "error: $*" >&2; exit 1; }
+
+help() {
+	cat <<'EOF'
+Usage: scripts/release
+
+Prompts for a release version like 0.1.12. The "v" is added automatically.
+
+Run on main with a clean working tree and signed tags configured.
+EOF
+}
+
+bump() {
+	sed -i.bak -E "s|Version[[:space:]]+=[[:space:]]+\"[^\"]*\"|Version      = \"$1\"|" "$VERSION_FILE"
+	rm -f "$VERSION_FILE.bak"
+}
+
+[[ "$(git rev-parse --abbrev-ref HEAD)" == "main" ]] || die "must be on main"
+[[ -z "$(git status --porcelain)" ]] || die "working tree is dirty"
+git fetch --quiet --tags origin main
+git merge-base --is-ancestor origin/main HEAD || die "main is behind origin/main; pull first"
+
+read -r -p "Release version (e.g. 0.1.12): " version
+[[ -n "$version" ]] || { help; exit 1; }
+[[ "$version" != v* ]] || { help; die "do not include the leading v"; }
+[[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]] || { help; die "version must be X.Y.Z"; }
+
+tag="v$version"
+git rev-parse -q --verify "refs/tags/$tag" >/dev/null && die "tag $tag already exists"
+
+bump "$version"
+go build ./... >/dev/null
+git add "$VERSION_FILE"
+git commit -m "Release: $tag"
+git tag -s "$tag" -m "$tag"
+git push origin main "$tag"
+
+bump "$NEXT_MARKER"
+git add "$VERSION_FILE"
+git commit -m "Prepare for next release"
+git push origin main
+
+echo "released $tag"
