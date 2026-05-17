@@ -1,6 +1,6 @@
 package manifest
 
-import "wpm/pkg/pm/wpmjson/types"
+import "go.wpm.so/cli/pkg/pm/wpmjson/types"
 
 type Signature struct {
 	KeyID string `json:"keyid"`

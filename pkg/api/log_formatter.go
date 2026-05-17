@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"io"
 
-	"wpm/pkg/jsonpretty"
+	"go.wpm.so/cli/pkg/jsonpretty"
 )
 
 // jsonFormatter is a httpretty.Formatter that prettifies JSON payloads and GraphQL queries.

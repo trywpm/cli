@@ -8,12 +8,12 @@ import (
 	"os/signal"
 	"syscall"
 
-	"wpm/cli"
-	"wpm/cli/command"
-	"wpm/cli/command/commands"
-	cliflags "wpm/cli/flags"
-	"wpm/cli/version"
-	platformsignals "wpm/cmd/wpm/internal/signals"
+	"go.wpm.so/cli/cli"
+	"go.wpm.so/cli/cli/command"
+	"go.wpm.so/cli/cli/command/commands"
+	cliflags "go.wpm.so/cli/cli/flags"
+	"go.wpm.so/cli/cli/version"
+	platformsignals "go.wpm.so/cli/cmd/wpm/internal/signals"
 
 	"github.com/containerd/errdefs"
 	"github.com/morikuni/aec"

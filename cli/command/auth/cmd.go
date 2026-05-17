@@ -1,8 +1,8 @@
 package auth
 
 import (
-	"wpm/cli"
-	"wpm/cli/command"
+	"go.wpm.so/cli/cli"
+	"go.wpm.so/cli/cli/command"
 
 	"github.com/spf13/cobra"
 )

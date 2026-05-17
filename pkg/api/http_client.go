@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"wpm/pkg/asciisanitizer"
+	"go.wpm.so/cli/pkg/asciisanitizer"
 
 	"github.com/henvic/httpretty"
 	"github.com/klauspost/compress/zstd"

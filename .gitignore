@@ -13,6 +13,7 @@
 !README.md
 !docker-bake.hcl
 !Dockerfile
+!.git-blame-ignore-revs
 
 # directories
 !cli

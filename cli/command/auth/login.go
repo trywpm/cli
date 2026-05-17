@@ -3,9 +3,10 @@ package auth
 import (
 	"context"
 	"fmt"
-	"wpm/cli"
-	"wpm/cli/command"
-	"wpm/pkg/output"
+
+	"go.wpm.so/cli/cli"
+	"go.wpm.so/cli/cli/command"
+	"go.wpm.so/cli/pkg/output"
 
 	"github.com/morikuni/aec"
 	"github.com/pkg/errors"

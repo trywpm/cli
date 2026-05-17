@@ -4,7 +4,8 @@ import (
 	"io"
 	"sync"
 	"time"
-	"wpm/pkg/unsafeconv"
+
+	"go.wpm.so/cli/pkg/unsafeconv"
 
 	"github.com/briandowns/spinner"
 )

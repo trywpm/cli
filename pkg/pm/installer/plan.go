@@ -3,10 +3,11 @@ package installer
 import (
 	"os"
 	"path/filepath"
-	"wpm/pkg/pm/resolution"
-	"wpm/pkg/pm/wpmjson"
-	"wpm/pkg/pm/wpmjson/types"
-	"wpm/pkg/pm/wpmlock"
+
+	"go.wpm.so/cli/pkg/pm/resolution"
+	"go.wpm.so/cli/pkg/pm/wpmjson"
+	"go.wpm.so/cli/pkg/pm/wpmjson/types"
+	"go.wpm.so/cli/pkg/pm/wpmlock"
 )
 
 type ActionType int
