@@ -6,8 +6,8 @@ import (
 	"sort"
 	"strings"
 
-	"wpm/cli/command"
-	cliflags "wpm/cli/flags"
+	"go.wpm.so/cli/cli/command"
+	cliflags "go.wpm.so/cli/cli/flags"
 
 	"github.com/fvbommel/sortorder"
 	"github.com/moby/term"

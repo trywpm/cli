@@ -7,7 +7,8 @@ import (
 	"io"
 	"net/http"
 	"strings"
-	"wpm/pkg/unsafeconv"
+
+	"go.wpm.so/cli/pkg/unsafeconv"
 )
 
 type RESTClient struct {

@@ -8,7 +8,8 @@ import (
 	"os"
 	"runtime"
 	"strings"
-	"wpm/pkg/streams"
+
+	"go.wpm.so/cli/pkg/streams"
 
 	"github.com/moby/term"
 )

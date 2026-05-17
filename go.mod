@@ -1,4 +1,4 @@
-module wpm
+module go.wpm.so/cli
 
 go 1.25.0
 

@@ -16,11 +16,11 @@ import (
 	"syscall"
 	"time"
 
-	"wpm/pkg/archive"
-	"wpm/pkg/pm/registry"
-	"wpm/pkg/pm/signatures"
-	"wpm/pkg/pm/wpmjson/types"
-	"wpm/pkg/pm/wpmjson/validator"
+	"go.wpm.so/cli/pkg/archive"
+	"go.wpm.so/cli/pkg/pm/registry"
+	"go.wpm.so/cli/pkg/pm/signatures"
+	"go.wpm.so/cli/pkg/pm/wpmjson/types"
+	"go.wpm.so/cli/pkg/pm/wpmjson/validator"
 
 	"github.com/pkg/errors"
 	"golang.org/x/sync/errgroup"

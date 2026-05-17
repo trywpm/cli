@@ -4,9 +4,10 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
-	"wpm/pkg/pm"
-	"wpm/pkg/pm/wpmjson/types"
-	"wpm/pkg/pm/wpmjson/validator"
+
+	"go.wpm.so/cli/pkg/pm"
+	"go.wpm.so/cli/pkg/pm/wpmjson/types"
+	"go.wpm.so/cli/pkg/pm/wpmjson/validator"
 
 	"github.com/pkg/errors"
 )

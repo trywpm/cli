@@ -4,4 +4,4 @@
 
 package main
 
-import _ "wpm/cmd/wpm/winresources"
+import _ "go.wpm.so/cli/cmd/wpm/winresources"

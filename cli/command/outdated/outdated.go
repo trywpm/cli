@@ -8,12 +8,12 @@ import (
 	"sort"
 	"sync"
 
-	"wpm/cli"
-	"wpm/cli/command"
-	"wpm/cli/version"
-	"wpm/pkg/output"
-	"wpm/pkg/pm/wpmjson"
-	"wpm/pkg/pm/wpmlock"
+	"go.wpm.so/cli/cli"
+	"go.wpm.so/cli/cli/command"
+	"go.wpm.so/cli/cli/version"
+	"go.wpm.so/cli/pkg/output"
+	"go.wpm.so/cli/pkg/pm/wpmjson"
+	"go.wpm.so/cli/pkg/pm/wpmlock"
 
 	"github.com/Masterminds/semver/v3"
 	"github.com/morikuni/aec"

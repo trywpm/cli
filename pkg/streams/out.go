@@ -3,7 +3,8 @@ package streams
 import (
 	"io"
 	"os"
-	"wpm/pkg/unsafeconv"
+
+	"go.wpm.so/cli/pkg/unsafeconv"
 
 	"github.com/moby/term"
 	"github.com/sirupsen/logrus"

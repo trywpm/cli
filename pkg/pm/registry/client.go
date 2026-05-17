@@ -7,9 +7,9 @@ import (
 	"io"
 	"net/http"
 
-	"wpm/pkg/api"
-	"wpm/pkg/pm/signatures"
-	"wpm/pkg/pm/wpmjson/manifest"
+	"go.wpm.so/cli/pkg/api"
+	"go.wpm.so/cli/pkg/pm/signatures"
+	"go.wpm.so/cli/pkg/pm/wpmjson/manifest"
 )
 
 const (

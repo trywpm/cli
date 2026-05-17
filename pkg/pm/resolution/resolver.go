@@ -4,11 +4,12 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"wpm/pkg/pm/registry"
-	"wpm/pkg/pm/wpmjson"
-	"wpm/pkg/pm/wpmjson/manifest"
-	"wpm/pkg/pm/wpmjson/types"
-	"wpm/pkg/pm/wpmlock"
+
+	"go.wpm.so/cli/pkg/pm/registry"
+	"go.wpm.so/cli/pkg/pm/wpmjson"
+	"go.wpm.so/cli/pkg/pm/wpmjson/manifest"
+	"go.wpm.so/cli/pkg/pm/wpmjson/types"
+	"go.wpm.so/cli/pkg/pm/wpmlock"
 
 	"github.com/Masterminds/semver/v3"
 	"github.com/pkg/errors"

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"wpm/pkg/config"
+	"go.wpm.so/cli/pkg/config"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"

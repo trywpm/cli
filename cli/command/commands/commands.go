@@ -1,16 +1,16 @@
 package commands
 
 import (
-	"wpm/cli/command"
-	"wpm/cli/command/auth"
-	pmInit "wpm/cli/command/init"
-	"wpm/cli/command/install"
-	"wpm/cli/command/ls"
-	"wpm/cli/command/outdated"
-	"wpm/cli/command/publish"
-	"wpm/cli/command/uninstall"
-	"wpm/cli/command/whoami"
-	"wpm/cli/command/why"
+	"go.wpm.so/cli/cli/command"
+	"go.wpm.so/cli/cli/command/auth"
+	pmInit "go.wpm.so/cli/cli/command/init"
+	"go.wpm.so/cli/cli/command/install"
+	"go.wpm.so/cli/cli/command/ls"
+	"go.wpm.so/cli/cli/command/outdated"
+	"go.wpm.so/cli/cli/command/publish"
+	"go.wpm.so/cli/cli/command/uninstall"
+	"go.wpm.so/cli/cli/command/whoami"
+	"go.wpm.so/cli/cli/command/why"
 
 	"github.com/spf13/cobra"
 )

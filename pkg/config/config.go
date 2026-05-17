@@ -10,7 +10,7 @@ import (
 	"strings"
 	"sync"
 
-	"wpm/pkg/config/configfile"
+	"go.wpm.so/cli/pkg/config/configfile"
 
 	"github.com/pkg/errors"
 )

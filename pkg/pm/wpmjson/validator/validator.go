@@ -8,7 +8,7 @@ import (
 	"strings"
 	"unicode"
 
-	"wpm/pkg/pm/wpmjson/types"
+	"go.wpm.so/cli/pkg/pm/wpmjson/types"
 
 	"github.com/Masterminds/semver/v3"
 )

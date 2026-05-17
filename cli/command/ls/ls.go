@@ -8,10 +8,10 @@ import (
 	"path/filepath"
 	"sort"
 
-	"wpm/cli"
-	"wpm/cli/command"
-	"wpm/pkg/pm/wpmjson"
-	"wpm/pkg/pm/wpmlock"
+	"go.wpm.so/cli/cli"
+	"go.wpm.so/cli/cli/command"
+	"go.wpm.so/cli/pkg/pm/wpmjson"
+	"go.wpm.so/cli/pkg/pm/wpmlock"
 
 	"github.com/morikuni/aec"
 	"github.com/pkg/errors"
