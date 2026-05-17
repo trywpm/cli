@@ -46,7 +46,7 @@ git push origin main "$tag"
 
 bump "$NEXT_MARKER"
 git add "$VERSION_FILE"
-git commit -m "Prepare for next release"
+git commit -m "Bump version marker"
 git push origin main
 
 echo "released $tag"
