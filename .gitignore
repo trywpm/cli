@@ -21,6 +21,7 @@
 # directories
 !cli
 !cmd
+!docs
 !pkg
 !.vscode
 !install
