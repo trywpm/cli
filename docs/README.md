@@ -1,12 +1,12 @@
 # Writing wpm docs
 
 Every command in `cli/command/` has a matching reference file in
-`docs/reference/`.
+`docs/cli/`.
 
 Nested commands use underscores:
 
-- `wpm auth` → `docs/reference/auth.md`
-- `wpm auth login` → `docs/reference/auth_login.md`
+- `wpm auth` → `docs/cli/auth.md`
+- `wpm auth login` → `docs/cli/auth_login.md`
 
 ## File structure
 
@@ -110,7 +110,7 @@ Avoid introducing new top-level `##` sections.
    - `## Description`
    - `## Examples`
 
-   in `docs/reference/<name>.md`.
+   in `docs/cli/<name>.md`.
 
 4. Commit the Go changes and Markdown updates together.
 

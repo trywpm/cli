@@ -3,7 +3,7 @@
 //
 // It can emit three formats:
 //
-//   - md   — GitHub-flavored Markdown, committed to docs/reference/.
+//   - md   — GitHub-flavored Markdown, committed to docs/cli/.
 //     The source and target directories are the same: each per-command
 //     file is rewritten in place, but only the section between
 //     "<!---MARKER_GEN_START--->" and "<!---MARKER_GEN_END--->" is
@@ -40,7 +40,7 @@ import (
 )
 
 const (
-	defaultMdDir   = "docs/reference"
+	defaultMdDir   = "docs/cli"
 	defaultManDir  = "man/man1"
 	defaultYamlDir = "docs/yaml"
 )
