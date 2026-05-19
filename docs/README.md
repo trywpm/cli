@@ -141,3 +141,33 @@ If either field is empty:
 - the section may be inside the generated marker block
 
 Fix the Markdown and regenerate.
+
+## Other reference docs
+
+Non-CLI topics live in their own directories under `docs/`.
+
+Each topic directory contains an `index.md` overview plus any related pages:
+
+```text
+docs/
+├── README.md
+├── cli/
+├── wpm-json/
+│   ├── index.md
+│   ├── dependencies.md
+│   └── scripts.md
+└── wpmignore/
+    ├── index.md
+    └── patterns.md
+```
+
+These files are plain Markdown.
+
+Unlike CLI reference docs:
+
+- there are no generated marker blocks
+- there is no regeneration workflow
+- content is edited entirely by hand
+
+Use these directories for conceptual documentation, specifications, guides,
+and other non-command reference material.
