@@ -157,11 +157,16 @@ func newWpmCommand(wpmCli *command.WpmCli) *cli.TopLevelCommand {
 		Version:               ver,
 		DisableFlagsInUseLine: true,
 		CompletionOptions: cobra.CompletionOptions{
-			DisableDefaultCmd:   false,
 			HiddenDefaultCmd:    true,
-			DisableDescriptions: true,
+			DisableDefaultCmd:   false,
+			DisableDescriptions: os.Getenv("WPM_CLI_DISABLE_COMPLETION_DESCRIPTION") != "",
 		},
 	}
+
+	// Disable file-completion by default. Most commands and flags should not
+	// complete with filenames.
+	cmd.CompletionOptions.SetDefaultShellCompDirective(cobra.ShellCompDirectiveNoFileComp)
+
 	cmd.SetIn(wpmCli.In())
 	cmd.SetOut(wpmCli.Out())
 	cmd.SetErr(wpmCli.Err())
