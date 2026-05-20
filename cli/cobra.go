@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"go.wpm.so/cli/cli/command"
+	"go.wpm.so/cli/cli/command/completion"
 	cliflags "go.wpm.so/cli/cli/flags"
 
 	"github.com/fvbommel/sortorder"
@@ -22,6 +23,12 @@ import (
 func setupCommonRootCommand(rootCmd *cobra.Command) (*cliflags.ClientOptions, *cobra.Command) {
 	opts := cliflags.NewClientOptions()
 	opts.InstallFlags(rootCmd.Flags())
+
+	_ = rootCmd.MarkFlagDirname("config")
+	_ = rootCmd.RegisterFlagCompletionFunc(
+		"log-level",
+		completion.FromList("debug", "info", "warn", "error", "fatal"),
+	)
 
 	cobra.AddTemplateFunc("add", func(a, b int) int { return a + b })
 	cobra.AddTemplateFunc("hasAliases", hasAliases)
