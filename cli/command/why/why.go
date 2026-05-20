@@ -10,6 +10,7 @@ import (
 
 	"go.wpm.so/cli/cli"
 	"go.wpm.so/cli/cli/command"
+	"go.wpm.so/cli/cli/command/completion"
 	"go.wpm.so/cli/pkg/output"
 	"go.wpm.so/cli/pkg/pm/wpmjson"
 	"go.wpm.so/cli/pkg/pm/wpmlock"
@@ -32,6 +33,7 @@ func NewWhyCommand(wpmCli command.Cli) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runWhy(wpmCli, args[0])
 		},
+		ValidArgsFunction: completion.PackagesFromLockfile(),
 	}
 	return cmd
 }

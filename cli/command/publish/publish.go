@@ -13,6 +13,7 @@ import (
 
 	"go.wpm.so/cli/cli"
 	"go.wpm.so/cli/cli/command"
+	"go.wpm.so/cli/cli/command/completion"
 	"go.wpm.so/cli/cli/version"
 	"go.wpm.so/cli/pkg/archive"
 	"go.wpm.so/cli/pkg/output"
@@ -55,6 +56,9 @@ func NewPublishCommand(wpmCli command.Cli) *cobra.Command {
 	flags.BoolVar(&opts.verbose, "verbose", false, "Enable verbose output")
 	flags.StringVarP(&opts.access, "access", "a", "private", "Set the package access level to either public or private")
 	flags.BoolVar(&opts.dryRun, "dry-run", false, "Perform a publish operation without actually publishing the package")
+
+	_ = cmd.RegisterFlagCompletionFunc("tag", completion.PublishTags())
+	_ = cmd.RegisterFlagCompletionFunc("access", completion.PackageVisibility())
 
 	return cmd
 }
