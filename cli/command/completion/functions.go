@@ -89,6 +89,21 @@ func PublishTags() cobra.CompletionFunc {
 	}
 }
 
+// PackageLicenses suggests a non-exhaustive list of common SPDX licenses.
+func PackageLicenses() cobra.CompletionFunc {
+	return func(_ *cobra.Command, _ []string, _ string) ([]string, cobra.ShellCompDirective) {
+		return []string{"GPL-2.0-or-later", "GPL-3.0-or-later"}, cobra.ShellCompDirectiveNoFileComp
+	}
+}
+
+// FileNames opts a flag or positional argument back into the shell's default
+// file completion.
+func FileNames() cobra.CompletionFunc {
+	return func(_ *cobra.Command, _ []string, _ string) ([]string, cobra.ShellCompDirective) {
+		return nil, cobra.ShellCompDirectiveDefault
+	}
+}
+
 // FromList offers completion for the given list of options.
 func FromList(options ...string) cobra.CompletionFunc {
 	return Unique(cobra.FixedCompletions(options, cobra.ShellCompDirectiveNoFileComp))
