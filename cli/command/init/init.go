@@ -83,6 +83,7 @@ func NewInitCommand(wpmCli command.Cli) *cobra.Command {
 	flags.StringVar(&opts.packageType, "type", "", "Package type (plugin, theme, mu-plugin)")
 
 	_ = cmd.RegisterFlagCompletionFunc("type", completion.PackageTypes())
+	_ = cmd.RegisterFlagCompletionFunc("license", completion.PackageLicenses())
 
 	return cmd
 }
