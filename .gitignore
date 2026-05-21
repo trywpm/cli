@@ -5,6 +5,8 @@
 # files
 !go.mod
 !go.sum
+!bun.lock
+!package.json
 !LICENSE
 !NOTICE.txt
 !.gitignore
@@ -13,12 +15,14 @@
 !README.md
 !docker-bake.hcl
 !Dockerfile
+!.oxfmtrc.json
 !.git-blame-ignore-revs
 
 # directories
 !cli
 !cmd
 !pkg
+!.vscode
 !install
 !.github
 !scripts
