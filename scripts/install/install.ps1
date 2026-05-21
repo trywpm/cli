@@ -117,7 +117,7 @@ try {
     Show-Success "wpm installed to $ExePath"
 
     $UserPath = [Environment]::GetEnvironmentVariable('Path', 'User')
-    $PathEntries = if ($UserPath) { $UserPath -split ';' } else { @() }
+    $PathEntries = if ($UserPath) { $UserPath -split ';' | ForEach-Object { $_.TrimEnd('\') } } else { @() }
     $BinOnUserPath = $PathEntries -contains $BinDir
 
     if ($BinOnUserPath) {
@@ -138,10 +138,19 @@ try {
     else { '' }
 
     if (-not $existing -or ($existing -notmatch [regex]::Escape($marker))) {
+        if ($InstallDir.StartsWith("$HOME\") -or $InstallDir -eq $HOME) {
+            $InstallRef = '"$HOME' + $InstallDir.Substring($HOME.Length) + '"'
+        }
+        else {
+            $escaped = $InstallDir -replace "'", "''"
+            $InstallRef = "'$escaped'"
+        }
+
         $block = @"
 
 $marker
-if (Test-Path "$CompletionFile") { . "$CompletionFile" }
+`$env:WPM_INSTALL = $InstallRef
+if (Test-Path "`$env:WPM_INSTALL\completions\wpm.ps1") { . "`$env:WPM_INSTALL\completions\wpm.ps1" }
 "@
         Add-Content -Path $ProfilePath -Value $block -Encoding utf8
     }
