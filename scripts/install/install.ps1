@@ -16,6 +16,7 @@ function Show-Info { param([string]$Msg); Write-Host $Msg -ForegroundColor Gray 
 function Show-Bold { param([string]$Msg); Write-Host $Msg -ForegroundColor White }
 function Show-Error { param([string]$Msg); Write-Host "error: $Msg" -ForegroundColor Red }
 function Show-Success { param([string]$Msg); Write-Host $Msg -ForegroundColor Green }
+function Show-Warning { param([string]$Msg); Write-Host "warning: $Msg" -ForegroundColor Yellow }
 
 $arch = try {
     (Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment' -Name PROCESSOR_ARCHITECTURE -ErrorAction Stop).PROCESSOR_ARCHITECTURE
@@ -88,9 +89,7 @@ try {
         Invoke-WebRequest -Uri "$Uri.sha256" -OutFile $TempChecksum -UseBasicParsing -ErrorAction Stop
         $haveChecksum = $true
     }
-    catch {
-        # do nothing
-    }
+    catch {}
 
     if ($haveChecksum) {
         Show-Info 'Verifying checksum...'
@@ -116,9 +115,7 @@ try {
             $completion | Out-File -FilePath $CompletionFile -Encoding utf8
         }
     }
-    catch {
-        # silent
-    }
+    catch {}
 
     Show-Success "wpm installed to $ExePath"
 
