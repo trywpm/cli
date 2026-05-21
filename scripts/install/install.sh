@@ -141,13 +141,13 @@ fi
 chmod +x "/tmp/$exe_name" || error 'Failed to make wpm executable'
 mv "/tmp/$exe_name" "$exe" || error 'Failed to move wpm to destination'
 
-"$exe" completion zsh >"$completions_dir/_wpm" 2>/dev/null || :
-"$exe" completion bash >"$completions_dir/wpm.bash" 2>/dev/null || :
-"$exe" completion fish >"$completions_dir/wpm.fish" 2>/dev/null || :
+"$exe" completion zsh > "$completions_dir/_wpm" 2>/dev/null || :
+"$exe" completion bash > "$completions_dir/wpm.bash" 2>/dev/null || :
+"$exe" completion fish > "$completions_dir/wpm.fish" 2>/dev/null || :
 
 success "wpm installed to ${Bold_Green}$(tildify "$exe")${Color_Off}"
 
-if command -v wpm >/dev/null; then
+if [[ ":$PATH:" == *":$bin_dir:"* ]]; then
   echo "Run 'wpm --help' to get started"
   exit
 fi
@@ -198,7 +198,8 @@ zsh)
   commands=(
     "export $install_env=$quoted_install_dir"
     "export PATH=\"$bin_env:\$PATH\""
-    "fpath=(\"$completions_env\" \$fpath)"
+    "command -v compdef >/dev/null || { autoload -Uz compinit && compinit; }"
+    "[ -s \"$completions_env/_wpm\" ] && source \"$completions_env/_wpm\""
   )
 
   zsh_config=$HOME/.zshrc
