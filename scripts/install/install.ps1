@@ -11,9 +11,9 @@ $ErrorActionPreference = 'Stop'
 
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-function Show-Info    { param([string]$Msg); Write-Host $Msg -ForegroundColor Gray }
-function Show-Bold    { param([string]$Msg); Write-Host $Msg -ForegroundColor White }
-function Show-Error   { param([string]$Msg); Write-Host "error: $Msg" -ForegroundColor Red }
+function Show-Info { param([string]$Msg); Write-Host $Msg -ForegroundColor Gray }
+function Show-Bold { param([string]$Msg); Write-Host $Msg -ForegroundColor White }
+function Show-Error { param([string]$Msg); Write-Host "error: $Msg" -ForegroundColor Red }
 function Show-Success { param([string]$Msg); Write-Host $Msg -ForegroundColor Green }
 
 $arch = if ($env:PROCESSOR_ARCHITEW6432) { $env:PROCESSOR_ARCHITEW6432 } else { $env:PROCESSOR_ARCHITECTURE }
@@ -27,18 +27,19 @@ switch ($arch) {
     }
 }
 
-$ExeName    = 'wpm.exe'
+$ExeName = 'wpm.exe'
 $BinaryName = "wpm-$target.exe"
 
-$InstallDir     = if ($env:WPM_INSTALL) { $env:WPM_INSTALL } else { Join-Path $HOME '.wpm' }
-$BinDir         = Join-Path $InstallDir 'bin'
+$InstallDir = if ($env:WPM_INSTALL) { $env:WPM_INSTALL } else { Join-Path $HOME '.wpm' }
+$BinDir = Join-Path $InstallDir 'bin'
 $CompletionsDir = Join-Path $InstallDir 'completions'
-$ExePath        = Join-Path $BinDir $ExeName
+$ExePath = Join-Path $BinDir $ExeName
 
 $BaseUrl = 'https://github.com/trywpm/cli/releases'
 $Uri = if ([string]::IsNullOrEmpty($Version)) {
     "$BaseUrl/latest/download/$BinaryName"
-} else {
+}
+else {
     "$BaseUrl/download/$Version/$BinaryName"
 }
 
@@ -63,13 +64,14 @@ try {
         }
     }
 
-    $TempFile     = Join-Path $env:TEMP $BinaryName
+    $TempFile = Join-Path $env:TEMP $BinaryName
     $TempChecksum = "$TempFile.sha256"
 
     Show-Info 'Downloading wpm...'
     try {
         Invoke-WebRequest -Uri $Uri -OutFile $TempFile -UseBasicParsing
-    } catch {
+    }
+    catch {
         Show-Error "Failed to download wpm from `"$Uri`": $($_.Exception.Message)"
         exit 1
     }
@@ -79,14 +81,15 @@ try {
     try {
         Invoke-WebRequest -Uri "$Uri.sha256" -OutFile $TempChecksum -UseBasicParsing -ErrorAction Stop
         $haveChecksum = $true
-    } catch {
+    }
+    catch {
         # do nothing
     }
 
     if ($haveChecksum) {
         Show-Info 'Verifying checksum...'
         $expected = ((Get-Content -Path $TempChecksum -Raw) -split '\s+')[0]
-        $actual   = (Get-FileHash -Path $TempFile -Algorithm SHA256).Hash
+        $actual = (Get-FileHash -Path $TempFile -Algorithm SHA256).Hash
 
         if ($expected -ne $actual) {
             Remove-Item -Path $TempFile, $TempChecksum -ErrorAction SilentlyContinue
@@ -106,14 +109,15 @@ try {
         if ($LASTEXITCODE -eq 0 -and $completion) {
             $completion | Out-File -FilePath $CompletionFile -Encoding utf8
         }
-    } catch {
+    }
+    catch {
         # silent
     }
 
     Show-Success "wpm installed to $ExePath"
 
-    $UserPath      = [Environment]::GetEnvironmentVariable('Path', 'User')
-    $PathEntries   = if ($UserPath) { $UserPath -split ';' } else { @() }
+    $UserPath = [Environment]::GetEnvironmentVariable('Path', 'User')
+    $PathEntries = if ($UserPath) { $UserPath -split ';' } else { @() }
     $BinOnUserPath = $PathEntries -contains $BinDir
 
     if ($BinOnUserPath) {
@@ -122,15 +126,16 @@ try {
     }
 
     $ProfilePath = $PROFILE.CurrentUserCurrentHost
-    $ProfileDir  = Split-Path -Path $ProfilePath -Parent
+    $ProfileDir = Split-Path -Path $ProfilePath -Parent
     if (-not (Test-Path -Path $ProfileDir)) {
         New-Item -ItemType Directory -Path $ProfileDir -Force | Out-Null
     }
 
-    $marker  = '# wpm completions'
+    $marker = '# wpm completions'
     $existing = if (Test-Path -Path $ProfilePath) {
         Get-Content -Path $ProfilePath -Raw
-    } else { '' }
+    }
+    else { '' }
 
     if (-not $existing -or ($existing -notmatch [regex]::Escape($marker))) {
         $block = @"
@@ -152,7 +157,8 @@ if (Test-Path "$CompletionFile") { . "$CompletionFile" }
     Write-Host ''
     Show-Bold "  . `$PROFILE"
     Show-Bold '  wpm --help'
-} catch {
+}
+catch {
     Show-Error $_.Exception.Message
     exit 1
 }
