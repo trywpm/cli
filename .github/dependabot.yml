@@ -17,7 +17,7 @@ updates:
     groups:
       actions:
         patterns:
-          - "actions/*"
+          - 'actions/*'
     labels:
       - 'dependencies'
       - 'github-actions'
