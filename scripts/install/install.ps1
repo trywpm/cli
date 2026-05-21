@@ -9,7 +9,8 @@ Set-StrictMode -Version Latest
 $ProgressPreference = 'SilentlyContinue'
 $ErrorActionPreference = 'Stop'
 
-[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+[Net.ServicePointManager]::SecurityProtocol = `
+    [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
 
 function Show-Info { param([string]$Msg); Write-Host $Msg -ForegroundColor Gray }
 function Show-Bold { param([string]$Msg); Write-Host $Msg -ForegroundColor White }
@@ -88,7 +89,7 @@ try {
 
     if ($haveChecksum) {
         Show-Info 'Verifying checksum...'
-        $expected = ((Get-Content -Path $TempChecksum -Raw) -split '\s+')[0]
+        $expected = ((Get-Content -Path $TempChecksum -Raw).Trim() -split '\s+')[0]
         $actual = (Get-FileHash -Path $TempFile -Algorithm SHA256).Hash
 
         if ($expected -ne $actual) {
@@ -120,9 +121,13 @@ try {
     $PathEntries = if ($UserPath) { $UserPath -split ';' | ForEach-Object { $_.TrimEnd('\') } } else { @() }
     $BinOnUserPath = $PathEntries -contains $BinDir
 
-    if ($BinOnUserPath) {
-        Write-Host "Run 'wpm --help' to get started"
-        exit 0
+    if (-not $BinOnUserPath) {
+        $NewPath = if ([string]::IsNullOrEmpty($UserPath)) { $BinDir } else { "$UserPath;$BinDir" }
+        [Environment]::SetEnvironmentVariable('Path', $NewPath, 'User')
+
+        $env:Path = "$env:Path;$BinDir"
+
+        Show-Info "Added `"$BinDir`" to your system `$PATH"
     }
 
     $ProfilePath = $PROFILE.CurrentUserCurrentHost
@@ -153,13 +158,9 @@ $marker
 if (Test-Path "`$env:WPM_INSTALL\completions\wpm.ps1") { . "`$env:WPM_INSTALL\completions\wpm.ps1" }
 "@
         Add-Content -Path $ProfilePath -Value $block -Encoding utf8
+
+        Show-Info "Added completions to `"$ProfilePath`""
     }
-
-    $NewPath = if ([string]::IsNullOrEmpty($UserPath)) { $BinDir } else { "$UserPath;$BinDir" }
-    [Environment]::SetEnvironmentVariable('Path', $NewPath, 'User')
-    $env:Path = "$env:Path;$BinDir"
-
-    Show-Info "Added `"$BinDir`" to `$PATH in `"$ProfilePath`""
 
     Write-Host ''
     Show-Info 'To get started, run:'
