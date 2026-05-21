@@ -17,7 +17,12 @@ function Show-Bold { param([string]$Msg); Write-Host $Msg -ForegroundColor White
 function Show-Error { param([string]$Msg); Write-Host "error: $Msg" -ForegroundColor Red }
 function Show-Success { param([string]$Msg); Write-Host $Msg -ForegroundColor Green }
 
-$arch = if ($env:PROCESSOR_ARCHITEW6432) { $env:PROCESSOR_ARCHITEW6432 } else { $env:PROCESSOR_ARCHITECTURE }
+$arch = try {
+    (Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment' -Name PROCESSOR_ARCHITECTURE -ErrorAction Stop).PROCESSOR_ARCHITECTURE
+}
+catch {
+    if ($env:PROCESSOR_ARCHITEW6432) { $env:PROCESSOR_ARCHITEW6432 } else { $env:PROCESSOR_ARCHITECTURE }
+}
 
 switch ($arch) {
     'AMD64' { $target = 'windows-amd64' }
