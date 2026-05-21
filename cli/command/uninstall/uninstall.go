@@ -8,6 +8,7 @@ import (
 
 	"go.wpm.so/cli/cli"
 	"go.wpm.so/cli/cli/command"
+	"go.wpm.so/cli/cli/command/completion"
 	"go.wpm.so/cli/cli/command/install"
 	"go.wpm.so/cli/cli/version"
 	"go.wpm.so/cli/pkg/output"
@@ -29,6 +30,7 @@ func NewUninstallCommand(wpmCli command.Cli) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runUninstall(cmd.Context(), wpmCli, args)
 		},
+		ValidArgsFunction: completion.PackagesFromWpmJson(),
 	}
 
 	return cmd

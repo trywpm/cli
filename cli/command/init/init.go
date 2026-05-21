@@ -11,6 +11,7 @@ import (
 	"unicode"
 
 	"go.wpm.so/cli/cli/command"
+	"go.wpm.so/cli/cli/command/completion"
 	"go.wpm.so/cli/pkg/output"
 	"go.wpm.so/cli/pkg/pm/wpmjson"
 	"go.wpm.so/cli/pkg/pm/wpmjson/types"
@@ -80,6 +81,9 @@ func NewInitCommand(wpmCli command.Cli) *cobra.Command {
 	flags.StringVar(&opts.version, "version", "", "Semver-compliant version")
 	flags.StringVar(&opts.license, "license", "", "Package license")
 	flags.StringVar(&opts.packageType, "type", "", "Package type (plugin, theme, mu-plugin)")
+
+	_ = cmd.RegisterFlagCompletionFunc("type", completion.PackageTypes())
+	_ = cmd.RegisterFlagCompletionFunc("license", completion.PackageLicenses())
 
 	return cmd
 }
