@@ -66,22 +66,22 @@ fi
 platform=$(uname -ms)
 
 case $platform in
-  *'MINGW'* | *'CYGWIN'* | *'MSYS'* | 'Windows_NT'*)
-    error "Please run \`powershell -c \"irm wpm.so/install.ps1|iex\"\` to install wpm on Windows systems."
-    ;;
+*'MINGW'* | *'CYGWIN'* | *'MSYS'* | 'Windows_NT'*)
+  error 'Please run `powershell -c "irm wpm.so/install.ps1|iex"` to install wpm on Windows systems.'
+  ;;
 esac
 
 case $platform in
-  'Linux s390x') target="linux-s390x" ;;
-  'Linux x86_64') target="linux-amd64" ;;
-  'Darwin arm64') target="darwin-arm64" ;;
-  'Linux armv6'*) target="linux-arm-v6" ;;
-  'Linux armv7'*) target="linux-arm-v7" ;;
-  'Darwin x86_64') target="darwin-amd64" ;;
-  'Linux ppc64le') target="linux-ppc64le" ;;
-  'Linux riscv64') target="linux-riscv64" ;;
-  'Linux aarch64' | 'Linux arm64') target="linux-arm64" ;;
-  *) error "Unsupported platform: $platform" ;;
+'Linux s390x') target="linux-s390x" ;;
+'Linux x86_64') target="linux-amd64" ;;
+'Darwin arm64') target="darwin-arm64" ;;
+'Linux armv6'*) target="linux-arm-v6" ;;
+'Linux armv7'*) target="linux-arm-v7" ;;
+'Darwin x86_64') target="darwin-amd64" ;;
+'Linux ppc64le') target="linux-ppc64le" ;;
+'Linux riscv64') target="linux-riscv64" ;;
+'Linux aarch64' | 'Linux arm64') target="linux-arm64" ;;
+*) error "Unsupported platform: $platform" ;;
 esac
 
 if [[ $target = darwin-amd64 ]]; then
@@ -141,9 +141,9 @@ fi
 chmod +x "/tmp/$exe_name" || error 'Failed to make wpm executable'
 mv "/tmp/$exe_name" "$exe" || error 'Failed to move wpm to destination'
 
-"$exe" completion zsh > "$completions_dir/_wpm" 2>/dev/null || :
-"$exe" completion bash > "$completions_dir/wpm.bash" 2>/dev/null || :
-"$exe" completion fish > "$completions_dir/wpm.fish" 2>/dev/null || :
+"$exe" completion zsh >"$completions_dir/_wpm" 2>/dev/null || :
+"$exe" completion bash >"$completions_dir/wpm.bash" 2>/dev/null || :
+"$exe" completion fish >"$completions_dir/wpm.fish" 2>/dev/null || :
 
 success "wpm installed to ${Bold_Green}$(tildify "$exe")${Color_Off}"
 
@@ -158,128 +158,127 @@ tilde_bin_dir=$(tildify "$bin_dir")
 quoted_install_dir=\"${wpm_install_dir//\"/\\\"}\"
 
 if [[ $quoted_install_dir = \"$HOME/* ]]; then
-    quoted_install_dir=${quoted_install_dir/$HOME\//\$HOME/}
+  quoted_install_dir=${quoted_install_dir/$HOME\//\$HOME/}
 fi
 
 echo
 
 case $(basename "$SHELL") in
 fish)
-    commands=(
-      "set --export $install_env $quoted_install_dir"
-      "set --export PATH $bin_env \$PATH"
-      "set -gx fish_complete_path \"$completions_env\" \$fish_complete_path"
+  commands=(
+    "set --export $install_env $quoted_install_dir"
+    "set --export PATH $bin_env \$PATH"
+    "set -gx fish_complete_path \"$completions_env\" \$fish_complete_path"
+  )
+
+  fish_config=$HOME/.config/fish/config.fish
+  tilde_fish_config=$(tildify "$fish_config")
+
+  if [[ -w $fish_config ]]; then
+    {
+      echo -e '\n# wpm'
+
+      for command in "${commands[@]}"; do
+        echo "$command"
+      done
+    } >>"$fish_config"
+
+    info "Added \"$tilde_bin_dir\" to \$PATH in \"$tilde_fish_config\""
+
+    refresh_command="source $tilde_fish_config"
+  else
+    echo "Manually add the directory to $tilde_fish_config (or similar):"
+
+    for command in "${commands[@]}"; do
+      info_bold "  $command"
+    done
+  fi
+  ;;
+zsh)
+  commands=(
+    "export $install_env=$quoted_install_dir"
+    "export PATH=\"$bin_env:\$PATH\""
+    "fpath=(\"$completions_env\" \$fpath)"
+  )
+
+  zsh_config=$HOME/.zshrc
+  tilde_zsh_config=$(tildify "$zsh_config")
+
+  if [[ -w $zsh_config ]]; then
+    {
+      echo -e '\n# wpm'
+
+      for command in "${commands[@]}"; do
+        echo "$command"
+      done
+    } >>"$zsh_config"
+
+    info "Added \"$tilde_bin_dir\" to \$PATH in \"$tilde_zsh_config\""
+
+    refresh_command="exec $SHELL"
+  else
+    echo "Manually add the directory to $tilde_zsh_config (or similar):"
+
+    for command in "${commands[@]}"; do
+      info_bold "  $command"
+    done
+  fi
+  ;;
+bash)
+  commands=(
+    "export $install_env=$quoted_install_dir"
+    "export PATH=\"$bin_env:\$PATH\""
+    "[ -s \"$completions_env/wpm.bash\" ] && source \"$completions_env/wpm.bash\""
+  )
+
+  bash_configs=(
+    "$HOME/.bash_profile"
+    "$HOME/.bashrc"
+  )
+
+  if [[ ${XDG_CONFIG_HOME:-} ]]; then
+    bash_configs+=(
+      "$XDG_CONFIG_HOME/.bash_profile"
+      "$XDG_CONFIG_HOME/.bashrc"
+      "$XDG_CONFIG_HOME/bash_profile"
+      "$XDG_CONFIG_HOME/bashrc"
     )
+  fi
 
-    fish_config=$HOME/.config/fish/config.fish
-    tilde_fish_config=$(tildify "$fish_config")
+  set_manually=true
+  for bash_config in "${bash_configs[@]}"; do
+    tilde_bash_config=$(tildify "$bash_config")
 
-    if [[ -w $fish_config ]]; then
+    if [[ -w $bash_config ]]; then
       {
         echo -e '\n# wpm'
 
         for command in "${commands[@]}"; do
           echo "$command"
         done
-      } >>"$fish_config"
+      } >>"$bash_config"
 
-      info "Added \"$tilde_bin_dir\" to \$PATH in \"$tilde_fish_config\""
+      info "Added \"$tilde_bin_dir\" to \$PATH in \"$tilde_bash_config\""
 
-      refresh_command="source $tilde_fish_config"
-    else
-      echo "Manually add the directory to $tilde_fish_config (or similar):"
-
-      for command in "${commands[@]}"; do
-        info_bold "  $command"
-      done
+      refresh_command="source $bash_config"
+      set_manually=false
+      break
     fi
-    ;;
-zsh)
-    commands=(
-      "export $install_env=$quoted_install_dir"
-      "export PATH=\"$bin_env:\$PATH\""
-      "fpath=(\"$completions_env\" \$fpath)"
-    )
+  done
 
-    zsh_config=$HOME/.zshrc
-    tilde_zsh_config=$(tildify "$zsh_config")
+  if [[ $set_manually = true ]]; then
+    echo "Manually add the directory to $tilde_bash_config (or similar):"
 
-    if [[ -w $zsh_config ]]; then
-      {
-          echo -e '\n# wpm'
-
-          for command in "${commands[@]}"; do
-              echo "$command"
-          done
-      } >>"$zsh_config"
-
-      info "Added \"$tilde_bin_dir\" to \$PATH in \"$tilde_zsh_config\""
-
-      refresh_command="exec $SHELL"
-    else
-      echo "Manually add the directory to $tilde_zsh_config (or similar):"
-
-      for command in "${commands[@]}"; do
-          info_bold "  $command"
-      done
-    fi
-    ;;
-bash)
-    commands=(
-      "export $install_env=$quoted_install_dir"
-      "export PATH=\"$bin_env:\$PATH\""
-      "[ -s \"$completions_env/wpm.bash\" ] && source \"$completions_env/wpm.bash\""
-    )
-
-    bash_configs=(
-      "$HOME/.bash_profile"
-      "$HOME/.bashrc"
-    )
-
-    if [[ ${XDG_CONFIG_HOME:-} ]]; then
-        bash_configs=(
-          "${bash_configs[@]}"
-          "$XDG_CONFIG_HOME/.bash_profile"
-          "$XDG_CONFIG_HOME/.bashrc"
-          "$XDG_CONFIG_HOME/bash_profile"
-          "$XDG_CONFIG_HOME/bashrc"
-        )
-    fi
-
-    set_manually=true
-    for bash_config in "${bash_configs[@]}"; do
-        tilde_bash_config=$(tildify "$bash_config")
-
-        if [[ -w $bash_config ]]; then
-          {
-            echo -e '\n# wpm'
-
-            for command in "${commands[@]}"; do
-              echo "$command"
-            done
-          } >>"$bash_config"
-
-          info "Added \"$tilde_bin_dir\" to \$PATH in \"$tilde_bash_config\""
-
-          refresh_command="source $bash_config"
-          set_manually=false
-          break
-        fi
+    for command in "${commands[@]}"; do
+      info_bold "  $command"
     done
-
-    if [[ $set_manually = true ]]; then
-        echo "Manually add the directory to $tilde_bash_config (or similar):"
-
-        for command in "${commands[@]}"; do
-          info_bold "  $command"
-        done
-    fi
-    ;;
+  fi
+  ;;
 *)
-    echo 'Manually add the directory to ~/.bashrc (or similar):'
-    info_bold "  export $install_env=$quoted_install_dir"
-    info_bold "  export PATH=\"$bin_env:\$PATH\""
-    ;;
+  echo 'Manually add the directory to ~/.bashrc (or similar):'
+  info_bold "  export $install_env=$quoted_install_dir"
+  info_bold "  export PATH=\"$bin_env:\$PATH\""
+  ;;
 esac
 
 echo
