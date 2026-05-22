@@ -21,7 +21,7 @@ token can act as you against the registry.
 ## Getting a token
 
 Create a personal access token from your account settings on the registry's web
-interface, typically at `https://wpm.so/account/tokens`.
+interface, typically at `https://wpm.so/dashboard/tokens`.
 
 A token can usually be scoped (read-only, publish-only) and given an expiration.
 The exact options depend on the registry; consult the registry's documentation

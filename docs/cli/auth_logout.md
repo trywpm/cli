@@ -22,7 +22,7 @@ revoke it.
 
 If you need to invalidate a token (for example, because it was leaked or you are
 decommissioning a CI runner), revoke it from your account settings at
-https://wpm.so/account/tokens before or in addition to running this command.
+https://wpm.so/dashboard/tokens before or in addition to running this command.
 
 ### Errors
 

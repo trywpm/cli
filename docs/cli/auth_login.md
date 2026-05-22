@@ -30,8 +30,8 @@ After login, every command that needs registry access (such as `publish` and
 ### Where to get a token
 
 Create a personal access token from your account settings at
-https://wpm.so/account/tokens. Tokens grant full access to the packages you own,
-so treat them like passwords.
+https://wpm.so/dashboard/tokens. Tokens grant full access to the packages you
+own, so treat them like passwords.
 
 ### Interactive login (recommended)
 
