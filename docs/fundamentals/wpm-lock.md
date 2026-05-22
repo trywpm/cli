@@ -143,9 +143,10 @@ package names in the `packages` map are rejected on load.
 
 ## Related
 
-- [`wpm.json`](../reference/wpm-json.md): the request that the lockfile records
-  the answer to.
-- [Dependencies](../reference/dependencies.md): how the request is expressed.
-- [`wpm install`](../cli/install.md): the command that writes the lockfile.
-- [`wpm ls`](../cli/ls.md) and [`wpm why`](../cli/why.md): the two read-only
-  commands that work from the lockfile.
+- [`wpm.json`](wpm-json.md): the request that the lockfile records the answer
+  to.
+- [Dependencies](dependencies.md): how the request is expressed.
+- [`wpm install`](../reference/cli/install.md): the command that writes the
+  lockfile.
+- [`wpm ls`](../reference/cli/ls.md) and [`wpm why`](../reference/cli/why.md):
+  the two read-only commands that work from the lockfile.

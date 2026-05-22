@@ -35,51 +35,61 @@ $ curl -fsSL https://wpm.so/install | bash      # Linux, macOS
 $ powershell -c "irm wpm.so/install.ps1|iex"    # Windows
 ```
 
-See the [installation guide](guide/installation.md) for Docker, `go install`,
-and source builds.
+See the [installation guide](getting-started/installation.md) for Docker,
+`go install`, and source builds.
 
-## Guide
+## Get started
 
-Step-by-step guides for the things you'll do most:
+- **[Overview](getting-started/overview.md)**: what wpm is, the files involved,
+  and the basic loop.
+- **[Installation](getting-started/installation.md)**: install methods, shell
+  completion, where wpm keeps its files.
+- **[First project](getting-started/first-project.md)**: a ten-minute
+  walkthrough from empty directory to working project.
 
-- **[Installation](guide/installation.md)**: install methods, shell completion,
-  troubleshooting, and where wpm keeps its files.
-- **[Getting started](guide/getting-started.md)**: scaffold a project, add
-  dependencies, inspect the tree, optionally publish.
-- **[Authentication](guide/authentication.md)**: tokens, identity, multi-account
-  patterns, rotation.
-- **[Publishing](guide/publishing.md)**: versioning, dist tags, visibility, and
+## Fundamentals
+
+The files and concepts every wpm user should understand:
+
+- **[`wpm.json`](fundamentals/wpm-json.md)**: the package manifest schema.
+- **[Dependencies](fundamentals/dependencies.md)**: the dependency maps and the
+  resolver's rules.
+- **[Runtime compatibility](fundamentals/runtime.md)**: `requires` versus
+  `config.runtime`.
+- **[`wpm.lock`](fundamentals/wpm-lock.md)**: the lockfile format.
+- **[`.wpmignore`](fundamentals/wpmignore.md)**: publish exclusions.
+- **[Package types](fundamentals/package-types.md)**: `plugin`, `theme`, and
+  `mu-plugin`.
+- **[Registry](fundamentals/registry.md)**: dist tags, visibility, and
+  self-hosted setups.
+
+## Guides
+
+Step-by-step walkthroughs for common tasks:
+
+- **[Authentication](guides/authentication.md)**: tokens, identity,
+  multi-account patterns, rotation.
+- **[Managing dependencies](guides/dependency-management.md)**: add, remove,
+  update, and inspect.
+- **[Runtime compatibility](guides/runtime-compatibility.md)**: enable strict
+  mode and read its errors.
+- **[Publishing](guides/publishing.md)**: versioning, dist tags, visibility, and
   the release lifecycle.
-- **[CI/CD](guide/ci.md)**: recipes for GitHub Actions, GitLab, and Docker.
+- **[CI/CD](guides/ci.md)**: recipes for GitHub Actions, GitLab, and Docker.
 
 ## Reference
 
-Detailed reference for every file format and core concept:
-
-- **[`wpm.json`](reference/wpm-json.md)**: the package manifest schema.
-- **[Dependencies](reference/dependencies.md)**: the dependency maps and the
-  resolver's rules.
-- **[Runtime compatibility](reference/runtime.md)**: `requires` versus
-  `config.runtime`.
-- **[`wpm.lock`](reference/wpm-lock.md)**: the lockfile format.
-- **[`.wpmignore`](reference/wpmignore.md)**: publish exclusions.
-- **[Package types](reference/package-types.md)**: `plugin`, `theme`, and
-  `mu-plugin`.
-- **[Registry](reference/registry.md)**: dist tags, visibility, and self-hosted
-  setups.
+- **[CLI reference](reference/cli/wpm.md)**: every command, flag, and exit code.
 - **[Glossary](reference/glossary.md)**: definitions of wpm-specific terms.
 
-## CLI reference
+Most projects reach for these CLI commands every day:
 
-The full [CLI reference](cli/wpm.md) covers every command, every flag, and every
-exit code. Most projects reach for these every day:
-
-- [`wpm init`](cli/init.md) to start a new project.
-- [`wpm install`](cli/install.md) to add and install dependencies.
-- [`wpm ls`](cli/ls.md) to see what's installed.
-- [`wpm outdated`](cli/outdated.md) to check for updates.
-- [`wpm publish`](cli/publish.md) to share your own packages.
-- [`wpm auth login`](cli/auth_login.md) to log in to the registry.
+- [`wpm init`](reference/cli/init.md) to start a new project.
+- [`wpm install`](reference/cli/install.md) to add and install dependencies.
+- [`wpm ls`](reference/cli/ls.md) to see what's installed.
+- [`wpm outdated`](reference/cli/outdated.md) to check for updates.
+- [`wpm publish`](reference/cli/publish.md) to share your own packages.
+- [`wpm auth login`](reference/cli/auth_login.md) to log in to the registry.
 
 ## Community
 

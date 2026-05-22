@@ -127,6 +127,7 @@ this to confirm that the right files are in and the right files are out.
 
 ## Related
 
-- [`wpm publish`](../cli/publish.md): the only command that reads `.wpmignore`.
-- [`wpm.json`](../reference/wpm-json.md): the manifest whose required fields
-  must remain in the tarball.
+- [`wpm publish`](../reference/cli/publish.md): the only command that reads
+  `.wpmignore`.
+- [`wpm.json`](wpm-json.md): the manifest whose required fields must remain in
+  the tarball.

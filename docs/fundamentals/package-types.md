@@ -104,8 +104,8 @@ they re-install.
 
 Package names follow the same rules regardless of type: 3 to 164 lowercase
 characters, hyphens allowed, no underscores or uppercase letters (see the
-[`wpm.json` reference](../reference/wpm-json.md) for the full regex). A few
-practical conventions:
+[`wpm.json` reference](wpm-json.md) for the full regex). A few practical
+conventions:
 
 - Plugins are usually named after what they do (`woocommerce-stripe-gateway`,
   `query-monitor`, `redirection`).
@@ -119,8 +119,8 @@ and discovery work better.
 
 ## Related
 
-- [`wpm.json` reference](../reference/wpm-json.md): the schema where `type` is
-  declared.
-- [`wpm init`](../cli/init.md): the detection logic for existing projects.
-- [`wpm install`](../cli/install.md): how the extracted path is computed at
-  install time.
+- [`wpm.json` reference](wpm-json.md): the schema where `type` is declared.
+- [`wpm init`](../reference/cli/init.md): the detection logic for existing
+  projects.
+- [`wpm install`](../reference/cli/install.md): how the extracted path is
+  computed at install time.

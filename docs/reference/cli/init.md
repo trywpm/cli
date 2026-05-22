@@ -126,7 +126,7 @@ errors. Pass `--version` to recover.
 
 Both modes validate `name`, `version`, `type`, and `license` before writing
 `wpm.json`. The full schema and its rules live in
-[`wpm.json` reference](../reference/wpm-json.md).
+[`wpm.json` reference](../../fundamentals/wpm-json.md).
 
 ### Troubleshooting
 

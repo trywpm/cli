@@ -3,8 +3,9 @@
 This page covers everything you need to know about wpm tokens: how to get one,
 where wpm stores it, and how to manage multiple accounts.
 
-For the per-command reference, see [`wpm auth`](../cli/auth.md),
-[`wpm auth login`](../cli/auth_login.md), and [`wpm whoami`](../cli/whoami.md).
+For the per-command reference, see [`wpm auth`](../reference/cli/auth.md),
+[`wpm auth login`](../reference/cli/auth_login.md), and
+[`wpm whoami`](../reference/cli/whoami.md).
 
 ## Why wpm needs a token
 
@@ -151,7 +152,7 @@ wpm publish --access public
 
 For multi-tenant CI (publishing under more than one account from the same
 runner), use a separate `--config` directory per identity. See the
-[CI/CD guide](../guide/ci.md) for full recipes.
+[CI/CD guide](ci.md) for full recipes.
 
 ## Rotating tokens
 
@@ -184,9 +185,10 @@ anything, so it's a safe way to confirm that a token works.
 
 ## Related
 
-- [`wpm auth`](../cli/auth.md): the parent command for `login` and `logout`.
-- [`wpm whoami`](../cli/whoami.md): the canonical "am I logged in?" check.
-- [Registry concepts](../reference/registry.md): visibility, dist tags, and what
-  the registry does with your identity.
-- [CI/CD guide](../guide/ci.md): worked examples for running wpm from build
-  pipelines.
+- [`wpm auth`](../reference/cli/auth.md): the parent command for `login` and
+  `logout`.
+- [`wpm whoami`](../reference/cli/whoami.md): the canonical "am I logged in?"
+  check.
+- [Registry concepts](../fundamentals/registry.md): visibility, dist tags, and
+  what the registry does with your identity.
+- [CI/CD guide](ci.md): worked examples for running wpm from build pipelines.

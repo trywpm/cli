@@ -139,10 +139,11 @@ registry, and any command with `--config ~/.wpm-prod` targets production.
 
 ## Related
 
-- [`wpm auth`](../cli/auth.md): how credentials are obtained and stored.
-- [`wpm publish`](../cli/publish.md): the command that uploads new versions and
-  sets the dist tag and visibility.
-- [`wpm install`](../cli/install.md): the command that reads manifests and
-  downloads tarballs.
-- [`wpm.json`](../reference/wpm-json.md): the `private` flag, distinct from
-  registry visibility.
+- [`wpm auth`](../reference/cli/auth.md): how credentials are obtained and
+  stored.
+- [`wpm publish`](../reference/cli/publish.md): the command that uploads new
+  versions and sets the dist tag and visibility.
+- [`wpm install`](../reference/cli/install.md): the command that reads manifests
+  and downloads tarballs.
+- [`wpm.json`](wpm-json.md): the `private` flag, distinct from registry
+  visibility.

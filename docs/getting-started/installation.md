@@ -231,8 +231,8 @@ cache under `~/.wpm/cache/install`.
 
 ## Next steps
 
-- New to wpm? See [Getting started](../guide/getting-started.md) for a 10-minute
-  end-to-end walkthrough.
-- Setting up a build pipeline? See the [CI/CD guide](../guide/ci.md).
+- New to wpm? See [Getting started](first-project.md) for a 10-minute end-to-end
+  walkthrough.
+- Setting up a build pipeline? See the [CI/CD guide](../guides/ci.md).
 - Looking for the `wpm.json` reference? See
-  [`wpm.json`](../reference/wpm-json.md).
+  [`wpm.json`](../fundamentals/wpm-json.md).

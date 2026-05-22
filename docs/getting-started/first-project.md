@@ -3,8 +3,8 @@
 In about ten minutes, you'll go from a fresh wpm install to a working project
 with dependencies. You don't need a registry account for the first five steps.
 
-If you don't have wpm yet, follow the
-[installation guide](../guide/installation.md) first.
+If you don't have wpm yet, follow the [installation guide](installation.md)
+first.
 
 ## Before you start
 
@@ -52,7 +52,7 @@ Open `wpm.json` in your editor. It should look like this:
 
 wpm created the required fields for you (`name`, `version`, and `type`) and
 added a default license. You can add everything else later as your project
-grows. See the [`wpm.json` reference](../reference/wpm-json.md) for the full
+grows. See the [`wpm.json` reference](../fundamentals/wpm-json.md) for the full
 list of fields.
 
 ## Step 2: Install production dependencies
@@ -176,7 +176,7 @@ $ wpm publish
 
 Before you publish, check that `.wpmignore` excludes everything you don't want
 to ship: build artifacts, secrets, test fixtures. See
-[`.wpmignore`](../reference/wpmignore.md) for the syntax.
+[`.wpmignore`](../fundamentals/wpmignore.md) for the syntax.
 
 ## What you have now
 
@@ -191,11 +191,11 @@ always be reinstalled from `wpm.lock`.
 
 ## Where to go next
 
-| If you want to...                            | Read                                                     |
-| :------------------------------------------- | :------------------------------------------------------- |
-| Understand `wpm.json` in detail              | [`wpm.json` reference](../reference/wpm-json.md)         |
-| Run wpm in CI                                | [CI/CD guide](../guide/ci.md)                            |
-| Manage tokens and multiple accounts          | [Authentication](../guide/authentication.md)             |
-| Learn the plugin/theme/mu-plugin differences | [Package types](../reference/package-types.md)           |
-| Browse all CLI commands                      | [`wpm`](../cli/wpm.md)                                   |
-| Adopt wpm in an existing plugin or theme     | [`wpm init`](../cli/init.md) (see the `--existing` mode) |
+| If you want to...                            | Read                                                               |
+| :------------------------------------------- | :----------------------------------------------------------------- |
+| Understand `wpm.json` in detail              | [`wpm.json` reference](../fundamentals/wpm-json.md)                |
+| Run wpm in CI                                | [CI/CD guide](../guides/ci.md)                                     |
+| Manage tokens and multiple accounts          | [Authentication](../guides/authentication.md)                      |
+| Learn the plugin/theme/mu-plugin differences | [Package types](../fundamentals/package-types.md)                  |
+| Browse all CLI commands                      | [`wpm`](../reference/cli/wpm.md)                                   |
+| Adopt wpm in an existing plugin or theme     | [`wpm init`](../reference/cli/init.md) (see the `--existing` mode) |

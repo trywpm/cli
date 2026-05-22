@@ -135,7 +135,8 @@ runs conflict resolution. The summary:
 - **No root pin** plus disagreeing transitives produces an "unresolvable
   conflict" error. Add an explicit entry to `dependencies` to break the tie.
 
-See the [`wpm install`](../cli/install.md) reference for the full output format.
+See the [`wpm install`](../reference/cli/install.md) reference for the full
+output format.
 
 ## Sharing across the tree
 
@@ -149,9 +150,10 @@ is strict about conflicts; there is no fallback to a package-specific copy.
 
 ## Related
 
-- [`wpm install`](../cli/install.md): the command that reads and writes the
-  maps.
-- [`wpm uninstall`](../cli/uninstall.md): removes entries and reconciles disk.
-- [`wpm.lock`](../reference/wpm-lock.md): the resolved snapshot.
+- [`wpm install`](../reference/cli/install.md): the command that reads and
+  writes the maps.
+- [`wpm uninstall`](../reference/cli/uninstall.md): removes entries and
+  reconciles disk.
+- [`wpm.lock`](wpm-lock.md): the resolved snapshot.
 - [Runtime compatibility](runtime.md): for `requires` constraints, which are
   different from dependency specifiers.
