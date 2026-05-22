@@ -21,12 +21,12 @@ Package Manager for WordPress ecosystem
 
 ### Options
 
-| Name                | Type     | Default                  | Description                                                       |
-|:--------------------|:---------|:-------------------------|:------------------------------------------------------------------|
-| `--config`          | `string` | `/home/thelovekesh/.wpm` | Location of client config files                                   |
-| `-D`, `--debug`     | `bool`   |                          | Enable debug mode                                                 |
-| `-l`, `--log-level` | `string` | `info`                   | Set the logging level ("debug", "info", "warn", "error", "fatal") |
-| `--registry`        | `string` | `registry.wpm.so`        | Set specific registry to use                                      |
+| Name                | Type     | Default           | Description                                                       |
+|:--------------------|:---------|:------------------|:------------------------------------------------------------------|
+| `--config`          | `string` | `~/.wpm`          | Location of client config files                                   |
+| `-D`, `--debug`     | `bool`   |                   | Enable debug mode                                                 |
+| `-l`, `--log-level` | `string` | `info`            | Set the logging level ("debug", "info", "warn", "error", "fatal") |
+| `--registry`        | `string` | `registry.wpm.so` | Set specific registry to use                                      |
 
 
 <!---MARKER_GEN_END-->
