@@ -6,6 +6,7 @@ require (
 	github.com/Masterminds/semver/v3 v3.5.0
 	github.com/briandowns/spinner v1.23.2
 	github.com/containerd/errdefs v1.0.0
+	github.com/docker/cli-docs-tool v0.11.0
 	github.com/docker/go-units v0.5.0
 	github.com/fvbommel/sortorder v1.1.0
 	github.com/gofrs/flock v0.13.0
@@ -27,9 +28,14 @@ require (
 
 require (
 	github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c // indirect
+	github.com/cpuguy83/go-md2man/v2 v2.0.7 // indirect
 	github.com/fatih/color v1.7.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
+	github.com/kr/text v0.2.0 // indirect
 	github.com/mattn/go-colorable v0.1.2 // indirect
 	github.com/mattn/go-isatty v0.0.8 // indirect
+	github.com/rogpeppe/go-internal v1.14.1 // indirect
+	github.com/russross/blackfriday/v2 v2.1.0 // indirect
+	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/term v0.38.0 // indirect
 )

@@ -1,0 +1,12 @@
+#!/usr/bin/env sh
+
+cd "$(dirname "$0")/../.."
+
+set -eu
+
+mkdir -p ./man/man1
+
+(
+	set -x
+	go run ./cmd/docgen/docgen.go --format man --source ./docs/reference/cli --target ./man/man1
+)

@@ -1,0 +1,10 @@
+#!/usr/bin/env sh
+
+cd "$(dirname "$0")/../.."
+
+set -eu
+
+(
+	set -x
+	go run ./cmd/docgen/docgen.go --format md --source ./docs/reference/cli --target ./docs/reference/cli
+)

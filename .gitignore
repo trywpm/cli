@@ -1,4 +1,5 @@
 /*
+/docs/yaml/
 /cmd/wpm/winresources/versioninfo.json
 /cmd/wpm/winresources/*.syso
 
@@ -21,6 +22,7 @@
 # directories
 !cli
 !cmd
+!docs
 !pkg
 !.vscode
 !install
