@@ -27,6 +27,8 @@ jobs:
     steps:
       - name: checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
 
       - name: determine build platforms
         id: platforms
@@ -34,7 +36,9 @@ jobs:
           echo platforms=$(docker buildx bake binary-cross --print | jq -cr '.target."binary-cross".platforms') >> $GITHUB_OUTPUT
 
       - name: print platforms
-        run: echo ${{ steps.platforms.outputs.platforms }}
+        run: echo "$PLATFORMS"
+        env:
+          PLATFORMS: ${{ steps.platforms.outputs.platforms }}
 
   lint:
     runs-on: ubuntu-latest
@@ -45,11 +49,13 @@ jobs:
     steps:
       - name: checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
 
       - name: setup go
         uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
         with:
-          go-version: '^1.25'
+          go-version-file: 'go.mod'
 
       - name: check dependencies
         run: |
@@ -71,12 +77,15 @@ jobs:
     steps:
       - name: checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
 
       - name: set platform pair
         id: platform
         run: |
-          platform=${{ matrix.platform }}
-          echo "pair=${platform//\//-}" >> $GITHUB_OUTPUT
+          echo "pair=${PLATFORM//\//-}" >> $GITHUB_OUTPUT
+        env:
+          PLATFORM: ${{ matrix.platform }}
 
       - name: setup qemu
         uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4.0.0
@@ -104,8 +113,10 @@ jobs:
 
       - name: s3 upload
         if: ${{ github.ref_type == 'branch' && github.actor != 'dependabot[bot]' }}
-        run: aws s3 cp build/ s3://wpm-cli-builds/${{ github.event.number && github.event.number != null && github.event.number || 'latest' }}/ --exclude "*" --include "wpm-*" --recursive --endpoint-url ${{ secrets.S3_ENDPOINT_URL }} --region auto --checksum-algorithm CRC32
+        run: aws s3 cp build/ "s3://wpm-cli-builds/${UPLOAD_PATH}/" --exclude "*" --include "wpm-*" --recursive --endpoint-url "$S3_ENDPOINT" --region auto --checksum-algorithm CRC32
         env:
+          S3_ENDPOINT: ${{ secrets.S3_ENDPOINT_URL }}
+          UPLOAD_PATH: ${{ github.event.number || 'latest' }}
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
@@ -131,13 +142,16 @@ jobs:
       - name: comment body
         id: comment-body
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 #v9.0.0
+        env:
+          PR_NUMBER: ${{ github.event.number }}
+          PLATFORMS: ${{ needs.prepare.outputs.platforms }}
         with:
           script: |
-            const platforms = JSON.parse(${{ toJson(needs.prepare.outputs.platforms) }})
+            const platforms = JSON.parse(process.env.PLATFORMS)
             const builds = platforms.map((platform) => {
               const platformPair = platform.split('/')
               const buildPath = `wpm-${platformPair[0]}-${platformPair[1]}${platformPair[2] ? `-v${platformPair[2]}` : ''}`
-              const buildUrl = `https://pub-bea4f3d05c4f49e0b54ccf1dad0da103.r2.dev/${{ github.event.number }}/${buildPath}${platformPair[0] === 'windows' ? '.exe' : ''}`
+              const buildUrl = `https://pub-bea4f3d05c4f49e0b54ccf1dad0da103.r2.dev/${process.env.PR_NUMBER}/${buildPath}${platformPair[0] === 'windows' ? '.exe' : ''}`
               const spec = `${platformPair[0]}/${platformPair[1]}${platformPair[2] ? `/${platformPair[2]}` : ''}`
               return `- \`${spec}\` - [\`build\`](${buildUrl})`
             }).join('\n')
@@ -146,25 +160,30 @@ jobs:
       - name: create comment
         if: ${{ steps.find-existing-comment.outputs.result == 'null' }}
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 #v9.0.0
+        env:
+          COMMENT_BODY: ${{ steps.comment-body.outputs.result }}
         with:
           script: |
             github.rest.issues.createComment({
               repo: context.repo.repo,
               owner: context.repo.owner,
               issue_number: context.issue.number,
-              body: ${{ steps.comment-body.outputs.result }},
+              body: JSON.parse(process.env.COMMENT_BODY),
             });
 
       - name: update comment
         if: ${{ steps.find-existing-comment.outputs.result != 'null' }}
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 #v9.0.0
+        env:
+          COMMENT_ID: ${{ steps.find-existing-comment.outputs.result }}
+          COMMENT_BODY: ${{ steps.comment-body.outputs.result }}
         with:
           script: |
             github.rest.issues.updateComment({
               repo: context.repo.repo,
               owner: context.repo.owner,
-              body: ${{ steps.comment-body.outputs.result }},
-              comment_id: ${{ steps.find-existing-comment.outputs.result }},
+              body: JSON.parse(process.env.COMMENT_BODY),
+              comment_id: JSON.parse(process.env.COMMENT_ID),
             });
 
   release:
@@ -177,6 +196,8 @@ jobs:
     steps:
       - name: checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
 
       - name: setup qemu
         uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4.0.0
@@ -236,10 +257,12 @@ jobs:
 
       - name: upload release assets
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 #v9.0.0
+        env:
+          UPLOAD_URL: ${{ steps.draft-release.outputs.upload_url }}
         with:
           script: |
             const fs = require('fs');
-            let uploadUrl = '${{ steps.draft-release.outputs.upload_url }}';
+            let uploadUrl = process.env.UPLOAD_URL;
             const templateMarkerPos = uploadUrl.indexOf("{");
             if (templateMarkerPos !== -1) {
               uploadUrl = uploadUrl.substring(0, templateMarkerPos);
