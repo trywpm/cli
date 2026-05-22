@@ -1,4 +1,9 @@
-# Getting started
+---
+title: First project
+description:
+  Build your first wpm plugin or theme project in ten minutes by scaffolding
+  dependencies, locking versions, and publishing.
+---
 
 In about ten minutes, you'll go from a fresh wpm install to a working project
 with dependencies. You don't need a registry account for the first five steps.

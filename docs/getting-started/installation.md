@@ -1,4 +1,9 @@
-# Installation
+---
+title: Installation
+description:
+  Install wpm on Linux, macOS, Windows, Docker, or from source, including shell
+  completion setup and where wpm stores its files.
+---
 
 wpm ships as a single static binary. There are no runtime dependencies, no PHP
 requirement on the machine that runs wpm, and no per-project toolchain. Pick the

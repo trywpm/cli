@@ -1,4 +1,9 @@
-# Running wpm in CI
+---
+title: Running wpm in CI
+description:
+  Run wpm in GitHub Actions, GitLab CI, and shell runners with secure token
+  handling and reproducible installs.
+---
 
 This guide covers how to run wpm in continuous integration pipelines: GitHub
 Actions, GitLab CI, and generic shell-based runners. The patterns apply equally
@@ -282,5 +287,5 @@ Before merging your CI configuration, confirm:
 - [Authentication](authentication.md): the token lifecycle.
 - [`wpm`](../reference/cli/wpm.md): the full list of global flags and
   environment variables.
-- [Registry concepts](../fundamentals/registry.md): dist tags and visibility
-  settings used by `wpm publish`.
+- [wpm registry](../fundamentals/registry.md): dist tags and visibility settings
+  used by `wpm publish`.

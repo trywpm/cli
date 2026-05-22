@@ -1,4 +1,9 @@
-# Glossary
+---
+title: Glossary
+description:
+  Look up the terms that appear across the wpm docs, defined in plain English
+  and listed alphabetically.
+---
 
 Terms that appear across the wpm docs. Listed alphabetically.
 
@@ -8,7 +13,7 @@ The visibility a package has on the registry. Set with
 `wpm publish --access <public|private>`. A `public` package is visible to
 everyone the registry serves; a `private` package is visible only to authorized
 accounts. Distinct from `"private": true` in `wpm.json`, which prevents
-publishing entirely. See [Registry concepts](../fundamentals/registry.md).
+publishing entirely. See [wpm registry](../fundamentals/registry.md).
 
 ## Auth token
 
@@ -57,7 +62,7 @@ canonical tag is `latest`, which marks the version new consumers should pick up.
 Maintainers can create others (`beta`, `next`, `lts`) to publish pre-releases
 without disturbing `latest`. Set with `wpm publish --tag <name>`; selected at
 install time with `wpm install pkg@<tag>`. See
-[Registry concepts](../fundamentals/registry.md).
+[wpm registry](../fundamentals/registry.md).
 
 ## Lockfile
 
@@ -122,13 +127,13 @@ Two distinct meanings, distinguished by context:
 - `--access private` on `wpm publish` publishes the package with private
   visibility on the registry.
 
-See [Registry concepts](../fundamentals/registry.md).
+See [wpm registry](../fundamentals/registry.md).
 
 ## Registry
 
 The server wpm talks to. Hosts published packages, dist tags, manifests, and
 tarballs. Default `registry.wpm.so`. Switch with `--registry <url>`. See
-[Registry concepts](../fundamentals/registry.md).
+[wpm registry](../fundamentals/registry.md).
 
 ## Resolution
 

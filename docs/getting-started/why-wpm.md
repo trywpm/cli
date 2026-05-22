@@ -1,4 +1,9 @@
-# Why wpm
+---
+title: Why wpm?
+description:
+  Why wpm exists, how it improves WordPress dependency management, and when to
+  use it in plugin and theme projects.
+---
 
 Managing dependencies in a WordPress project has always been a patchwork.
 
@@ -180,5 +185,5 @@ themes.
   directory to working project.
 - **[Dependencies](../fundamentals/dependencies.md)**: the full reasoning behind
   exact-version pinning.
-- **[Registry concepts](../fundamentals/registry.md)**: how the wpm registry
-  stores manifests and verifies provenance.
+- **[wpm registry](../fundamentals/registry.md)**: how it stores manifests and
+  verifies provenance.

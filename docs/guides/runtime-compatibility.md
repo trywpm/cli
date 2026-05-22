@@ -1,4 +1,9 @@
-# Enforcing runtime compatibility
+---
+title: Strict runtime mode
+description:
+  Turn on strict runtime mode so wpm verifies that your dependencies work with
+  the WordPress and PHP versions you target.
+---
 
 By default, wpm doesn't check whether your dependencies are compatible with the
 WordPress and PHP versions you're running. **Strict runtime mode** turns that

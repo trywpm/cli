@@ -1,4 +1,9 @@
-# .wpmignore
+---
+title: .wpmignore
+description:
+  How `.wpmignore` controls which files ship with `wpm publish`, using the same
+  syntax you already know from `.gitignore`.
+---
 
 `.wpmignore` is an optional file at the root of your project. It tells
 `wpm publish` which paths to exclude from the tarball that gets uploaded to the

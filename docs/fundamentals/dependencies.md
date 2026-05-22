@@ -1,4 +1,9 @@
-# Dependencies
+---
+title: Dependencies
+description:
+  How wpm manages dependencies in `wpm.json`, resolves version conflicts, and
+  creates reproducible installs for WordPress plugins and themes.
+---
 
 `dependencies` and `devDependencies` are the two dependency maps in `wpm.json`.
 They tell wpm which packages to install, at which versions, and in which role

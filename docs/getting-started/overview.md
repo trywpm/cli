@@ -1,4 +1,9 @@
-# Welcome to wpm
+---
+title: Overview
+description:
+  Get started with wpm for WordPress plugins and themes, including core
+  commands, project files, and your first install in under a minute.
+---
 
 wpm is an open source package manager for WordPress plugins and themes.
 
@@ -99,7 +104,7 @@ Learn how the wpm ecosystem works:
 Common workflows and real-world usage:
 
 - [Authentication](../guides/authentication.md)
-- [Publishing packages](../guides/publishing.md)
+- [Publishing](../guides/publishing.md)
 - [CI/CD](../guides/ci.md)
 
 ### Reference

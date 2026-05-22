@@ -1,4 +1,9 @@
-# Package types
+---
+title: Package types
+description:
+  The `plugin`, `theme`, and `mu-plugin` package types in wpm, how each maps to
+  a WordPress directory, and when to use each one.
+---
 
 Every wpm package has a `type` field. It tells wpm how to install the package,
 and it tells WordPress how to load it. Three values are supported:

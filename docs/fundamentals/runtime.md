@@ -1,4 +1,9 @@
-# Runtime compatibility
+---
+title: Runtime compatibility
+description:
+  How `requires` and `config.runtime` define WordPress and PHP compatibility,
+  what your package supports and what you develop against.
+---
 
 `wpm.json` has two fields that talk about WordPress and PHP versions:
 

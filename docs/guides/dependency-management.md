@@ -1,4 +1,9 @@
-# Managing dependencies
+---
+title: Managing dependencies
+description:
+  Add, remove, update, and inspect dependencies in your wpm project using the
+  commands you'll use most often.
+---
 
 This guide covers the day-to-day work of adding, removing, updating, and
 inspecting your project's dependencies.

@@ -1,4 +1,9 @@
-# Publishing packages
+---
+title: Publishing
+description:
+  Publish WordPress plugins, themes, and mu-plugins with wpm, including
+  versioning, dist tags, visibility, and unpublishing.
+---
 
 This guide covers everything from your first release to taking one back: version
 numbers, dist tags, visibility, and the release lifecycle.
@@ -142,7 +147,7 @@ publish a new version with the new `--access` value; there is no separate
 > `--access private` is not the same as `"private": true` in
 > `wpm.json`. The flag sets the registry's visibility. The manifest flag
 > prevents publishing entirely. See
-> [Registry concepts](../fundamentals/registry.md#private-true-is-not-the-same-as---access-private).
+> [wpm registry](../fundamentals/registry.md#private-true-is-not-the-same-as---access-private).
 
 ## Republishing the same version
 
@@ -223,7 +228,7 @@ $ wpm publish            # Goes to latest
 
 - [`wpm publish`](../reference/cli/publish.md): every flag, with
   troubleshooting.
-- [Registry concepts](../fundamentals/registry.md): tags, visibility, and the
+- [wpm registry](../fundamentals/registry.md): tags, visibility, and the
   difference between `private: true` and `--access private`.
 - [Authentication](authentication.md): tokens and CI patterns.
 - [`.wpmignore`](../fundamentals/wpmignore.md): syntax for the exclusion file.

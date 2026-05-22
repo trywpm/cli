@@ -1,4 +1,9 @@
-# Registry concepts
+---
+title: wpm registry
+description:
+  How the wpm registry stores package manifests, manages dist tags and
+  visibility, and distributes WordPress plugins and themes.
+---
 
 The wpm registry is the server that hosts published packages and serves them to
 `wpm install`. By default wpm talks to `registry.wpm.so`. You can point it at a

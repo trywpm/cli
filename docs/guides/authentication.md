@@ -1,4 +1,9 @@
-# Authentication
+---
+title: Authentication
+description:
+  How to generate a wpm token, where wpm stores it on disk, and how to manage
+  multiple registry accounts from a single machine.
+---
 
 This page covers everything you need to know about wpm tokens: how to get one,
 where wpm stores it, and how to manage multiple accounts.
@@ -189,6 +194,6 @@ anything, so it's a safe way to confirm that a token works.
   `logout`.
 - [`wpm whoami`](../reference/cli/whoami.md): the canonical "am I logged in?"
   check.
-- [Registry concepts](../fundamentals/registry.md): visibility, dist tags, and
-  what the registry does with your identity.
+- [wpm registry](../fundamentals/registry.md): visibility, dist tags, and what
+  the registry does with your identity.
 - [CI/CD guide](ci.md): worked examples for running wpm from build pipelines.

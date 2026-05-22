@@ -1,4 +1,9 @@
-# wpm.json
+---
+title: wpm.json
+description:
+  The full reference for the `wpm.json` manifest, covering required fields,
+  optional metadata, dependency maps, and runtime configuration.
+---
 
 `wpm.json` is the manifest at the root of every wpm package. It declares what
 the package is, what it depends on, and which versions of WordPress and PHP it
@@ -157,5 +162,5 @@ A few things to know:
   install, and how `config.runtime` participates.
 - [`wpm.lock`](wpm-lock.md): the resolved snapshot that pairs with `wpm.json`.
 - [`.wpmignore`](wpmignore.md): controls what `wpm publish` packs.
-- [Registry concepts](registry.md): dist tags, visibility, and the difference
-  between `private: true` and `--access private`.
+- [wpm registry](registry.md): dist tags, visibility, and the difference between
+  `private: true` and `--access private`.

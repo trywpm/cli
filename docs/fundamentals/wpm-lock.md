@@ -1,4 +1,9 @@
-# wpm.lock
+---
+title: wpm.lock
+description:
+  How the `wpm.lock` lockfile captures your resolved dependency tree and keeps
+  installs reproducible across machines and CI.
+---
 
 `wpm.lock` records the exact dependency tree your project resolved to. It keeps
 installs identical across machines and CI runs.
