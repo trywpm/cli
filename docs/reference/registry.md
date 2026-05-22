@@ -4,9 +4,9 @@ The wpm registry is the server that hosts published packages and serves them to
 `wpm install`. By default wpm talks to `registry.wpm.so`. You can point it at a
 different deployment with the global `--registry` flag.
 
-This page covers the registry-side concepts you'll meet while using wpm: dist
-tags, package visibility, and the subtle difference between "a package I won't
-publish" and "a package I publish privately."
+This page covers the registry concepts you'll run into: dist tags, package
+visibility, and the tricky difference between "don't publish this" and "publish
+this privately."
 
 ## The default registry
 
@@ -18,16 +18,15 @@ $ wpm --registry registry.staging.wpm.so install
 ```
 
 `--registry` is a global flag, so it must appear before the subcommand name.
-There is no environment variable equivalent today; if you want a different
-default across all invocations, write a shell alias.
+There's no environment variable for it today. To set a different default across
+all invocations, use a shell alias.
 
 ## Dist tags
 
-A **dist tag** is a human-friendly label that points at a specific version of a
-package. The canonical tag is `latest`, which points at the most recent release
-the publisher wants new consumers to pick up. Maintainers can create additional
-tags such as `next`, `beta`, or `lts` to publish pre-releases or maintain
-parallel release lines without disturbing `latest`.
+A **dist tag** is a friendly label that points at a specific version. The
+default tag is `latest`, which marks the version that new consumers should pick
+up. Maintainers can create extra tags like `next`, `beta`, or `lts` to ship
+pre-releases or parallel release lines without moving `latest`.
 
 You set the tag with `--tag` at publish time:
 
@@ -110,9 +109,9 @@ When you publish, wpm uploads two things together:
 - The **tarball** itself, a Zstandard-compressed tar archive built from your
   working directory (minus what `.wpmignore` excludes).
 
-The manifest is what `wpm install` reads during resolution. It is also what
-populates the per-package entries you see in `wpm.lock`. The tarball is fetched
-separately when wpm actually needs to extract the package.
+`wpm install` reads the manifest during resolution and uses it to fill out each
+entry in `wpm.lock`. wpm fetches the tarball separately, only when it needs to
+extract the package.
 
 The 128 MiB cap on the packed tarball and the 50 KiB cap on the attached
 `readme.md` are enforced client-side, before anything is uploaded.
@@ -126,10 +125,9 @@ that speaks the same API works. Common use cases:
   affecting the production registry.
 - An internal mirror for organizations that prefer to host their own packages.
 
-Switch by passing `--registry <url>`. Authentication state stored by
-`wpm auth login` is tied to whichever registry was active when you logged in;
-logging in against a different registry overwrites the existing token unless you
-use a separate config directory:
+Switch by passing `--registry <url>`. Your token is tied to whichever registry
+was active when you logged in. Logging in against a different registry
+overwrites the existing token, unless you use a separate config directory:
 
 ```console
 $ wpm --config ~/.wpm-staging --registry registry.staging.wpm.so auth login

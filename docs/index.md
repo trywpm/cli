@@ -1,11 +1,13 @@
 # wpm
 
-The package manager for WordPress plugins and themes.
+A package manager for WordPress plugins and themes.
 
-wpm makes WordPress dependencies declarative, reproducible, and shareable.
-Declare what you need in `wpm.json`, run `wpm install`, and get a locked tree
-recorded in `wpm.lock`. Publish your own packages with `wpm publish`. If you've
-used npm or Composer, wpm will feel familiar.
+List the plugins and themes you need in a `wpm.json` file. Run `wpm install` and
+wpm downloads them into `wp-content/`, locking the exact versions in `wpm.lock`.
+The next person to clone your project gets the same set of files. Use
+`wpm publish` to share your own plugins and themes.
+
+If you've used npm or Composer, you already know how this works.
 
 <!-- prettier-ignore -->
 > [!IMPORTANT]
@@ -38,7 +40,7 @@ and source builds.
 
 ## Guide
 
-Task-oriented walkthroughs for working with wpm:
+Step-by-step guides for the things you'll do most:
 
 - **[Installation](guide/installation.md)**: install methods, shell completion,
   troubleshooting, and where wpm keeps its files.
@@ -52,7 +54,7 @@ Task-oriented walkthroughs for working with wpm:
 
 ## Reference
 
-Lookup material for the file formats and core concepts:
+Detailed reference for every file format and core concept:
 
 - **[`wpm.json`](reference/wpm-json.md)**: the package manifest schema.
 - **[Dependencies](reference/dependencies.md)**: the dependency maps and the
@@ -69,8 +71,15 @@ Lookup material for the file formats and core concepts:
 
 ## CLI reference
 
-Every command with options, examples, and exit codes lives under
-[CLI reference](cli/wpm.md).
+The full [CLI reference](cli/wpm.md) covers every command, every flag, and every
+exit code. Most projects reach for these every day:
+
+- [`wpm init`](cli/init.md) to start a new project.
+- [`wpm install`](cli/install.md) to add and install dependencies.
+- [`wpm ls`](cli/ls.md) to see what's installed.
+- [`wpm outdated`](cli/outdated.md) to check for updates.
+- [`wpm publish`](cli/publish.md) to share your own packages.
+- [`wpm auth login`](cli/auth_login.md) to log in to the registry.
 
 ## Community
 

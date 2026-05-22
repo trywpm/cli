@@ -13,9 +13,9 @@ Every wpm CI step boils down to the same four lines:
 3. Run `wpm install` (or the command you actually want).
 4. Make sure logs stay clean by setting `CI=true` and `NO_COLOR=1`.
 
-The key insight: you usually don't need `wpm auth login` in CI. Setting
-`WPM_TOKEN` is enough. `wpm` falls back to that environment variable whenever no
-token is stored on disk, which is the normal state of a fresh CI runner.
+The key insight: you usually don't need `wpm auth login` in CI. Just set
+`WPM_TOKEN` and wpm picks it up. CI runners start fresh each time with no token
+on disk, so the environment variable always wins.
 
 ## Token storage
 
@@ -30,23 +30,25 @@ manager (GitHub Actions secrets, GitLab CI variables, HashiCorp Vault, your CI's
 equivalent), inject it into the job's environment as `WPM_TOKEN`, and never echo
 it to the log.
 
-`wpm auth login` rejects non-interactive sessions that don't pass `--token`. In
-CI the safer route is to skip `auth login` entirely and let `WPM_TOKEN` do the
-work. If you must call `auth login` (for example, to populate `defaultUser`),
-use `--token "$WPM_TOKEN"` and ignore the security warning it prints; CI runners
-are ephemeral, so shell-history leakage isn't a real concern there.
+`wpm auth login` won't read your input in a non-interactive session unless you
+pass `--token`. The cleaner approach in CI: skip `auth login` entirely and let
+`WPM_TOKEN` do the work.
+
+If you do need `auth login` (say, to populate `defaultUser`), use
+`--token "$WPM_TOKEN"`. wpm will print a security warning, but CI runners are
+ephemeral, so shell-history leakage isn't a real concern.
 
 ## Output and logging
 
 By default wpm prints a spinner and ANSI color codes. Both are noisy in CI logs.
 Two environment variables clean things up:
 
-- `CI=true` suppresses the spinner. wpm checks for `CI` directly and drops the
-  progress indicator when it's set.
+- `CI=true` turns off the spinner. wpm checks for `CI` directly and skips the
+  progress indicator when it sees it.
 - `NO_COLOR=1` strips ANSI color escapes from all output. Useful when your log
   viewer doesn't render them.
 
-Setting both produces plain-text output that grep, awk, and log search tools can
+With both set, the output is plain text that grep, awk, and log search tools can
 handle.
 
 ## Reproducible installs

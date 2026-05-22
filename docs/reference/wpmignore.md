@@ -62,9 +62,8 @@ A few practical reminders:
 
 ## What gets packed
 
-`wpm publish` walks the project directory and, for each file or directory,
-checks whether the matching pattern excludes it. Files that match an exclusion
-are dropped from the tarball.
+`wpm publish` walks your project directory and checks each file against the
+patterns. Anything that matches a pattern gets dropped from the tarball.
 
 A few wpm-specific notes about what to include and exclude:
 
@@ -82,24 +81,23 @@ A few wpm-specific notes about what to include and exclude:
 
 ## Scope
 
-`.wpmignore` only affects `wpm publish`. It does not influence `wpm install`,
-`wpm ls`, or any other command. Installed dependencies under `wp-content/` are
-unaffected by what your project's `.wpmignore` says.
+`.wpmignore` only affects `wpm publish`. It doesn't change what `wpm install`,
+`wpm ls`, or any other command do. Installed dependencies under `wp-content/`
+are untouched by your project's `.wpmignore`.
 
-If a dependency you install has its own `.wpmignore`, it shaped the tarball at
-publish time and does not exist in any meaningful way on your machine.
+A dependency might have its own `.wpmignore` in its source, but that only shaped
+the tarball when the maintainer published it. By the time wpm extracts the
+package on your machine, the file isn't there.
 
 ## Sizing constraints
 
-`wpm publish` enforces a 128 MiB cap on the packed tarball. If a publish errors
-with:
+`wpm publish` caps the packed tarball at 128 MiB. If you see this error:
 
 ```
 tarball size exceeds 134217728 bytes, refusing to continue
 ```
 
-it means even after `.wpmignore` was applied, the result is larger than the cap.
-Common culprits:
+your project is too big even after `.wpmignore` is applied. Common culprits:
 
 - A `node_modules/` or `vendor/` directory that wasn't excluded.
 - Pre-built binaries or large images committed to the source tree.

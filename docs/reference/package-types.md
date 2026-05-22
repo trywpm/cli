@@ -44,14 +44,14 @@ Use this type sparingly. Common cases:
 - Bootstrapping code that other plugins depend on.
 - Internal customizations that should never be deactivated.
 
-If you're not sure whether you need a `plugin` or an `mu-plugin`, you probably
-want a `plugin`. The cost of removing mu-plugin functionality after the fact is
-high, because removing the files is the only off-switch.
+If you're not sure whether you need a `plugin` or an `mu-plugin`, start with a
+`plugin`. mu-plugins have no off-switch in the admin UI, so removing them later
+means deleting the files directly.
 
 ## How wpm chooses where to extract
 
-When `wpm install` extracts a dependency, it inspects the `type` on that
-dependency's manifest and picks the matching subdirectory under your project's
+When `wpm install` extracts a dependency, it reads the `type` from that
+dependency's manifest and picks the matching subdirectory inside your project's
 content directory (default `wp-content/`):
 
 | Dependency `type` | Extracted into                  |
@@ -60,9 +60,9 @@ content directory (default `wp-content/`):
 | `theme`           | `wp-content/themes/<name>/`     |
 | `mu-plugin`       | `wp-content/mu-plugins/<name>/` |
 
-The path is constructed from the dependency's _own_ type, not from your
-project's type. A theme can have a plugin as a dependency, and that plugin will
-still extract into `wp-content/plugins/`.
+wpm uses each dependency's _own_ type to pick the path, not your project's type.
+A theme can depend on a plugin; that plugin still extracts into
+`wp-content/plugins/`.
 
 You can change the content directory itself with `config.content-dir` in
 `wpm.json`. The subdirectory choice (`plugins/`, `themes/`, `mu-plugins/`) is
@@ -97,8 +97,8 @@ rules wpm uses.
 | A library that has no WordPress entry points      | (Not a fit; wpm is for WordPress packages) |
 
 When in doubt, start with `plugin`. You can publish a new version with a
-different `type` later, but consumers who already installed the old type will
-keep it until they re-install.
+different `type` later, but anyone who installed the old type keeps it until
+they re-install.
 
 ## Naming conventions
 

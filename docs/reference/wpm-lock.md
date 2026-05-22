@@ -1,10 +1,11 @@
 # wpm.lock
 
-`wpm.lock` is the lockfile. It records the exact dependency tree that
-`wpm install` resolved, down to the SHA-256 digest of every tarball. The next
-install reads this file before talking to the registry; when the requested
-versions still match what's on record, the install short-circuits the network
-and reuses the cached resolution.
+`wpm.lock` records the exact dependency tree your project resolved to. It keeps
+installs identical across machines and CI runs.
+
+The next install reads `wpm.lock` first. If the versions you've asked for still
+match what's in the file, wpm skips the registry entirely and uses the lockfile
+directly.
 
 <!-- prettier-ignore -->
 > [!IMPORTANT]
@@ -23,11 +24,13 @@ and reuses the cached resolution.
 - `wpm publish` does not read the lockfile. The published tarball is built from
   your source tree, not from resolved dependencies.
 
-The lockfile is the source of truth for what wpm thinks is installed. The
-filesystem under `wp-content/` is reconciled against the lockfile on every
-install. If you delete an extracted plugin or theme by hand, the next install
-puts it back. If you delete an entry from the lockfile, the next install treats
-the package as new and re-fetches it from the registry.
+The lockfile is the source of truth for what's installed. Every install
+reconciles `wp-content/` against it:
+
+- Delete an extracted plugin or theme by hand, and the next install puts it
+  back.
+- Delete an entry from the lockfile, and the next install treats the package as
+  new and downloads it again.
 
 ## File format
 
@@ -80,10 +83,10 @@ Each entry in `packages` has the following shape:
 | `bin`          | object<string, string> | Optional. Binary mappings declared by the package. Currently informational.        |
 | `dependencies` | object<string, string> | Optional. The package's own direct dependencies, copied from its manifest.         |
 
-The `dependencies` field on each entry is what lets wpm reconstruct the
-dependency graph without contacting the registry. When `wpm install` finds an
-entry whose `version` matches the request, it pulls that entry's dependencies
-straight from the lockfile instead of fetching a fresh manifest.
+Because each entry stores its own dependency list, wpm can rebuild the full
+install tree without calling the registry. When `wpm install` finds a matching
+version in the lockfile, it reads the dependencies straight from the entry
+instead of fetching a fresh manifest.
 
 ## Reproducibility
 
@@ -111,9 +114,9 @@ it understands. The error reads:
 wpm upgrade required: lockfile version is newer than this version of wpm
 ```
 
-When you see this, upgrade wpm before continuing. A team mate's newer wpm
-version produced the lockfile; running with an older version risks losing fields
-the older format does not understand.
+When you see this, upgrade wpm. A teammate's newer wpm wrote the lockfile. If
+you run with the older version, you'll lose fields the older format doesn't
+understand.
 
 ## Hand-editing
 

@@ -1,8 +1,7 @@
 # Publishing packages
 
-This guide walks the full publishing lifecycle: your first release, how to
-choose version numbers and dist tags, and what to do when a release needs to
-come back.
+This guide covers everything from your first release to taking one back: version
+numbers, dist tags, visibility, and the release lifecycle.
 
 If you only want the command reference, see [`wpm publish`](../cli/publish.md).
 If you haven't built a package yet, start with
@@ -153,9 +152,9 @@ publish a new version with the new `--access` value; there is no separate
 > publish for a version it already holds, and yanked versions stay reserved (you
 > cannot reuse the number for a new build).
 
-This isn't just a registry convention; it's a load-bearing part of
-reproducibility. `wpm.lock` pins versions by SHA-256 digest, so consumers count
-on a given version always meaning the same bytes.
+wpm needs unique versions to keep installs reproducible. `wpm.lock` pins each
+package's tarball by SHA-256 hash, so a given version is always the same bytes
+for everyone.
 
 To release again, bump the `version` field in `wpm.json` to the next SemVer
 value and run `wpm publish` again.
@@ -166,10 +165,12 @@ You can't undo a publish from the CLI. If you need to take a release back
 (broken build, accidental secret leak, contractual issue), use the registry's
 web interface to **yank** the release.
 
-Yanking is reversible-ish: the version stays in the registry's history and
-continues to work for consumers who already have it in their `wpm.lock`, but new
-installs cannot pick it up. The number stays reserved either way; the next
-publish has to be a new version.
+Yanking has a soft effect: the version stays in the registry's history. Anyone
+who already has it in their `wpm.lock` keeps working. New installs can't pick it
+up.
+
+Either way, the version number stays reserved. Your next publish has to use a
+new number.
 
 ## A typical release cycle
 
@@ -211,9 +212,9 @@ $ wpm publish            # Goes to latest
 - **Forgetting `.wpmignore`.** A 200 MB `node_modules` directory in the tarball,
   or worse, a `.env` with secrets. Preview every publish with
   `wpm publish --verbose --dry-run`.
-- **Mixing tags.** Publishing a beta accidentally with `--tag latest` moves
-  consumers' next install to the beta build. Double-check the summary block
-  before confirming.
+- **Mixing tags.** If you publish a beta with `--tag latest` by accident, every
+  consumer's next install picks up the beta. Check the summary block before you
+  confirm.
 - **Leaving `"private": true` set.** The publish fails with
   `package marked as private cannot be published`. Edit `wpm.json` to remove the
   flag.

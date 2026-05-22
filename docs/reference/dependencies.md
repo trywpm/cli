@@ -21,9 +21,8 @@ version specifiers. They are completely independent maps, not arrays.
 }
 ```
 
-A package belongs to one map or the other, never both. When you ask
-`wpm install` to move it, the entry is removed from the original map in the same
-write.
+A package lives in one map or the other, never both. When `wpm install` moves a
+package, the old entry goes away.
 
 ## Allowed values
 
@@ -43,25 +42,23 @@ tildes. This is a deliberate design choice, not a limitation we plan to remove.
 > because that answer depends on runtime state the solver cannot see. You are
 > the only one who can make that call.
 
-So wpm refuses to let the resolver decide. Every dependency version is something
-you choose deliberately and record, and every install reproduces the exact tree
-you last reviewed.
+So wpm doesn't let the resolver decide for you. You choose every version
+deliberately. Every install reproduces the exact tree you last committed.
 
-A few consequences of this rule:
+A few consequences:
 
-- The version recorded in `wpm.json` is the version the registry actually
-  resolved, not the specifier you typed. Asking for `akismet@latest` that the
-  registry returns as `5.3.1` records `"akismet": "5.3.1"` in `wpm.json`.
-- Ranges are reserved for `requires.wp` and `requires.php` (the compatibility
-  constraints your package imposes on its host), not for dependency selection.
-  See [Runtime compatibility](runtime.md).
-- Before deploying to a live site, verify the exact tree with `wpm ls`. That's
-  the closest thing wpm gives you to a release artifact for the dependency set;
-  it shows the resolved versions you are actually about to ship.
+- The version saved in `wpm.json` is the version the registry returned, not the
+  one you typed. Ask for `akismet@latest`, the registry returns `5.3.1`, and
+  `wpm.json` records `"akismet": "5.3.1"`.
+- Ranges are reserved for `requires.wp` and `requires.php` (which describe what
+  your package needs from WordPress and PHP), not for picking dependencies. See
+  [Runtime compatibility](runtime.md).
+- Before you deploy to a live site, run `wpm ls` to see the exact versions
+  you're about to ship. No surprises hit production.
 
-If you need a "newest in 1.x" effect, re-run `wpm install pkg@latest` when you
-want to refresh. The trigger stays explicit, and the new version becomes a
-deliberate change in your commit history.
+If you want "newest in 1.x" behavior, run `wpm install pkg@latest` whenever you
+want to refresh. The trigger is always explicit, and the new version becomes a
+clear change in your commit history.
 
 ## Production vs development
 
@@ -74,8 +71,8 @@ The typical mapping:
 | `dependencies`    | Packages your code requires at runtime: integrations, sibling plugins you depend on.     |
 | `devDependencies` | Packages used only during development: debugging tools, code quality tools, sample data. |
 
-If you split a previously-prod dependency into a dev-only one, the next
-`wpm install --no-dev` removes its extracted files.
+If you move a package from `dependencies` to `devDependencies`, the next
+`wpm install --no-dev` will delete it from `wp-content/`.
 
 ## How entries are added
 
@@ -88,10 +85,9 @@ placement rules:
 | `wpm install -P <pkg>` (`--save-prod`) | `dependencies`. Removed from `devDependencies` if present.                            |
 | `wpm install -D <pkg>` (`--save-dev`)  | `devDependencies`. Removed from `dependencies` if present.                            |
 
-The version that wpm writes is the version the registry resolved, not the
-specifier you typed. Asking for `akismet@latest` records the specific build the
-registry returned, for example `"akismet": "5.3.1"`. This is what makes installs
-reproducible across machines.
+wpm writes the resolved version, not the one you typed. So
+`wpm install akismet@latest` ends up as `"akismet": "5.3.1"` (or whatever the
+registry returns). That's what keeps installs identical across machines.
 
 ## How entries are removed
 
@@ -118,15 +114,16 @@ Each map is capped at 16 entries. If you hit this limit:
 
 `wpm install pkg@<value>` parses the part after `@` in this order:
 
-1. If `<value>` is a valid SemVer (`X.Y.Z`, no `v` prefix), it is treated as a
+1. **A valid SemVer** (`X.Y.Z`, no `v` prefix). wpm uses it directly as a
    version request.
-2. Otherwise, if `<value>` looks like a dist tag (the same character rules as a
-   package name, up to 64 characters), it is treated as a tag. The registry
-   resolves the tag to a specific version.
-3. Anything else is rejected.
 
-Either way, what lands in `wpm.json` is a concrete SemVer string, not the tag.
-To install a different build later, run `wpm install pkg@<new>` again.
+2. **A dist tag**. Same character rules as a package name, up to 64 characters.
+   The registry resolves it to a specific version.
+
+3. **Anything else** is rejected.
+
+Either way, `wpm.json` ends up with a concrete version, not the tag. To switch
+versions later, run `wpm install pkg@<new>` again.
 
 When two parts of the dependency tree disagree about a version, `wpm install`
 runs conflict resolution. The summary:

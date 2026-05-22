@@ -1,33 +1,33 @@
 # Getting started
 
-This walkthrough takes you from a freshly installed wpm to a working project
-with declared dependencies in about ten minutes. No registry account is needed
-for the first four steps.
+In about ten minutes, you'll go from a fresh wpm install to a working project
+with dependencies. You don't need a registry account for the first five steps.
 
-If wpm is not on your machine yet, follow the
+If you don't have wpm yet, follow the
 [installation guide](../guide/installation.md) first.
 
-## Prerequisites
+## Before you start
 
-- wpm installed and on your `PATH`. Confirm with `wpm --version`. If you haven't
-  installed yet, follow the [installation guide](../guide/installation.md).
-- A shell. Examples use bash; zsh, fish, and PowerShell all work.
-- A directory to scratch in.
+You'll need:
 
-You don't need a WordPress install for this walkthrough. wpm operates on the
-file tree; a running WordPress is only needed when you actually want to use the
-installed plugins.
+- wpm installed and on your `PATH`. Run `wpm --version` to check.
+- A shell. The examples use bash, but zsh, fish, and PowerShell all work.
+- An empty directory for your project.
+
+You don't need a running WordPress site. wpm manages plugin and theme files
+directly in your project directory. You'll only need a real WordPress install
+when you want to use the plugins you've downloaded.
 
 ## What you'll build
 
-A small WordPress plugin called `my-first-plugin` with two dependencies declared
-in `wpm.json` and a lockfile that pins them. By the end you'll know how to
-inspect, update, and publish your own packages.
+A small WordPress plugin called `my-first-plugin`. It will end up with three
+packages installed: two production dependencies and one dev dependency, all
+locked to specific versions. You'll also learn how to inspect dependencies,
+update packages, and publish your project.
 
 ## Step 1: Scaffold a project
 
-Create an empty directory and run `wpm init`. The `-y` flag accepts the defaults
-so you can see the shape of a minimal package without answering prompts.
+Make an empty directory and run `wpm init -y --type plugin`:
 
 ```console
 $ mkdir my-first-plugin
@@ -35,6 +35,9 @@ $ cd my-first-plugin
 $ wpm init -y --type plugin
 config created at /work/my-first-plugin/wpm.json
 ```
+
+The `-y` flag tells wpm to skip the prompts and use defaults. `--type plugin`
+tells wpm to create a WordPress plugin package.
 
 Open `wpm.json` in your editor. It should look like this:
 
@@ -47,14 +50,15 @@ Open `wpm.json` in your editor. It should look like this:
 }
 ```
 
-The three required fields (`name`, `version`, `type`) are filled in from the
-defaults. Everything else is yours to add as the project grows. See the
-[`wpm.json` reference](../reference/wpm-json.md) for the full schema.
+wpm created the required fields for you (`name`, `version`, and `type`) and
+added a default license. You can add everything else later as your project
+grows. See the [`wpm.json` reference](../reference/wpm-json.md) for the full
+list of fields.
 
-## Step 2: Add dependencies
+## Step 2: Install production dependencies
 
-`wpm install` adds packages to `wpm.json` and downloads them under
-`wp-content/plugins/`. You can mix version specifiers in a single call:
+`wpm install` adds packages to your `wpm.json` and downloads them into
+`wp-content/plugins/`. You can install several at once:
 
 ```console
 $ wpm install akismet hello-dolly@1.7.2
@@ -66,14 +70,15 @@ wpm install v0.1.0
 2 packages installed
 ```
 
-After this runs, your `wpm.json` has a `dependencies` block, and a new
-`wpm.lock` lives next to it. The lockfile records the exact resolved versions
-and the SHA-256 digest of every tarball. Commit `wpm.lock` to version control;
-it's how the next install on a different machine produces the same on-disk
-state.
+wpm wrote two things just now: a `dependencies` block in `wpm.json`, and a new
+`wpm.lock` next to it. The lockfile records the exact versions wpm installed.
 
-For development-only tools (like `query-monitor`), use `-D` so they land in
-`devDependencies` and can be skipped with `--no-dev` in production:
+Commit `wpm.lock` to version control alongside `wpm.json`. This keeps installs
+consistent across machines and CI.
+
+## Step 3: Install development dependencies
+
+For tools you only need during development, use `-D`:
 
 ```console
 $ wpm install -D query-monitor
@@ -84,9 +89,13 @@ wpm install v0.1.0
 1 package installed
 ```
 
-## Step 3: Inspect the tree
+wpm adds these packages to `devDependencies`.
 
-`wpm ls` prints the dependency tree from your lockfile:
+Later, you can skip them in production with `wpm install --no-dev`.
+
+## Step 4: Inspect the tree
+
+`wpm ls` shows what's installed:
 
 ```console
 $ wpm ls
@@ -96,8 +105,7 @@ my-first-plugin
 └── query-monitor@3.20.2
 ```
 
-If a transitive dependency surprises you, `wpm why` traces the chain back to the
-root:
+`wpm why` shows why a package is installed:
 
 ```console
 $ wpm why akismet
@@ -105,11 +113,10 @@ my-first-plugin (dependencies)
 └─ akismet@5.3.1
 ```
 
-## Step 4: Check for updates
+## Step 5: Check for updates
 
-`wpm outdated` calls the registry and compares each installed version against
-the `latest` dist tag. It classifies the gap as major, minor, or patch using
-SemVer rules:
+`wpm outdated` shows outdated packages. It labels each update as major, minor,
+or patch:
 
 ```console
 $ wpm outdated
@@ -120,18 +127,18 @@ akismet [plugin]
 └── latest:  5.4.0 (minor update)
 ```
 
-To actually bump a package, install it again at the desired version:
+To upgrade, install the package again at the new version:
 
 ```console
 $ wpm install akismet@5.4.0
 ```
 
-The `wpm.json` and `wpm.lock` are both updated in place.
+wpm updates both `wpm.json` and `wpm.lock` for you.
 
-## Step 5: Publish (optional)
+## Step 6: Publish (optional)
 
-If you have a registry account, you can publish your project as a package. Skip
-this step if you don't have an account yet.
+If you have a registry account, you can publish your project. Skip this step if
+you don't have an account yet.
 
 First, log in. You only need to do this once per machine:
 
@@ -141,8 +148,8 @@ Token:
 welcome <your-username>!
 ```
 
-Then preview a publish before committing to it. `--dry-run` packs the tarball
-and prints the summary block, but skips the upload:
+It's a good idea to preview the package before publishing. `--dry-run` packs the
+tarball, prints the summary, and stops there. Nothing is uploaded:
 
 ```console
 $ wpm publish --dry-run
@@ -157,7 +164,7 @@ $ wpm publish --dry-run
 dry run complete, my-first-plugin@1.0.0 is ready to be published
 ```
 
-When you're satisfied, drop `--dry-run` to publish for real:
+When the summary looks right, drop `--dry-run` to publish for real:
 
 ```console
 $ wpm publish
@@ -167,19 +174,20 @@ $ wpm publish
 ✔ published my-first-plugin@1.0.0
 ```
 
-Before publishing anything you didn't write yourself, double-check that
-`.wpmignore` excludes everything you don't want in the tarball. See
+Before you publish, check that `.wpmignore` excludes everything you don't want
+to ship: build artifacts, secrets, test fixtures. See
 [`.wpmignore`](../reference/wpmignore.md) for the syntax.
 
 ## What you have now
 
-- A `wpm.json` with three required fields, declared `dependencies`, and declared
+- A `wpm.json` with the three required fields, plus `dependencies` and
   `devDependencies`.
-- A `wpm.lock` pinning the resolved tree.
-- An optional `.wpmignore` if you reached step 5.
-- Installed dependencies under `wp-content/plugins/`.
+- A `wpm.lock` that pins the exact versions wpm installed.
+- An optional `.wpmignore` if you got to step 6.
+- The packages themselves under `wp-content/plugins/`.
 
-Everything except `wp-content/` should be committed to version control.
+Commit everything except `wp-content/` to version control. Those files can
+always be reinstalled from `wpm.lock`.
 
 ## Where to go next
 

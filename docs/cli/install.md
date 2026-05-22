@@ -58,7 +58,7 @@ character rules as names and may be up to 64 characters.
 The exact version that the registry resolves the specifier to is what wpm
 records in `wpm.json`. If you run `wpm install akismet@latest` and the registry
 returns `5.3.1`, `wpm.json` will contain `"akismet": "5.3.1"`, not `"latest"`.
-This pinning is intentional; it keeps subsequent installs deterministic.
+This pinning is intentional. It keeps every install identical.
 
 ### Dependency placement
 
@@ -131,8 +131,8 @@ runtime versions. A mismatch errors out before anything is downloaded. When
 `wpm.lock` records the exact version, tarball URL, SHA-256 digest, type,
 binaries, and direct dependencies of every package in the resolved tree. After a
 successful install it is rewritten in alphabetical order. Commit this file to
-version control: it makes installs reproducible across machines and CI, and it
-lets wpm short-circuit network calls when the recorded versions still satisfy
+version control. It keeps installs reproducible across machines and CI, and wpm
+uses it to skip network calls when the recorded versions still satisfy
 `wpm.json`.
 
 ### Workspace locking

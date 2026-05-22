@@ -30,9 +30,8 @@ Both `wpm.json` and `wpm.lock` must exist. If you have never installed, run
 <!-- prettier-ignore -->
 > [!TIP]
 > Run `wpm ls` before deploying to a live WordPress site. It shows the
-> exact plugin and theme versions you're about to ship, so there are no
-> surprises when the tree hits production. This is wpm's closest equivalent to a
-> release artifact for the dependency set.
+> exact plugin and theme versions you're about to ship, so nothing
+> surprises you in production.
 
 ### Reading the output
 

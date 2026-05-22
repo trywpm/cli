@@ -1,22 +1,19 @@
 # Authentication
 
-This page consolidates everything wpm does around identity: how tokens are
-obtained, where they're stored, how they're chosen at request time, and how to
-manage multiple identities or rotate credentials.
+This page covers everything you need to know about wpm tokens: how to get one,
+where wpm stores it, and how to manage multiple accounts.
 
 For the per-command reference, see [`wpm auth`](../cli/auth.md),
 [`wpm auth login`](../cli/auth_login.md), and [`wpm whoami`](../cli/whoami.md).
 
 ## Why wpm needs a token
 
-Most wpm commands talk to the registry. The registry decides what you're allowed
-to see (private packages, your organization's packages) and what you're allowed
-to do (publish under a name you own). It identifies you by the **token** your
-client sends with each request.
+Most wpm commands talk to the registry. The registry needs to know who you are
+before it shows you private packages or lets you publish under a name. It
+identifies you by the **token** that wpm sends with each request.
 
-A token is a long, opaque string issued by the registry. It carries your
-account's identity and permissions. Treat it like a password: anyone with the
-token can act as you against the registry.
+A token is a long string of letters and numbers that proves who you are. Treat
+it like a password: anyone who has it can act as you.
 
 ## Getting a token
 
@@ -32,9 +29,10 @@ recover it later from the registry; if it leaks, revoke it and issue a new one.
 
 ## Logging in
 
-`wpm auth login` validates a token against the registry and stores it locally.
-The recommended flow on a personal machine is the interactive prompt, which
-disables terminal echo so the token is not written to your shell history:
+`wpm auth login` checks your token with the registry, then saves it locally.
+
+On your own machine, use the interactive prompt. wpm hides the token as you
+type, so it doesn't end up in your shell history:
 
 ```console
 $ wpm auth login
@@ -42,11 +40,8 @@ Token:
 welcome <your-username>!
 ```
 
-On a workstation, this is the safest path.
-
-In automated environments (CI runners, image builds), pass the token directly
-with `--token`. wpm prints a warning because the flag value can appear in the
-process list and in build logs:
+In CI runners and image builds, pass the token with `--token`. wpm prints a
+warning because the flag value can show up in process lists and build logs:
 
 ```console
 $ wpm auth login --token "$WPM_TOKEN"
@@ -54,9 +49,9 @@ WARNING! Using --token via the CLI is insecure.
 welcome ci-bot!
 ```
 
-For CI, you usually don't even need to log in. Setting `WPM_TOKEN` in the
-environment makes wpm pick the token up automatically (see "How tokens are
-resolved" below).
+In CI, you usually don't need to log in at all. Set `WPM_TOKEN` in the
+environment and other wpm commands will use it automatically. See "How tokens
+are resolved" below.
 
 ## Where the token is stored
 
@@ -84,32 +79,32 @@ A few additional security notes:
 
 ## How tokens are resolved
 
-Whenever wpm needs to authenticate, it looks for a token in this order:
+wpm finds your token in this order:
 
 1. The `authToken` field in your client config file.
 2. The `WPM_TOKEN` environment variable, used only when (1) is empty.
 
-If both are missing, the registry rejects the request with an authentication
-error. wpm reports whatever the registry returns.
+If neither is set, the registry rejects the request with an authentication
+error.
 
-A subtle point: `wpm auth login` itself does **not** read `WPM_TOKEN`. It only
-takes a token from `--token` or the interactive prompt. The environment fallback
-applies to every other command (install, publish, whoami, and so on).
+One catch: `wpm auth login` itself does **not** read `WPM_TOKEN`. It only
+accepts a token from `--token` or the interactive prompt. The environment
+fallback applies to every other command (install, publish, whoami, and so on).
 
 ## Logging out
 
-`wpm auth logout` clears the `authToken` and `defaultUser` fields from the
-config file. It's a local operation; the token itself remains valid on the
-registry until you revoke it from your account settings.
+`wpm auth logout` removes the `authToken` and `defaultUser` fields from your
+config file. This is a local change. The token itself stays valid on the
+registry until you revoke it from your dashboard.
 
-If a token is leaked, treat the registry revocation as the real fix.
-`wpm auth logout` only protects the machine you ran it on.
+If a token leaks, you have to revoke it from the registry. `wpm auth logout`
+only protects the machine where you ran it.
 
 ## Multiple identities
 
-You can keep multiple wpm identities side by side by pointing each one at its
-own config directory. The most common reason to do this is to switch between
-personal and work accounts, or between a production registry and a staging one.
+You can keep multiple wpm identities side by side. Point each one at its own
+config directory. This is useful when you have personal and work accounts, or
+when you switch between production and staging registries.
 
 ```console
 $ wpm --config ~/.wpm-personal auth login
@@ -168,9 +163,8 @@ The recommended rotation process:
 3. Verify each one with `wpm whoami`.
 4. Revoke the old token from the registry.
 
-`wpm whoami` is your friend during rotation. It's the only command that hits the
-registry without doing anything else, so it's a safe way to check that a token
-is recognized.
+`wpm whoami` is handy during rotation. It hits the registry without changing
+anything, so it's a safe way to confirm that a token works.
 
 ## Troubleshooting
 

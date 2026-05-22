@@ -65,9 +65,9 @@ not sure what a section looks like.
 | `version` | string | Strict SemVer `X.Y.Z`; 5 to 64 characters; no `v` prefix.                             |
 | `type`    | string | One of `plugin`, `theme`, or `mu-plugin`.                                             |
 
-Validation fails for the entire manifest if any of these are missing or invalid.
-`wpm publish` always validates before packing; commands that modify the file
-(such as `wpm install` and `wpm uninstall`) validate after editing it in memory.
+wpm rejects the entire manifest if any required field is missing or invalid.
+`wpm publish` always validates first. Commands that change the file
+(`wpm install`, `wpm uninstall`) validate the new version before saving it.
 
 ### Optional metadata
 
@@ -88,9 +88,9 @@ a consumer would type when looking for your package, like `seo`, `caching`, or
 by username or display name. wpm populates this automatically from plugin and
 theme headers (`Author`, `Contributors`) when you run `wpm init --existing`.
 
-`tags` and `team` strings cannot contain ASCII control characters or a handful
-of look-alike Unicode code points (zero-width separators and similar). The same
-restriction applies to `description` and `license`.
+wpm rejects ASCII control characters and a few look-alike Unicode code points
+(zero-width separators and similar) in `tags`, `team`, `description`, and
+`license`.
 
 ### Dependencies
 
@@ -106,12 +106,12 @@ maps.
 
 ### Compatibility
 
-| Field      | Type   | Notes                                                                                                           |
-| :--------- | :----- | :-------------------------------------------------------------------------------------------------------------- |
-| `requires` | object | Version constraints YOUR PACKAGE places on the WordPress and PHP host. See [Runtime compatibility](runtime.md). |
+| Field      | Type   | Notes                                                                                    |
+| :--------- | :----- | :--------------------------------------------------------------------------------------- |
+| `requires` | object | What your package needs from WordPress and PHP. See [Runtime compatibility](runtime.md). |
 
-`requires.wp` and `requires.php` are SemVer constraint strings (for example,
-`>=6.0`, `>=7.4 <8.2`). Empty constraints are allowed and mean "no opinion."
+`requires.wp` and `requires.php` are SemVer constraint strings, for example
+`>=6.0` or `>=7.4 <8.2`. Leave a field empty to mean "no opinion."
 
 ### Build and runtime configuration
 
@@ -134,19 +134,19 @@ The `config` object accepts:
 
 ## Editing the file by hand
 
-You can edit `wpm.json` directly. wpm preserves whatever indentation it detects
-(two-space by default). Commands that modify the file (`wpm install`,
-`wpm uninstall`) rewrite it with the same indentation.
+You can edit `wpm.json` directly. wpm keeps your indentation style (two spaces
+by default). Commands that change the file (`wpm install`, `wpm uninstall`)
+rewrite it the same way.
 
-A few practical notes:
+A few things to know:
 
-- Run `wpm install` after editing dependency entries so `wpm.lock` and the
-  filesystem stay in sync.
-- Validation errors reference the offending field by path (for example,
-  `tags[2]` or `config.content-dir`). Use that path to locate the problem.
-- If an invalid manifest is written by a tool that doesn't validate, the next
-  operation that does validate (publish, or any read in a stricter context) will
-  fail with a clear message.
+- After editing dependency entries by hand, run `wpm install` to bring
+  `wpm.lock` and `wp-content/` back in sync.
+- Validation errors tell you which field broke, by path (for example, `tags[2]`
+  or `config.content-dir`).
+- If another tool writes an invalid manifest, the next wpm command that
+  validates (like `wpm publish`) will fail with a clear message pointing at the
+  bad field.
 
 ## Related
 
