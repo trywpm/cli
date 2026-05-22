@@ -95,7 +95,7 @@ or leave it at `private` for organization-only releases. Any value other than
 > `--access private` is not the same as `"private": true` in
 > `wpm.json`. `--access private` publishes the package with private visibility
 > on the registry. `"private": true` blocks publishing entirely. See
-> [Registry concepts](../registry/index.md) for the full distinction.
+> [Registry concepts](../reference/registry.md) for the full distinction.
 
 ### Republishing a version
 
@@ -137,6 +137,10 @@ confirm that `.wpmignore` is excluding the right things.
   blobs from the source tree, or move large assets to a CDN.
 - Validation errors mentioning a specific field (`name`, `version`, `license`,
   ...): fix the field in `wpm.json` and re-run. See `wpm init` for the rules.
+- **Readme not showing on the registry**: the file must be named `readme.md`
+  (case-insensitive) at the project root, and under 50 KiB. Content beyond that
+  is dropped silently. `wpm publish --verbose` shows whether the readme made it
+  into the tarball.
 
 ## Examples
 

@@ -187,6 +187,23 @@ execution is not yet wired up.
   rejected.
 - `invalid version or tag`: the value after `@` is neither valid semver nor a
   valid dist tag. Use `1.2.3` style or a known tag like `latest`.
+- **Install feels slow**: the registry may be far or under load, the HTTP cache
+  may be cold, or the resolver may be paying for repeated conflict lookups. Tune
+  `--network-concurrency` (default `16`), let the cache warm up after one
+  install, or pin conflicting transitives explicitly in `dependencies` to
+  short-circuit lookups.
+- **`Already up-to-date!` after editing `wpm.json`**: the resolved set didn't
+  change. Maybe you changed formatting but not values. Verify with `wpm ls`. If
+  you bumped a version, double-check the new value is valid SemVer; invalid
+  versions are rejected at validation time.
+- **Force a clean reinstall** when the tree is in a confusing state:
+  ```sh
+  rm -rf wpm.lock wp-content/plugins wp-content/themes wp-content/mu-plugins
+  wpm install
+  ```
+  Review the new `wpm.lock` before committing.
+- **Clear the registry response cache** to force fresh manifest fetches:
+  `rm -rf ~/.wpm/cache`. The lockfile and `wp-content/` are untouched.
 
 ## Examples
 

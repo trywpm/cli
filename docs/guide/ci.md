@@ -275,9 +275,9 @@ Before merging your CI configuration, confirm:
 
 ## Related
 
-- [Installation](../installation/index.md): how the install script works.
-- [Authentication](../authentication/index.md): the token lifecycle.
+- [Installation](../guide/installation.md): how the install script works.
+- [Authentication](../guide/authentication.md): the token lifecycle.
 - [`wpm`](../cli/wpm.md): the full list of global flags and environment
   variables.
-- [Registry concepts](../registry/index.md): dist tags and visibility settings
-  used by `wpm publish`.
+- [Registry concepts](../reference/registry.md): dist tags and visibility
+  settings used by `wpm publish`.

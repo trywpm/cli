@@ -156,7 +156,7 @@ wpm publish --access public
 
 For multi-tenant CI (publishing under more than one account from the same
 runner), use a separate `--config` directory per identity. See the
-[CI/CD guide](../guides/ci.md) for full recipes.
+[CI/CD guide](../guide/ci.md) for full recipes.
 
 ## Rotating tokens
 
@@ -192,7 +192,7 @@ is recognized.
 
 - [`wpm auth`](../cli/auth.md): the parent command for `login` and `logout`.
 - [`wpm whoami`](../cli/whoami.md): the canonical "am I logged in?" check.
-- [Registry concepts](../registry/index.md): visibility, dist tags, and what the
-  registry does with your identity.
-- [CI/CD guide](../guides/ci.md): worked examples for running wpm from build
+- [Registry concepts](../reference/registry.md): visibility, dist tags, and what
+  the registry does with your identity.
+- [CI/CD guide](../guide/ci.md): worked examples for running wpm from build
   pipelines.

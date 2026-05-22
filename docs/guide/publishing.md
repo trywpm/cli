@@ -6,7 +6,7 @@ come back.
 
 If you only want the command reference, see [`wpm publish`](../cli/publish.md).
 If you haven't built a package yet, start with
-[Getting started](../getting-started/index.md) and come back when you have a
+[Getting started](../guide/getting-started.md) and come back when you have a
 `wpm.json` you'd like to share.
 
 ## Before you start
@@ -143,7 +143,7 @@ publish a new version with the new `--access` value; there is no separate
 > `--access private` is not the same as `"private": true` in
 > `wpm.json`. The flag sets the registry's visibility. The manifest flag
 > prevents publishing entirely. See
-> [Registry concepts](../registry/index.md#private-true-is-not-the-same-as---access-private).
+> [Registry concepts](../reference/registry.md#private-true-is-not-the-same-as---access-private).
 
 ## Republishing the same version
 
@@ -221,8 +221,8 @@ $ wpm publish            # Goes to latest
 ## Related
 
 - [`wpm publish`](../cli/publish.md): every flag, with troubleshooting.
-- [Registry concepts](../registry/index.md): tags, visibility, and the
+- [Registry concepts](../reference/registry.md): tags, visibility, and the
   difference between `private: true` and `--access private`.
-- [Authentication](../authentication/index.md): tokens and CI patterns.
-- [`.wpmignore`](../wpmignore/index.md): syntax for the exclusion file.
-- [`wpm.json`](../wpm-json/index.md): the manifest schema.
+- [Authentication](../guide/authentication.md): tokens and CI patterns.
+- [`.wpmignore`](../reference/wpmignore.md): syntax for the exclusion file.
+- [`wpm.json`](../reference/wpm-json.md): the manifest schema.

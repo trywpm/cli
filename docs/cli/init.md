@@ -124,14 +124,9 @@ errors. Pass `--version` to recover.
 
 ### Field validation rules
 
-These apply in both modes:
-
-| Field     | Rule                                                          |
-| :-------- | :------------------------------------------------------------ |
-| `name`    | 3 to 164 characters, lowercase alphanumerics and hyphens only |
-| `version` | Strict SemVer (`X.Y.Z`), 5 to 64 characters, no `v` prefix    |
-| `license` | 3 to 100 characters                                           |
-| `type`    | One of `plugin`, `theme`, `mu-plugin`                         |
+Both modes validate `name`, `version`, `type`, and `license` before writing
+`wpm.json`. The full schema and its rules live in
+[`wpm.json` reference](../reference/wpm-json.md).
 
 ### Troubleshooting
 

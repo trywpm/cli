@@ -146,5 +146,5 @@ registry, and any command with `--config ~/.wpm-prod` targets production.
   sets the dist tag and visibility.
 - [`wpm install`](../cli/install.md): the command that reads manifests and
   downloads tarballs.
-- [`wpm.json`](../wpm-json/index.md): the `private` flag, distinct from registry
-  visibility.
+- [`wpm.json`](../reference/wpm-json.md): the `private` flag, distinct from
+  registry visibility.

@@ -138,17 +138,17 @@ when the first signal is caught and graceful shutdown is taking too long.
 
 ### Where to go next
 
-- New to wpm? Start with the [getting started](../getting-started/index.md)
+- New to wpm? Start with the [getting started](../guide/getting-started.md)
   walkthrough.
-- Releasing a package? See the [publishing guide](../guides/publishing.md).
-- Setting up CI? See the [CI/CD guide](../guides/ci.md).
-- File-format references: [`wpm.json`](../wpm-json/index.md),
-  [`wpm.lock`](../wpm-lock/index.md), and [`.wpmignore`](../wpmignore/index.md).
-- Concept references: [authentication](../authentication/index.md),
-  [package types](../package-types/index.md), and
-  [registry concepts](../registry/index.md).
-- Stuck? Check the [FAQ and troubleshooting](../faq/index.md) page, or the
-  [glossary](../glossary/index.md) for term definitions.
+- Releasing a package? See the [publishing guide](../guide/publishing.md).
+- Setting up CI? See the [CI/CD guide](../guide/ci.md).
+- File-format references: [`wpm.json`](../reference/wpm-json.md),
+  [`wpm.lock`](../reference/wpm-lock.md), and
+  [`.wpmignore`](../reference/wpmignore.md).
+- Concept references: [authentication](../guide/authentication.md),
+  [package types](../reference/package-types.md), and
+  [registry concepts](../reference/registry.md).
+- Looking up a term? See the [glossary](../reference/glossary.md).
 
 ## Examples
 
@@ -190,4 +190,4 @@ $ CI=true NO_COLOR=1 wpm install
 ### First five minutes with wpm
 
 For a full walkthrough from scaffold to first publish, see
-[Getting started](../getting-started/index.md).
+[Getting started](../guide/getting-started.md).

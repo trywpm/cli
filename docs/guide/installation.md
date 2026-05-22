@@ -134,12 +134,23 @@ any supported shell:
 wpm completion <bash|zsh|fish|powershell>
 ```
 
-| Shell      | One-time setup                                                      |
-| :--------- | :------------------------------------------------------------------ | ------------------------------------------------ |
-| bash       | `wpm completion bash                                                | sudo tee /etc/bash_completion.d/wpm > /dev/null` |
-| zsh        | `wpm completion zsh > "${fpath[1]}/_wpm"` (with `compinit` enabled) |
-| fish       | `wpm completion fish > ~/.config/fish/completions/wpm.fish`         |
-| powershell | `wpm completion powershell                                          | Out-File -Encoding utf8 "$PROFILE.d\wpm.ps1"`    |
+One-time setup per shell:
+
+```sh
+# bash
+wpm completion bash | sudo tee /etc/bash_completion.d/wpm > /dev/null
+
+# zsh (with compinit enabled)
+wpm completion zsh > "${fpath[1]}/_wpm"
+
+# fish
+wpm completion fish > ~/.config/fish/completions/wpm.fish
+```
+
+```powershell
+# powershell
+wpm completion powershell | Out-File -Encoding utf8 "$PROFILE.d\wpm.ps1"
+```
 
 For a one-off in the current session, source the output instead:
 
@@ -159,8 +170,30 @@ wpm version v0.1.0 (abc1234)
 ```
 
 The output shows the release version and the short git commit it was built from.
-If you see "command not found", the install directory is not on your `PATH` yet.
-Check your shell's startup file (`~/.bashrc`, `~/.zshrc`, etc.).
+
+If you see `command not found`, the install directory is not on your `PATH` yet.
+Open a new terminal session (so the shell's startup file is re-sourced), or run
+`hash -r` in your current one to refresh the shell's command cache. If the
+problem persists, confirm that the install path is in `PATH`:
+
+- Linux/macOS script: `/usr/local/bin` should be in `PATH`.
+- Windows PowerShell: `%USERPROFILE%\.wpm\bin` should be in `PATH`.
+- `go install`: `$(go env GOPATH)/bin` should be in `PATH`.
+
+## Where wpm keeps its files
+
+| Path                      | Purpose                                          |
+| :------------------------ | :----------------------------------------------- |
+| `~/.wpm/config.json`      | Client config: auth token, default user.         |
+| `~/.wpm/cache/`           | Registry response cache and download cache.      |
+| `~/.wpm/cache/install/`   | HTTP cache for install-time GET requests.        |
+| Per project `wpm.json`    | Package manifest.                                |
+| Per project `wpm.lock`    | Resolved dependency snapshot.                    |
+| Per project `wp-content/` | Where dependencies are extracted (configurable). |
+
+The config directory can be moved with the global `--config` flag or the
+`WPM_CONFIG` environment variable. To clear the registry response cache, delete
+`~/.wpm/cache`; the lockfile and `wp-content/` are untouched.
 
 ## Upgrade
 
@@ -198,7 +231,8 @@ cache under `~/.wpm/cache/install`.
 
 ## Next steps
 
-- New to wpm? See [Getting started](../getting-started/index.md) for a 10-minute
+- New to wpm? See [Getting started](../guide/getting-started.md) for a 10-minute
   end-to-end walkthrough.
-- Setting up a build pipeline? See the [CI/CD guide](../guides/ci.md).
-- Looking for the `wpm.json` reference? See [`wpm.json`](../wpm-json/index.md).
+- Setting up a build pipeline? See the [CI/CD guide](../guide/ci.md).
+- Looking for the `wpm.json` reference? See
+  [`wpm.json`](../reference/wpm-json.md).

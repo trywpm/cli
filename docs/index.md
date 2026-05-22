@@ -33,51 +33,44 @@ $ curl -fsSL https://wpm.so/install | bash      # Linux, macOS
 $ powershell -c "irm wpm.so/install.ps1|iex"    # Windows
 ```
 
-See the [installation guide](installation/index.md) for Docker, `go install`,
+See the [installation guide](guide/installation.md) for Docker, `go install`,
 and source builds.
 
-## Where to next
+## Guide
 
-### New here
+Task-oriented walkthroughs for working with wpm:
 
-- **[Install wpm](installation/index.md)**: a single-command install with shell
-  completion set up for you.
-- **[Getting started](getting-started/index.md)**: a complete project, from
-  scaffold to your first published version, in about ten minutes.
+- **[Installation](guide/installation.md)**: install methods, shell completion,
+  troubleshooting, and where wpm keeps its files.
+- **[Getting started](guide/getting-started.md)**: scaffold a project, add
+  dependencies, inspect the tree, optionally publish.
+- **[Authentication](guide/authentication.md)**: tokens, identity, multi-account
+  patterns, rotation.
+- **[Publishing](guide/publishing.md)**: versioning, dist tags, visibility, and
+  the release lifecycle.
+- **[CI/CD](guide/ci.md)**: recipes for GitHub Actions, GitLab, and Docker.
 
-### Reference
+## Reference
 
-- **[CLI reference](cli/wpm.md)**: every command with options, examples, and
-  exit codes.
-- **[`wpm.json`](wpm-json/index.md)**: the package manifest.
-- **[`wpm.lock`](wpm-lock/index.md)**: the lockfile format.
-- **[`.wpmignore`](wpmignore/index.md)**: what `wpm publish` excludes.
+Lookup material for the file formats and core concepts:
 
-### Concepts
+- **[`wpm.json`](reference/wpm-json.md)**: the package manifest schema.
+- **[Dependencies](reference/dependencies.md)**: the dependency maps and the
+  resolver's rules.
+- **[Runtime compatibility](reference/runtime.md)**: `requires` versus
+  `config.runtime`.
+- **[`wpm.lock`](reference/wpm-lock.md)**: the lockfile format.
+- **[`.wpmignore`](reference/wpmignore.md)**: publish exclusions.
+- **[Package types](reference/package-types.md)**: `plugin`, `theme`, and
+  `mu-plugin`.
+- **[Registry](reference/registry.md)**: dist tags, visibility, and self-hosted
+  setups.
+- **[Glossary](reference/glossary.md)**: definitions of wpm-specific terms.
 
-- **[Package types](package-types/index.md)**: when to choose `plugin`, `theme`,
-  or `mu-plugin`.
-- **[Authentication](authentication/index.md)**: tokens, identity, and
-  multi-account patterns.
-- **[Registry](registry/index.md)**: dist tags, visibility, and self-hosted
-  registries.
-- **[Dependencies](wpm-json/dependencies.md)**: how `wpm.json` and the resolver
-  work together.
-- **[Runtime compatibility](wpm-json/runtime.md)**: the difference between
-  `requires` and `config.runtime`.
+## CLI reference
 
-### Guides
-
-- **[Publishing](guides/publishing.md)**: versioning, dist tags, and the release
-  lifecycle.
-- **[CI/CD](guides/ci.md)**: recipes for GitHub Actions, GitLab, and Docker
-  builds.
-
-### Help
-
-- **[FAQ and troubleshooting](faq/index.md)**: common errors with recovery
-  steps.
-- **[Glossary](glossary/index.md)**: definitions of wpm-specific terms.
+Every command with options, examples, and exit codes lives under
+[CLI reference](cli/wpm.md).
 
 ## Community
 

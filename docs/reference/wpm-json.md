@@ -154,8 +154,8 @@ A few practical notes:
   interact with `wpm install`.
 - [Runtime compatibility](runtime.md): when wpm enforces `requires` during
   install, and how `config.runtime` participates.
-- [`wpm.lock`](../wpm-lock/index.md): the resolved snapshot that pairs with
+- [`wpm.lock`](../reference/wpm-lock.md): the resolved snapshot that pairs with
   `wpm.json`.
-- [`.wpmignore`](../wpmignore/index.md): controls what `wpm publish` packs.
-- [Registry concepts](../registry/index.md): dist tags, visibility, and the
+- [`.wpmignore`](../reference/wpmignore.md): controls what `wpm publish` packs.
+- [Registry concepts](../reference/registry.md): dist tags, visibility, and the
   difference between `private: true` and `--access private`.

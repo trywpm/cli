@@ -160,7 +160,7 @@ configuration changes are needed.
 
 ## Related
 
-- [`wpm.json` reference](index.md): the full schema and all field rules.
+- [`wpm.json` reference](wpm-json.md): the full schema and all field rules.
 - [`wpm install`](../cli/install.md): where the strict check runs.
 - [Dependencies](dependencies.md): the difference between dependency specifiers
   (no ranges) and `requires` constraints (ranges allowed).

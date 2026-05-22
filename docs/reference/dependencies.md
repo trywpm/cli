@@ -155,6 +155,6 @@ is strict about conflicts; there is no fallback to a package-specific copy.
 - [`wpm install`](../cli/install.md): the command that reads and writes the
   maps.
 - [`wpm uninstall`](../cli/uninstall.md): removes entries and reconciles disk.
-- [`wpm.lock`](../wpm-lock/index.md): the resolved snapshot.
+- [`wpm.lock`](../reference/wpm-lock.md): the resolved snapshot.
 - [Runtime compatibility](runtime.md): for `requires` constraints, which are
   different from dependency specifiers.
