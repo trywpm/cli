@@ -62,7 +62,9 @@ automatically so the command can run without interaction.
 | license | `GPL-2.0-or-later`     |
 | type    | `plugin` (prompt only) |
 
-> [!NOTE] When you run `wpm init -y` without `--type`, the `type` field is left
+<!-- prettier-ignore -->
+> [!NOTE]
+> When you run `wpm init -y` without `--type`, the `type` field is left
 > unset. Validation is skipped for that field in the `-y` path, so the command
 > succeeds, but you will need to set `type` manually before publishing. Prefer
 > `wpm init -y --type plugin` (or `theme`, `mu-plugin`) when scripting.

@@ -19,7 +19,9 @@ token is stored on disk, which is the normal state of a fresh CI runner.
 
 ## Token storage
 
-> [!WARNING] Never commit `WPM_TOKEN` to version control, paste it into chat or
+<!-- prettier-ignore -->
+> [!WARNING]
+> Never commit `WPM_TOKEN` to version control, paste it into chat or
 > issue trackers, or echo it in build logs. CI secrets managers exist for
 > exactly this; use them.
 

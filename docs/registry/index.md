@@ -78,7 +78,9 @@ publishing a new version with the desired `--access` value.
 
 ### `private: true` is not the same as `--access private`
 
-> [!IMPORTANT] These two settings share a word but produce opposite outcomes.
+<!-- prettier-ignore -->
+> [!IMPORTANT]
+> These two settings share a word but produce opposite outcomes.
 > The table below makes the distinction explicit.
 
 | Setting            | Lives in           | Effect                                                                                                  |

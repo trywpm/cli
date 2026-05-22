@@ -35,7 +35,9 @@ write.
 That's it. The dependency value does not accept SemVer ranges, carets, or
 tildes. This is a deliberate design choice, not a limitation we plan to remove.
 
-> [!IMPORTANT] WordPress plugins and themes are not pure libraries. They can
+<!-- prettier-ignore -->
+> [!IMPORTANT]
+> WordPress plugins and themes are not pure libraries. They can
 > change database schema, write options, register cron jobs, and modify content.
 > A solver cannot tell whether a "compatible" upgrade is safe for _your_ site,
 > because that answer depends on runtime state the solver cannot see. You are

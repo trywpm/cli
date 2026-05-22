@@ -59,7 +59,9 @@ $ wpm publish
 The package is now on the registry. Anyone with read access can install it with
 `wpm install my-plugin`.
 
-> [!TIP] Run `wpm publish --verbose --dry-run` before every real publish. It
+<!-- prettier-ignore -->
+> [!TIP]
+> Run `wpm publish --verbose --dry-run` before every real publish. It
 > prints every file that will be included, with sizes, so you can catch a stray
 > `node_modules/` directory or a forgotten secrets file.
 
@@ -136,14 +138,18 @@ The default is `private`. To change visibility on an already-published version,
 publish a new version with the new `--access` value; there is no separate
 "change visibility" command.
 
-> [!IMPORTANT] `--access private` is not the same as `"private": true` in
+<!-- prettier-ignore -->
+> [!IMPORTANT]
+> `--access private` is not the same as `"private": true` in
 > `wpm.json`. The flag sets the registry's visibility. The manifest flag
 > prevents publishing entirely. See
 > [Registry concepts](../registry/index.md#private-true-is-not-the-same-as---access-private).
 
 ## Republishing the same version
 
-> [!CAUTION] A published version cannot be replaced. The registry rejects any
+<!-- prettier-ignore -->
+> [!CAUTION]
+> A published version cannot be replaced. The registry rejects any
 > publish for a version it already holds, and yanked versions stay reserved (you
 > cannot reuse the number for a new build).
 

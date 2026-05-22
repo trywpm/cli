@@ -6,7 +6,9 @@ install reads this file before talking to the registry; when the requested
 versions still match what's on record, the install short-circuits the network
 and reuses the cached resolution.
 
-> [!IMPORTANT] Commit `wpm.lock` to version control. Without it, installs are
+<!-- prettier-ignore -->
+> [!IMPORTANT]
+> Commit `wpm.lock` to version control. Without it, installs are
 > not reproducible across machines or CI runs.
 
 ## Lifecycle
@@ -115,7 +117,9 @@ the older format does not understand.
 
 ## Hand-editing
 
-> [!CAUTION] Never edit `wpm.lock` by hand in normal use. Use `wpm install` to
+<!-- prettier-ignore -->
+> [!CAUTION]
+> Never edit `wpm.lock` by hand in normal use. Use `wpm install` to
 > regenerate it from `wpm.json`. Direct edits can desync the lockfile from
 > what's actually on disk and produce hard-to-diagnose install failures.
 

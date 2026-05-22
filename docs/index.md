@@ -7,7 +7,9 @@ Declare what you need in `wpm.json`, run `wpm install`, and get a locked tree
 recorded in `wpm.lock`. Publish your own packages with `wpm publish`. If you've
 used npm or Composer, wpm will feel familiar.
 
-> [!IMPORTANT] wpm is in active development and pre-1.0. Expect occasional
+<!-- prettier-ignore -->
+> [!IMPORTANT]
+> wpm is in active development and pre-1.0. Expect occasional
 > breaking changes to CLI flags and to the `wpm.lock` format until 1.0.
 > Significant changes are called out in release notes.
 

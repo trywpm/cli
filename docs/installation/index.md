@@ -107,7 +107,9 @@ What the installers do:
 
 ### Windows: enable script execution
 
-> [!IMPORTANT] PowerShell blocks profile scripts by default on Windows. If
+<!-- prettier-ignore -->
+> [!IMPORTANT]
+> PowerShell blocks profile scripts by default on Windows. If
 > completion doesn't work after installing, your execution policy is the most
 > likely reason.
 

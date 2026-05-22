@@ -139,7 +139,9 @@ Adjust the path if you've changed `config.content-dir`.
 
 ### Can I republish the same version?
 
-> [!CAUTION] A published version cannot be replaced. The registry rejects any
+<!-- prettier-ignore -->
+> [!CAUTION]
+> A published version cannot be replaced. The registry rejects any
 > publish for a version that already exists, and yanked versions stay reserved.
 
 Bump the `version` field in `wpm.json` to a higher SemVer value and run

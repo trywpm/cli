@@ -31,7 +31,9 @@ Package Manager for WordPress ecosystem
 
 ## Description
 
-> [!IMPORTANT] wpm is in active development and pre-1.0. Expect occasional
+<!-- prettier-ignore -->
+> [!IMPORTANT]
+> wpm is in active development and pre-1.0. Expect occasional
 > breaking changes to CLI flags and to the `wpm.lock` format until 1.0.
 > Significant changes are called out in release notes.
 

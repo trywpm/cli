@@ -88,14 +88,18 @@ registry. Pass `--access public` to make the release discoverable by everyone,
 or leave it at `private` for organization-only releases. Any value other than
 `public` or `private` is rejected.
 
-> [!IMPORTANT] `--access private` is not the same as `"private": true` in
+<!-- prettier-ignore -->
+> [!IMPORTANT]
+> `--access private` is not the same as `"private": true` in
 > `wpm.json`. `--access private` publishes the package with private visibility
 > on the registry. `"private": true` blocks publishing entirely. See
 > [Registry concepts](../registry/index.md) for the full distinction.
 
 ### Republishing a version
 
-> [!CAUTION] A published version cannot be replaced. The registry rejects any
+<!-- prettier-ignore -->
+> [!CAUTION]
+> A published version cannot be replaced. The registry rejects any
 > publish for a version it already holds, and yanked versions stay reserved (you
 > cannot reuse the number for a new build).
 
@@ -108,7 +112,9 @@ field to a higher SemVer value and run `wpm publish` again.
 listing of each file as it's added, with its size. Use it when you want to
 confirm that `.wpmignore` is excluding the right things.
 
-> [!TIP] Combine `--verbose --dry-run` to preview the exact file list and the
+<!-- prettier-ignore -->
+> [!TIP]
+> Combine `--verbose --dry-run` to preview the exact file list and the
 > final tarball size before a real publish. This is the safest way to catch a
 > stray `node_modules` directory or a forgotten secrets file.
 

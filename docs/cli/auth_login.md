@@ -32,7 +32,9 @@ After login, every command that needs registry access (such as `publish` and
 Create a personal access token from your account settings at
 https://wpm.so/dashboard/tokens.
 
-> [!WARNING] Tokens grant full access to the packages you own. Treat them like
+<!-- prettier-ignore -->
+> [!WARNING]
+> Tokens grant full access to the packages you own. Treat them like
 > passwords: never commit them to version control, never paste them in chat, and
 > rotate them immediately if you suspect a leak.
 
