@@ -1,36 +1,33 @@
 # Registry concepts
 
-The wpm registry is the server that hosts published packages and
-serves them to `wpm install`. By default wpm talks to
-`registry.wpm.so`. You can point it at a different deployment with
-the global `--registry` flag.
+The wpm registry is the server that hosts published packages and serves them to
+`wpm install`. By default wpm talks to `registry.wpm.so`. You can point it at a
+different deployment with the global `--registry` flag.
 
-This page covers the registry-side concepts you'll meet while using
-wpm: dist tags, package visibility, and the subtle difference between
-"a package I won't publish" and "a package I publish privately."
+This page covers the registry-side concepts you'll meet while using wpm: dist
+tags, package visibility, and the subtle difference between "a package I won't
+publish" and "a package I publish privately."
 
 ## The default registry
 
-Out of the box, every wpm command uses `registry.wpm.so`. Override it
-on a per-invocation basis with `--registry`:
+Out of the box, every wpm command uses `registry.wpm.so`. Override it on a
+per-invocation basis with `--registry`:
 
 ```console
 $ wpm --registry registry.staging.wpm.so install
 ```
 
-`--registry` is a global flag, so it must appear before the
-subcommand name. There is no environment variable equivalent today;
-if you want a different default across all invocations, write a
-shell alias.
+`--registry` is a global flag, so it must appear before the subcommand name.
+There is no environment variable equivalent today; if you want a different
+default across all invocations, write a shell alias.
 
 ## Dist tags
 
-A **dist tag** is a human-friendly label that points at a specific
-version of a package. The canonical tag is `latest`, which points
-at the most recent release the publisher wants new consumers to
-pick up. Maintainers can create additional tags such as `next`,
-`beta`, or `lts` to publish pre-releases or maintain parallel
-release lines without disturbing `latest`.
+A **dist tag** is a human-friendly label that points at a specific version of a
+package. The canonical tag is `latest`, which points at the most recent release
+the publisher wants new consumers to pick up. Maintainers can create additional
+tags such as `next`, `beta`, or `lts` to publish pre-releases or maintain
+parallel release lines without disturbing `latest`.
 
 You set the tag with `--tag` at publish time:
 
@@ -38,8 +35,8 @@ You set the tag with `--tag` at publish time:
 $ wpm publish --tag beta
 ```
 
-Consumers select a tag by appending `@<tag>` to a package specifier
-just like a version:
+Consumers select a tag by appending `@<tag>` to a package specifier just like a
+version:
 
 ```console
 $ wpm install akismet@latest
@@ -48,110 +45,103 @@ $ wpm install akismet@beta
 
 A few important details:
 
-- `--tag` defaults to `latest`. Publishing with no `--tag` updates
-  `latest` to point at your new release.
-- Once `wpm install` resolves a tag, the resulting `wpm.json` and
-  `wpm.lock` record the concrete version, not the tag. The next
-  install will use the version, not chase the tag. To follow a tag,
-  re-run install with the `@<tag>` specifier.
-- `wpm outdated` always checks against `latest`. Pre-release tags
-  (`beta`, `rc`, and so on) won't surface as updates.
-- Tag names follow the package name rules (lowercase, hyphens, no
-  whitespace), with an upper bound of 64 characters.
+- `--tag` defaults to `latest`. Publishing with no `--tag` updates `latest` to
+  point at your new release.
+- Once `wpm install` resolves a tag, the resulting `wpm.json` and `wpm.lock`
+  record the concrete version, not the tag. The next install will use the
+  version, not chase the tag. To follow a tag, re-run install with the `@<tag>`
+  specifier.
+- `wpm outdated` always checks against `latest`. Pre-release tags (`beta`, `rc`,
+  and so on) won't surface as updates.
+- Tag names follow the package name rules (lowercase, hyphens, no whitespace),
+  with an upper bound of 64 characters.
 
 ## Package visibility
 
-Every published package has a **visibility** setting on the
-registry. It is set at publish time:
+Every published package has a **visibility** setting on the registry. It is set
+at publish time:
 
 ```console
 $ wpm publish --access public
 $ wpm publish --access private
 ```
 
-The two valid values are `public` and `private`. The default is
-`private`. Any other value is rejected.
+The two valid values are `public` and `private`. The default is `private`. Any
+other value is rejected.
 
 - **`public`** packages are visible to everyone the registry serves.
-- **`private`** packages are only visible to authorized accounts
-  (typically members of the publishing organization).
+- **`private`** packages are only visible to authorized accounts (typically
+  members of the publishing organization).
 
-Visibility is metadata on the published manifest. Changing it
-requires publishing a new version with the desired `--access`
-value.
+Visibility is metadata on the published manifest. Changing it requires
+publishing a new version with the desired `--access` value.
 
 ### `private: true` is not the same as `--access private`
 
 These two things use the same word but answer different questions.
 
-| Setting              | Lives in              | Effect                                                                                                       |
-|:---------------------|:----------------------|:-------------------------------------------------------------------------------------------------------------|
-| `"private": true`    | `wpm.json`            | `wpm publish` refuses to upload the package at all. A tripwire on internal-only projects.                    |
-| `--access private`   | `wpm publish` flag    | Publish proceeds, and the registry stores the release with private visibility (the default if not set).      |
+| Setting            | Lives in           | Effect                                                                                                  |
+| :----------------- | :----------------- | :------------------------------------------------------------------------------------------------------ |
+| `"private": true`  | `wpm.json`         | `wpm publish` refuses to upload the package at all. A tripwire on internal-only projects.               |
+| `--access private` | `wpm publish` flag | Publish proceeds, and the registry stores the release with private visibility (the default if not set). |
 
-If your project should never reach a registry, set
-`"private": true` in `wpm.json`. If your project should be on the
-registry but only visible to your organization, leave that out and
-publish with `--access private`. Trying to publish a `"private": true`
-package fails with:
+If your project should never reach a registry, set `"private": true` in
+`wpm.json`. If your project should be on the registry but only visible to your
+organization, leave that out and publish with `--access private`. Trying to
+publish a `"private": true` package fails with:
 
 ```
 package marked as private cannot be published
 ```
 
-There is no way to unset `private` from the command line: edit
-`wpm.json` to remove the flag.
+There is no way to unset `private` from the command line: edit `wpm.json` to
+remove the flag.
 
 ## Manifests on the registry
 
 When you publish, wpm uploads two things together:
 
-- A JSON **manifest** describing the release: name, version, type,
-  `requires`, `dependencies`, `devDependencies`, tag, visibility,
-  the SHA-256 digest of the tarball, and a few size counters.
-- The **tarball** itself, a Zstandard-compressed tar archive built
-  from your working directory (minus what `.wpmignore` excludes).
+- A JSON **manifest** describing the release: name, version, type, `requires`,
+  `dependencies`, `devDependencies`, tag, visibility, the SHA-256 digest of the
+  tarball, and a few size counters.
+- The **tarball** itself, a Zstandard-compressed tar archive built from your
+  working directory (minus what `.wpmignore` excludes).
 
-The manifest is what `wpm install` reads during resolution. It is
-also what populates the per-package entries you see in `wpm.lock`.
-The tarball is fetched separately when wpm actually needs to extract
-the package.
+The manifest is what `wpm install` reads during resolution. It is also what
+populates the per-package entries you see in `wpm.lock`. The tarball is fetched
+separately when wpm actually needs to extract the package.
 
-The 128 MiB cap on the packed tarball and the 50 KiB cap on the
-attached `readme.md` are enforced client-side, before anything is
-uploaded.
+The 128 MiB cap on the packed tarball and the 50 KiB cap on the attached
+`readme.md` are enforced client-side, before anything is uploaded.
 
 ## Self-hosted and staging registries
 
-The wpm client treats the registry as a plain HTTP endpoint, so any
-deployment that speaks the same API works. Common use cases:
+The wpm client treats the registry as a plain HTTP endpoint, so any deployment
+that speaks the same API works. Common use cases:
 
-- A staging deployment for testing changes against real packages
-  without affecting the production registry.
-- An internal mirror for organizations that prefer to host their
-  own packages.
+- A staging deployment for testing changes against real packages without
+  affecting the production registry.
+- An internal mirror for organizations that prefer to host their own packages.
 
-Switch by passing `--registry <url>`. Authentication state stored
-by `wpm auth login` is tied to whichever registry was active when
-you logged in; logging in against a different registry overwrites
-the existing token unless you use a separate config directory:
+Switch by passing `--registry <url>`. Authentication state stored by
+`wpm auth login` is tied to whichever registry was active when you logged in;
+logging in against a different registry overwrites the existing token unless you
+use a separate config directory:
 
 ```console
 $ wpm --config ~/.wpm-staging --registry registry.staging.wpm.so auth login
 $ wpm --config ~/.wpm-prod --registry registry.wpm.so auth login
 ```
 
-After that, any command run with `--config ~/.wpm-staging` targets
-the staging registry, and any command with `--config ~/.wpm-prod`
-targets production.
+After that, any command run with `--config ~/.wpm-staging` targets the staging
+registry, and any command with `--config ~/.wpm-prod` targets production.
 
 ## Related
 
-- [`wpm auth`](../cli/auth.md): how credentials are obtained and
-  stored.
-- [`wpm publish`](../cli/publish.md): the command that uploads new
-  versions and sets the dist tag and visibility.
-- [`wpm install`](../cli/install.md): the command that reads
-  manifests and downloads tarballs.
-- [`wpm.json`](../wpm-json/index.md): the `private` flag, distinct
-  from registry visibility.
+- [`wpm auth`](../cli/auth.md): how credentials are obtained and stored.
+- [`wpm publish`](../cli/publish.md): the command that uploads new versions and
+  sets the dist tag and visibility.
+- [`wpm install`](../cli/install.md): the command that reads manifests and
+  downloads tarballs.
+- [`wpm.json`](../wpm-json/index.md): the `private` flag, distinct from registry
+  visibility.

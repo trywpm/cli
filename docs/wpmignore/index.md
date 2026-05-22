@@ -1,12 +1,11 @@
 # .wpmignore
 
 `.wpmignore` is an optional file at the root of your project. It tells
-`wpm publish` which paths to exclude from the tarball that gets
-uploaded to the registry. Without it, every file in the project
-directory is packed.
+`wpm publish` which paths to exclude from the tarball that gets uploaded to the
+registry. Without it, every file in the project directory is packed.
 
-The syntax is the same as `.gitignore`. If you've used `.gitignore`,
-you already know how to write a `.wpmignore`.
+The syntax is the same as `.gitignore`. If you've used `.gitignore`, you already
+know how to write a `.wpmignore`.
 
 ## A small example
 
@@ -34,75 +33,73 @@ phpunit.xml
 *.test.php
 ```
 
-The intent is to ship only the runtime code, assets, and the readme.
-Everything else stays out.
+The intent is to ship only the runtime code, assets, and the readme. Everything
+else stays out.
 
 ## Pattern syntax
 
 The patterns follow gitignore semantics. The most useful subset:
 
-| Pattern        | Matches                                                                        |
-|:---------------|:-------------------------------------------------------------------------------|
-| `name`         | A file or directory called `name` anywhere in the tree.                        |
-| `name/`        | A directory called `name` (and everything under it).                           |
-| `/name`        | A file or directory called `name` only at the project root.                    |
-| `*.log`        | Any file with the `.log` extension at any depth.                               |
-| `build/*.zip`  | `.zip` files directly inside `build/` (one level only).                        |
-| `**/cache`     | A `cache` entry at any depth (the `**` matches any number of intermediate directories). |
-| `!important.log` | Re-include a file that an earlier rule excluded.                             |
-| `# comment`    | A comment. The whole line is ignored.                                          |
+| Pattern          | Matches                                                                                 |
+| :--------------- | :-------------------------------------------------------------------------------------- |
+| `name`           | A file or directory called `name` anywhere in the tree.                                 |
+| `name/`          | A directory called `name` (and everything under it).                                    |
+| `/name`          | A file or directory called `name` only at the project root.                             |
+| `*.log`          | Any file with the `.log` extension at any depth.                                        |
+| `build/*.zip`    | `.zip` files directly inside `build/` (one level only).                                 |
+| `**/cache`       | A `cache` entry at any depth (the `**` matches any number of intermediate directories). |
+| `!important.log` | Re-include a file that an earlier rule excluded.                                        |
+| `# comment`      | A comment. The whole line is ignored.                                                   |
 
 A few practical reminders:
 
 - Patterns are applied to paths relative to the project root.
-- The order of rules matters: a later `!pattern` line can re-include
-  something an earlier line excluded.
-- Whitespace at the end of a line is significant; trim accidental
-  trailing spaces.
+- The order of rules matters: a later `!pattern` line can re-include something
+  an earlier line excluded.
+- Whitespace at the end of a line is significant; trim accidental trailing
+  spaces.
 - Empty lines are skipped.
 
 ## What gets packed
 
-`wpm publish` walks the project directory and, for each file or
-directory, checks whether the matching pattern excludes it. Files
-that match an exclusion are dropped from the tarball.
+`wpm publish` walks the project directory and, for each file or directory,
+checks whether the matching pattern excludes it. Files that match an exclusion
+are dropped from the tarball.
 
 A few wpm-specific notes about what to include and exclude:
 
 - **`wpm.json`** must be present in the tarball. Don't exclude it.
-- **`readme.md`** at the project root is read and attached to the
-  published manifest as the package's readme. Capped at 50 KiB; if
-  you exclude it, the registry won't render a readme.
-- **`wpm.lock`** is usually safe to exclude from published packages.
-  Consumers run their own resolver.
-- **`.wpmignore` itself** is excluded automatically by the underlying
-  archive code; you don't need to list it.
-- Source control directories (`.git`, `.hg`, `.svn`) are not
-  excluded automatically. Add them to `.wpmignore` if you don't
-  want to ship a copy of your VCS metadata.
+- **`readme.md`** at the project root is read and attached to the published
+  manifest as the package's readme. Capped at 50 KiB; if you exclude it, the
+  registry won't render a readme.
+- **`wpm.lock`** is usually safe to exclude from published packages. Consumers
+  run their own resolver.
+- **`.wpmignore` itself** is excluded automatically by the underlying archive
+  code; you don't need to list it.
+- Source control directories (`.git`, `.hg`, `.svn`) are not excluded
+  automatically. Add them to `.wpmignore` if you don't want to ship a copy of
+  your VCS metadata.
 
 ## Scope
 
-`.wpmignore` only affects `wpm publish`. It does not influence
-`wpm install`, `wpm ls`, or any other command. Installed
-dependencies under `wp-content/` are unaffected by what your
-project's `.wpmignore` says.
+`.wpmignore` only affects `wpm publish`. It does not influence `wpm install`,
+`wpm ls`, or any other command. Installed dependencies under `wp-content/` are
+unaffected by what your project's `.wpmignore` says.
 
-If a dependency you install has its own `.wpmignore`, it shaped the
-tarball at publish time and does not exist in any meaningful way on
-your machine.
+If a dependency you install has its own `.wpmignore`, it shaped the tarball at
+publish time and does not exist in any meaningful way on your machine.
 
 ## Sizing constraints
 
-`wpm publish` enforces a 128 MiB cap on the packed tarball. If a
-publish errors with:
+`wpm publish` enforces a 128 MiB cap on the packed tarball. If a publish errors
+with:
 
 ```
 tarball size exceeds 134217728 bytes, refusing to continue
 ```
 
-it means even after `.wpmignore` was applied, the result is larger
-than the cap. Common culprits:
+it means even after `.wpmignore` was applied, the result is larger than the cap.
+Common culprits:
 
 - A `node_modules/` or `vendor/` directory that wasn't excluded.
 - Pre-built binaries or large images committed to the source tree.
@@ -110,8 +107,8 @@ than the cap. Common culprits:
 
 Add the offending paths to `.wpmignore` and try again.
 
-If `.wpmignore` excludes too much and the tarball is empty,
-`wpm publish` errors with:
+If `.wpmignore` excludes too much and the tarball is empty, `wpm publish` errors
+with:
 
 ```
 tarball size is zero, cannot publish empty package
@@ -127,13 +124,11 @@ The fastest way to check `.wpmignore` is a verbose dry run:
 $ wpm publish --verbose --dry-run
 ```
 
-Each included file is printed with its packed size before the
-summary block. Use this to confirm that the right files are in and
-the right files are out.
+Each included file is printed with its packed size before the summary block. Use
+this to confirm that the right files are in and the right files are out.
 
 ## Related
 
-- [`wpm publish`](../cli/publish.md): the only command that reads
-  `.wpmignore`.
-- [`wpm.json`](../wpm-json/index.md): the manifest whose required
-  fields must remain in the tarball.
+- [`wpm publish`](../cli/publish.md): the only command that reads `.wpmignore`.
+- [`wpm.json`](../wpm-json/index.md): the manifest whose required fields must
+  remain in the tarball.

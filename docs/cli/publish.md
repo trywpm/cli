@@ -1,64 +1,64 @@
 # wpm publish
 
 <!---MARKER_GEN_START-->
+
 Publish a package to the wpm registry
 
 ### Options
 
 | Name             | Type     | Default   | Description                                                         |
-|:-----------------|:---------|:----------|:--------------------------------------------------------------------|
+| :--------------- | :------- | :-------- | :------------------------------------------------------------------ |
 | `-a`, `--access` | `string` | `private` | Set the package access level to either public or private            |
 | `--dry-run`      | `bool`   |           | Perform a publish operation without actually publishing the package |
 | `--tag`          | `string` | `latest`  | Set the package tag                                                 |
 | `--verbose`      | `bool`   |           | Enable verbose output                                               |
 
-
 <!---MARKER_GEN_END-->
 
 ## Description
 
-Pack the current directory and upload it to the wpm registry as a new
-version of your package.
+Pack the current directory and upload it to the wpm registry as a new version of
+your package.
 
 `wpm publish` is the final step in releasing a plugin or theme. It reads
-`wpm.json`, validates it, packs the project into a `.tar.zst` archive
-respecting `.wpmignore`, computes a SHA-256 digest, and uploads the
-tarball along with a manifest describing the release.
+`wpm.json`, validates it, packs the project into a `.tar.zst` archive respecting
+`.wpmignore`, computes a SHA-256 digest, and uploads the tarball along with a
+manifest describing the release.
 
 ### Prerequisites
 
 Before publishing, make sure:
 
-- You're logged in: `wpm whoami` should print your username. The command
-  refuses to publish if either `authToken` or `defaultUser` is missing
-  from your config file.
-- `wpm.json` exists and is valid. Required fields (`name`, `version`,
-  `type`, and so on) are checked before anything is packed.
-- `wpm.json` does *not* set `"private": true`. That flag exists
-  specifically to block accidental publishing; remove it (or use a
-  separate config) when you are ready to release.
+- You're logged in: `wpm whoami` should print your username. The command refuses
+  to publish if either `authToken` or `defaultUser` is missing from your config
+  file.
+- `wpm.json` exists and is valid. Required fields (`name`, `version`, `type`,
+  and so on) are checked before anything is packed.
+- `wpm.json` does _not_ set `"private": true`. That flag exists specifically to
+  block accidental publishing; remove it (or use a separate config) when you are
+  ready to release.
 
 ### What gets included
 
-The tarball is built from the current directory. Files are filtered
-through `.wpmignore`, which uses gitignore-style patterns. If no
-`.wpmignore` is present, everything in the directory is packed.
+The tarball is built from the current directory. Files are filtered through
+`.wpmignore`, which uses gitignore-style patterns. If no `.wpmignore` is
+present, everything in the directory is packed.
 
 Two soft limits apply:
 
-| Limit          | Cap     | Behavior on overrun                                |
-|:---------------|:--------|:---------------------------------------------------|
+| Limit          | Cap     | Behavior on overrun                                 |
+| :------------- | :------ | :-------------------------------------------------- |
 | `readme.md`    | 50 KiB  | Content is truncated; the rest is dropped silently. |
 | Packed tarball | 128 MiB | Publishing aborts before upload.                    |
 
-A `readme.md` (case-insensitive match) at the project root is read
-and attached to the published manifest so the registry can render it.
-An empty tarball (zero bytes after packing) is rejected.
+A `readme.md` (case-insensitive match) at the project root is read and attached
+to the published manifest so the registry can render it. An empty tarball (zero
+bytes after packing) is rejected.
 
 ### Summary block
 
-Before any upload happens, wpm prints a tree-style summary of what it
-just packed:
+Before any upload happens, wpm prints a tree-style summary of what it just
+packed:
 
 ```
 ├─ Tag:     latest
@@ -68,15 +68,14 @@ just packed:
 └─ Digest:  9j6Q7l8s...=
 ```
 
-This is your last chance to verify before the upload starts. In
-`--dry-run` mode, the command stops here and prints a `dry run complete`
-line; nothing is sent to the registry.
+This is your last chance to verify before the upload starts. In `--dry-run`
+mode, the command stops here and prints a `dry run complete` line; nothing is
+sent to the registry.
 
 ### Tag and access
 
-`--tag` (default `latest`) controls the dist tag assigned to this
-release. Use it to publish pre-releases under a separate tag without
-moving `latest`:
+`--tag` (default `latest`) controls the dist tag assigned to this release. Use
+it to publish pre-releases under a separate tag without moving `latest`:
 
 ```console
 $ wpm publish --tag beta
@@ -84,38 +83,34 @@ $ wpm publish --tag beta
 
 Consumers can install from a tag with `wpm install my-pkg@beta`.
 
-`--access` (`-a`, default `private`) controls who can see the package
-on the registry. Pass `--access public` to make the release discoverable
-by everyone, or leave it at `private` for organization-only releases.
-Any value other than `public` or `private` is rejected.
+`--access` (`-a`, default `private`) controls who can see the package on the
+registry. Pass `--access public` to make the release discoverable by everyone,
+or leave it at `private` for organization-only releases. Any value other than
+`public` or `private` is rejected.
 
 ### Verbose output
 
-`--verbose` switches the packing phase from a single spinner to a
-line-by-line listing of each file as it's added, with its size. Use it
-when you want to confirm that `.wpmignore` is excluding the right
-things.
+`--verbose` switches the packing phase from a single spinner to a line-by-line
+listing of each file as it's added, with its size. Use it when you want to
+confirm that `.wpmignore` is excluding the right things.
 
 ### Troubleshooting
 
-- `user must be logged in to perform this action`: no auth token is in
-  your config. Run `wpm auth login`.
-- `no wpm.json found in the current directory`: run from the project
-  root.
-- `package marked as private cannot be published`: `"private": true` is
-  set in `wpm.json`. Remove it, or work from a different config.
-- `access must be either public or private`: `--access` got an invalid
-  value. Use `public` or `private`.
-- `tarball size is zero, cannot publish empty package`: `.wpmignore`
-  excluded everything. Loosen the patterns or check that the directory
-  is what you think it is.
-- `tarball size exceeds 134217728 bytes, refusing to continue`: the
-  packed archive went over 128 MiB. Add more entries to `.wpmignore`,
-  remove binary blobs from the source tree, or move large assets to a
-  CDN.
-- Validation errors mentioning a specific field (`name`, `version`,
-  `license`, ...): fix the field in `wpm.json` and re-run. See
-  `wpm init` for the rules.
+- `user must be logged in to perform this action`: no auth token is in your
+  config. Run `wpm auth login`.
+- `no wpm.json found in the current directory`: run from the project root.
+- `package marked as private cannot be published`: `"private": true` is set in
+  `wpm.json`. Remove it, or work from a different config.
+- `access must be either public or private`: `--access` got an invalid value.
+  Use `public` or `private`.
+- `tarball size is zero, cannot publish empty package`: `.wpmignore` excluded
+  everything. Loosen the patterns or check that the directory is what you think
+  it is.
+- `tarball size exceeds 134217728 bytes, refusing to continue`: the packed
+  archive went over 128 MiB. Add more entries to `.wpmignore`, remove binary
+  blobs from the source tree, or move large assets to a CDN.
+- Validation errors mentioning a specific field (`name`, `version`, `license`,
+  ...): fix the field in `wpm.json` and re-run. See `wpm init` for the rules.
 
 ## Examples
 
@@ -156,8 +151,8 @@ $ wpm publish --access public
 
 ### Publish under a pre-release tag
 
-The `latest` tag is left alone; `wpm install my-plugin@beta` will pick
-this build up.
+The `latest` tag is left alone; `wpm install my-plugin@beta` will pick this
+build up.
 
 ```console
 $ wpm publish --tag beta
@@ -165,8 +160,8 @@ $ wpm publish --tag beta
 
 ### Inspect packed files
 
-`--verbose` prints each file as it's added so you can confirm
-`.wpmignore` is doing its job.
+`--verbose` prints each file as it's added so you can confirm `.wpmignore` is
+doing its job.
 
 ```console
 $ wpm publish --verbose --dry-run

@@ -1,14 +1,14 @@
 # wpm ls
 
 <!---MARKER_GEN_START-->
+
 List installed dependencies
 
 ### Options
 
 | Name            | Type  | Default | Description                              |
-|:----------------|:------|:--------|:-----------------------------------------|
+| :-------------- | :---- | :------ | :--------------------------------------- |
 | `-d`, `--depth` | `int` | `-1`    | Max display depth of the dependency tree |
-
 
 <!---MARKER_GEN_END-->
 
@@ -17,20 +17,19 @@ List installed dependencies
 Print the project's resolved dependency tree as it currently sits in the
 lockfile.
 
-`wpm ls` reads `wpm.json` to find the root dependencies, then walks
-`wpm.lock` to expand each one into its sub-dependencies. The output is a
-plain text tree, sorted alphabetically at every level. It does not touch
-the network; if you want to know what's available upstream, use
-`wpm outdated` instead.
+`wpm ls` reads `wpm.json` to find the root dependencies, then walks `wpm.lock`
+to expand each one into its sub-dependencies. The output is a plain text tree,
+sorted alphabetically at every level. It does not touch the network; if you want
+to know what's available upstream, use `wpm outdated` instead.
 
-Both `wpm.json` and `wpm.lock` must exist. If you have never installed,
-run `wpm install` first.
+Both `wpm.json` and `wpm.lock` must exist. If you have never installed, run
+`wpm install` first.
 
 ### Reading the output
 
-The first line is the package name from `wpm.json` (or the directory
-name if `name` is unset). Each child line is one resolved package, drawn
-with standard tree connectors:
+The first line is the package name from `wpm.json` (or the directory name if
+`name` is unset). Each child line is one resolved package, drawn with standard
+tree connectors:
 
 ```
 my-plugin
@@ -39,25 +38,23 @@ my-plugin
 └── query-monitor@3.20.2
 ```
 
-The annotations on the right of each line tell you about the package's
-state:
+The annotations on the right of each line tell you about the package's state:
 
-| Annotation                  | Meaning                                                                                                  |
-|:----------------------------|:---------------------------------------------------------------------------------------------------------|
-| `name@<version>`            | Resolved version from the lockfile.                                                                      |
-| `(invalid: "<requested>")`  | Lockfile version does not satisfy the version requested in `wpm.json`. Refresh by running `wpm install`. |
-| `UNMET DEPENDENCY`          | Listed in `wpm.json` but missing from the lockfile. Run `wpm install`.                                   |
-| `(cycle)`                   | Cycle detected while expanding sub-dependencies; recursion stops here.                                   |
+| Annotation                 | Meaning                                                                                                  |
+| :------------------------- | :------------------------------------------------------------------------------------------------------- |
+| `name@<version>`           | Resolved version from the lockfile.                                                                      |
+| `(invalid: "<requested>")` | Lockfile version does not satisfy the version requested in `wpm.json`. Refresh by running `wpm install`. |
+| `UNMET DEPENDENCY`         | Listed in `wpm.json` but missing from the lockfile. Run `wpm install`.                                   |
+| `(cycle)`                  | Cycle detected while expanding sub-dependencies; recursion stops here.                                   |
 
-The `(invalid: ...)` marker is skipped when `wpm.json` pins the package
-to `*` (any version), since any resolved version satisfies it.
+The `(invalid: ...)` marker is skipped when `wpm.json` pins the package to `*`
+(any version), since any resolved version satisfies it.
 
 ### Limiting depth
 
 By default `wpm ls` expands the tree as deep as the lockfile goes. Pass
-`-d`/`--depth` to cap the depth. Depth `0` shows only direct
-dependencies; `1` adds their immediate children; and so on. The default,
-`-1`, means unlimited.
+`-d`/`--depth` to cap the depth. Depth `0` shows only direct dependencies; `1`
+adds their immediate children; and so on. The default, `-1`, means unlimited.
 
 ### Comparison with related commands
 
@@ -67,15 +64,14 @@ dependencies; `1` adds their immediate children; and so on. The default,
 
 ### Troubleshooting
 
-- `no wpm.json found, so nothing to list`: run the command from the
-  project root, or run `wpm init` first.
-- `no wpm.lock found, you need to run 'wpm install' first`: the
-  lockfile is missing. Run `wpm install` to generate it.
+- `no wpm.json found, so nothing to list`: run the command from the project
+  root, or run `wpm init` first.
+- `no wpm.lock found, you need to run 'wpm install' first`: the lockfile is
+  missing. Run `wpm install` to generate it.
 - `no dependencies found in wpm.json`: `wpm.json` declares neither
-  `dependencies` nor `devDependencies`. Add some, or you have nothing
-  to list.
-- `UNMET DEPENDENCY` lines appear after editing `wpm.json` by hand
-  without re-running install. Run `wpm install`.
+  `dependencies` nor `devDependencies`. Add some, or you have nothing to list.
+- `UNMET DEPENDENCY` lines appear after editing `wpm.json` by hand without
+  re-running install. Run `wpm install`.
 
 ## Examples
 

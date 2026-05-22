@@ -1,7 +1,6 @@
 # Writing wpm docs
 
-Every command in `cli/command/` has a matching reference file in
-`docs/cli/`.
+Every command in `cli/command/` has a matching reference file in `docs/cli/`.
 
 Nested commands use underscores:
 
@@ -169,5 +168,5 @@ Unlike CLI reference docs:
 - there is no regeneration workflow
 - content is edited entirely by hand
 
-Use these directories for conceptual documentation, specifications, guides,
-and other non-command reference material.
+Use these directories for conceptual documentation, specifications, guides, and
+other non-command reference material.
