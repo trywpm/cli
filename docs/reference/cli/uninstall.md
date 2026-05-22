@@ -30,10 +30,10 @@ The command requires at least one package name. It does not match by pattern.
 `wpm remove` and `wpm rm` are aliases. They behave identically and are handy
 when "uninstall" feels too long or "remove" reads better in your shell history.
 
-### What actually happens on disk
+### What happens on disk
 
-Under the hood, removing a package is the same operation as installing with that
-package missing from `wpm.json`:
+Removing a package is the same operation as installing with that package missing
+from `wpm.json`:
 
 1. Acquire the workspace lock at the project's content directory so two wpm
    processes do not fight.

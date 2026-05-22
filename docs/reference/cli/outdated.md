@@ -17,9 +17,12 @@ fetches the `latest` dist tag from the registry, compares the resolved version
 to the lockfile, and lists anything that's behind. Up to 16 packages are checked
 in parallel.
 
-This command never modifies your project. It only reads. To actually upgrade,
-edit the version in `wpm.json` (or pass `pkg@version` to `wpm install`) and
-re-run `wpm install`.
+`wpm outdated` only reads. It never changes your project. To upgrade a flagged
+package, install it again at the new version:
+
+```console
+$ wpm install akismet@5.4.0
+```
 
 ### Reading the output
 

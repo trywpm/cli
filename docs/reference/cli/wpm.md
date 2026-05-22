@@ -41,9 +41,8 @@ Package Manager for WordPress ecosystem
 > Significant changes are called out in release notes.
 
 `wpm` is a package manager for the WordPress ecosystem. It treats plugins,
-themes, and must-use plugins as versioned packages that you can install, update,
-publish, and depend on, the same way you would with npm or Composer in their
-respective ecosystems.
+themes, and must-use plugins as versioned packages you can install, publish, and
+depend on. If you've used npm or Composer, the model will feel familiar.
 
 A wpm project is any directory that contains a `wpm.json` manifest. Most
 commands run against the current directory and produce or consume two files at

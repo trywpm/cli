@@ -12,9 +12,9 @@ publishing entirely. See [Registry concepts](../fundamentals/registry.md).
 
 ## Auth token
 
-The opaque string the registry issues to identify you. wpm sends it on every
-authenticated request. Stored in `~/.wpm/config.json` after `wpm auth login`.
-Equivalent to a password; treat it accordingly. See
+A long string of letters and numbers the registry issues to identify you. wpm
+sends it on every authenticated request. Stored in `~/.wpm/config.json` after
+`wpm auth login`. Treat it like a password. See
 [Authentication](../guides/authentication.md).
 
 ## Conflict resolution

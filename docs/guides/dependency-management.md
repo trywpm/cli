@@ -101,9 +101,9 @@ $ wpm install akismet@latest
 
 <!-- prettier-ignore -->
 > [!NOTE]
-> wpm uses exact versions, not ranges. There is no `wpm update`
-> command. Every upgrade is an explicit choice you make. See
-> [Dependencies](../fundamentals/dependencies.md) for the reasoning.
+> wpm uses exact versions, not ranges. Every upgrade is an explicit choice
+> you make. See [Dependencies](../fundamentals/dependencies.md) for the
+> reasoning.
 
 ## Inspecting the tree
 

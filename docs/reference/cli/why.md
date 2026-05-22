@@ -10,23 +10,22 @@ Show why a package is installed
 
 ## Description
 
-Explain which chain of dependencies pulled a specific package into the project.
+Show which chain of dependencies pulled a specific package into your project.
 
 `wpm why <package>` traces backwards through the lockfile from the target
-package to the root of `wpm.json`. It prints every distinct chain it finds. Use
-it when you're surprised to see something in `wpm ls` and want to know which
-root dependency is responsible.
+package to the root of `wpm.json`, then prints every distinct chain it finds.
+Use it when you spot something in `wpm ls` and want to know which root
+dependency is responsible.
 
-The command needs exactly one package name. It does not contact the registry;
-everything is computed from `wpm.json` and `wpm.lock`. The target must already
-exist in `wpm.lock`. If it doesn't, you probably need to run `wpm install`
-first.
+The command needs exactly one package name. It works entirely from `wpm.json`
+and `wpm.lock`, never the registry. The target must already exist in `wpm.lock`;
+if it doesn't, you probably need to run `wpm install` first.
 
 ### Reading the output
 
-Each chain is rendered top-down, starting at the project root and ending at the
-package you asked about. Versions are pulled from `wpm.lock`. The root node
-shows whether the entry sits in `dependencies` or `devDependencies`:
+wpm prints each chain top-down, starting at the project root and ending at the
+package you asked about. Versions come from `wpm.lock`. The root node shows
+whether the entry sits in `dependencies` or `devDependencies`:
 
 ```
 my-plugin (dependencies)
