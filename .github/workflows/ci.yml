@@ -113,8 +113,10 @@ jobs:
 
       - name: s3 upload
         if: ${{ github.ref_type == 'branch' && github.actor != 'dependabot[bot]' }}
-        run: aws s3 cp build/ s3://wpm-cli-builds/${{ github.event.number && github.event.number != null && github.event.number || 'latest' }}/ --exclude "*" --include "wpm-*" --recursive --endpoint-url ${{ secrets.S3_ENDPOINT_URL }} --region auto --checksum-algorithm CRC32
+        run: aws s3 cp build/ "s3://wpm-cli-builds/${UPLOAD_PATH}/" --exclude "*" --include "wpm-*" --recursive --endpoint-url "$S3_ENDPOINT" --region auto --checksum-algorithm CRC32
         env:
+          S3_ENDPOINT: ${{ secrets.S3_ENDPOINT_URL }}
+          UPLOAD_PATH: ${{ github.event.number || 'latest' }}
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
@@ -141,6 +143,7 @@ jobs:
         id: comment-body
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 #v9.0.0
         env:
+          PR_NUMBER: ${{ github.event.number }}
           PLATFORMS: ${{ needs.prepare.outputs.platforms }}
         with:
           script: |
@@ -148,7 +151,7 @@ jobs:
             const builds = platforms.map((platform) => {
               const platformPair = platform.split('/')
               const buildPath = `wpm-${platformPair[0]}-${platformPair[1]}${platformPair[2] ? `-v${platformPair[2]}` : ''}`
-              const buildUrl = `https://pub-bea4f3d05c4f49e0b54ccf1dad0da103.r2.dev/${{ github.event.number }}/${buildPath}${platformPair[0] === 'windows' ? '.exe' : ''}`
+              const buildUrl = `https://pub-bea4f3d05c4f49e0b54ccf1dad0da103.r2.dev/${process.env.PR_NUMBER}/${buildPath}${platformPair[0] === 'windows' ? '.exe' : ''}`
               const spec = `${platformPair[0]}/${platformPair[1]}${platformPair[2] ? `/${platformPair[2]}` : ''}`
               return `- \`${spec}\` - [\`build\`](${buildUrl})`
             }).join('\n')
