@@ -8,5 +8,5 @@ mkdir -p ./docs/yaml
 
 (
 	set -x
-	go run ./cmd/docgen/docgen.go --format yaml --source ./docs/cli --target ./docs/yaml
+	go run ./cmd/docgen/docgen.go --format yaml --source ./docs/reference/cli --target ./docs/yaml
 )
