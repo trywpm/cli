@@ -6,5 +6,5 @@ set -eu
 
 (
 	set -x
-	go run ./cmd/docgen/docgen.go --format md --source ./docs/cli --target ./docs/cli
+	go run ./cmd/docgen/docgen.go --format md --source ./docs/reference/cli --target ./docs/reference/cli
 )
