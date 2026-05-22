@@ -32,7 +32,7 @@ irm https://wpm.so/install.ps1 | iex
 ```
 
 For Docker, `go install`, source builds, and shell completions, see the
-[installation guide](getting-started/installation.md).
+[installation guide](installation.md).
 
 After installation, verify that wpm is available on your system path:
 
@@ -68,8 +68,8 @@ wpm ls
 
 Continue with:
 
-- [Installation](getting-started/installation.md)
-- [First project](getting-started/first-project.md)
+- [Installation](installation.md)
+- [First project](first-project.md)
 
 ## Learn wpm
 
@@ -77,25 +77,25 @@ Continue with:
 
 Learn how the wpm ecosystem works:
 
-- [Dependencies](fundamentals/dependencies.md)
-- [`wpm.json`](fundamentals/wpm-json.md)
-- [`wpm.lock`](fundamentals/wpm-lock.md)
-- [Runtime compatibility](fundamentals/runtime.md)
-- [Package types](fundamentals/package-types.md)
-- [Registry](fundamentals/registry.md)
+- [Dependencies](../fundamentals/dependencies.md)
+- [`wpm.json`](../fundamentals/wpm-json.md)
+- [`wpm.lock`](../fundamentals/wpm-lock.md)
+- [Runtime compatibility](../fundamentals/runtime.md)
+- [Package types](../fundamentals/package-types.md)
+- [Registry](../fundamentals/registry.md)
 
 ### Guides
 
 Common workflows and real-world usage:
 
-- [Authentication](guides/authentication.md)
-- [Publishing packages](guides/publishing.md)
-- [CI/CD](guides/ci.md)
+- [Authentication](../guides/authentication.md)
+- [Publishing packages](../guides/publishing.md)
+- [CI/CD](../guides/ci.md)
 
 ### Reference
 
-- [CLI reference](reference/cli/wpm.md)
-- [Glossary](reference/glossary.md)
+- [CLI reference](../reference/cli/wpm.md)
+- [Glossary](../reference/glossary.md)
 
 ## Community
 
