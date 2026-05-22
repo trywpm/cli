@@ -7,6 +7,12 @@ registry powered by Cloudflare Workers for fast installs around the world.
 
 wpm makes WordPress dependencies reproducible, shareable, and easy to manage.
 
+<!-- prettier-ignore -->
+> [!IMPORTANT]
+> wpm is in active, early development. Expect breaking changes to CLI
+> flags and to the `wpm.lock` format before we reach a stable 1.0
+> release. Significant changes are called out in release notes.
+
 ## Why wpm?
 
 - Built for WordPress out of the box. No extra configuration required.
@@ -16,6 +22,9 @@ wpm makes WordPress dependencies reproducible, shareable, and easy to manage.
 - Built-in package integrity and supply chain security checks.
 - Fast installs and reliable caching.
 - Fully open source.
+
+For the longer rationale, a concrete comparison with Composer, and the design
+choices behind wpm, see [Why wpm](why-wpm.md).
 
 ## Quick install
 
@@ -68,6 +77,7 @@ wpm ls
 
 Continue with:
 
+- [Why wpm](why-wpm.md)
 - [Installation](installation.md)
 - [First project](first-project.md)
 
