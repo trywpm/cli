@@ -1,10 +1,12 @@
 # wpm outdated
 
+<!-- prettier-ignore-start -->
 <!---MARKER_GEN_START-->
-
 Check for outdated dependencies
 
+
 <!---MARKER_GEN_END-->
+<!-- prettier-ignore-end -->
 
 ## Description
 

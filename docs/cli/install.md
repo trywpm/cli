@@ -1,7 +1,7 @@
 # wpm install
 
+<!-- prettier-ignore-start -->
 <!---MARKER_GEN_START-->
-
 Install project dependencies and add new packages
 
 ### Aliases
@@ -11,7 +11,7 @@ Install project dependencies and add new packages
 ### Options
 
 | Name                    | Type   | Default | Description                                                    |
-| :---------------------- | :----- | :------ | :------------------------------------------------------------- |
+|:------------------------|:-------|:--------|:---------------------------------------------------------------|
 | `--dry-run`             | `bool` |         | Do not write anything to disk                                  |
 | `--ignore-scripts`      | `bool` |         | Do not run lifecycle scripts                                   |
 | `--network-concurrency` | `int`  | `16`    | Number of concurrent network requests when installing packages |
@@ -19,7 +19,9 @@ Install project dependencies and add new packages
 | `-D`, `--save-dev`      | `bool` |         | Install package as a dev dependency                            |
 | `-P`, `--save-prod`     | `bool` |         | Install package as a production dependency (default)           |
 
+
 <!---MARKER_GEN_END-->
+<!-- prettier-ignore-end -->
 
 ## Description
 

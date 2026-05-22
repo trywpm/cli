@@ -1,10 +1,12 @@
 # wpm why
 
+<!-- prettier-ignore-start -->
 <!---MARKER_GEN_START-->
-
 Show why a package is installed
 
+
 <!---MARKER_GEN_END-->
+<!-- prettier-ignore-end -->
 
 ## Description
 

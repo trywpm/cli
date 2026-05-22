@@ -1,10 +1,12 @@
 # wpm whoami
 
+<!-- prettier-ignore-start -->
 <!---MARKER_GEN_START-->
-
 Display the current user
 
+
 <!---MARKER_GEN_END-->
+<!-- prettier-ignore-end -->
 
 ## Description
 

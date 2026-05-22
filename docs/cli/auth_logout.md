@@ -1,10 +1,12 @@
 # wpm auth logout
 
+<!-- prettier-ignore-start -->
 <!---MARKER_GEN_START-->
-
 Log out from the wpm registry
 
+
 <!---MARKER_GEN_END-->
+<!-- prettier-ignore-end -->
 
 ## Description
 
