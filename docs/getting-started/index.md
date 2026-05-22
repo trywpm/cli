@@ -7,6 +7,17 @@ for the first four steps.
 If wpm is not on your machine yet, follow the
 [installation guide](../installation/index.md) first.
 
+## Prerequisites
+
+- wpm installed and on your `PATH`. Confirm with `wpm --version`. If you haven't
+  installed yet, follow the [installation guide](../installation/index.md).
+- A shell. Examples use bash; zsh, fish, and PowerShell all work.
+- A directory to scratch in.
+
+You don't need a WordPress install for this walkthrough. wpm operates on the
+file tree; a running WordPress is only needed when you actually want to use the
+installed plugins.
+
 ## What you'll build
 
 A small WordPress plugin called `my-first-plugin` with two dependencies declared

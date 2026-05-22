@@ -125,13 +125,13 @@ See the [`wpm install`](../cli/install.md) reference for the full output format.
 
 ## Sharing across the tree
 
-`wpm` resolves a flat dependency tree. There is no per-package nested
-`node_modules`-style directory. Two packages that depend on the same library end
-up sharing a single copy on disk. That copy is whatever the resolver settled on
-(your root pin if any, otherwise the version the resolver visited first).
+wpm keeps one copy of each package per project, shared across everything that
+depends on it. Two packages that need the same library end up using the same
+copy on disk; there is no per-dependency private copy.
 
-This is part of why the resolver is strict about conflicts: there is no fallback
-to private copies.
+The shared copy is whichever version the resolver settled on: your root pin if
+any, otherwise the version the resolver visited first. This is why the resolver
+is strict about conflicts; there is no fallback to a package-specific copy.
 
 ## Related
 

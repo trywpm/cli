@@ -76,8 +76,8 @@ way around) without changing anything else.
 ### How resolution works
 
 wpm reads `wpm.json` (root direct dependencies) and `wpm.lock` (a frozen
-snapshot of the previous resolution), then walks the dependency graph
-breadth-first:
+snapshot of the previous resolution), then expands the dependency graph one
+level at a time, starting from your direct dependencies:
 
 1. Seed a queue with all root dependencies and dev dependencies.
 2. For each request, prefer the lockfile entry when its version matches.

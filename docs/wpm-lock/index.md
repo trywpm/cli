@@ -113,13 +113,6 @@ When you see this, upgrade wpm before continuing. A team mate's newer wpm
 version produced the lockfile; running with an older version risks losing fields
 the older format does not understand.
 
-## Indentation
-
-`wpm.lock` is rewritten using the same indentation style as `wpm.json` in the
-same project. The default is two spaces. Indentation is detected from the
-existing file when it's read, so manual reformatting is preserved across
-rewrites until the file is fully regenerated.
-
 ## Hand-editing
 
 > [!CAUTION] Never edit `wpm.lock` by hand in normal use. Use `wpm install` to

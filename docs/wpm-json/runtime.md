@@ -7,8 +7,16 @@
 - **`config.runtime`**: the runtime versions YOU ARE DEVELOPING AGAINST. "I'm
   testing this against WordPress 6.9 and PHP 8.2."
 
-They look similar and they cooperate, but they answer different questions. This
-page covers both.
+They look similar and they cooperate, but they answer different questions.
+Here's the distinction at a glance:
+
+| Field            | Lives in   | Answers...                                  | Format                   |
+| :--------------- | :--------- | :------------------------------------------ | :----------------------- |
+| `requires`       | `wpm.json` | "What does my package need from the host?"  | SemVer constraint string |
+| `config.runtime` | `wpm.json` | "What am I developing and testing against?" | Concrete SemVer version  |
+
+The rest of this page covers each field in detail and how they cooperate during
+`wpm install`.
 
 ## `requires`: what your package needs
 
@@ -115,11 +123,6 @@ Two things are happening:
   `akismet@5.3.1` declares `requires.wp: ">=6.5"`, the check passes (6.9
   satisfies it). If it declares `requires.php: ">=8.3"`, install fails (8.2
   doesn't satisfy it).
-
-In short:
-
-- `requires` describes what you produce.
-- `config.runtime` describes what you produce against.
 
 ## When to opt in to strict mode
 

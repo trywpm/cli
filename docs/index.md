@@ -38,10 +38,10 @@ and source builds.
 
 ### New here
 
-- **[Install wpm](installation/index.md)** in a single command, with shell
+- **[Install wpm](installation/index.md)**: a single-command install with shell
   completion set up for you.
-- **[Getting started](getting-started/index.md)** walks through a complete
-  project, from scaffold to your first published version, in about ten minutes.
+- **[Getting started](getting-started/index.md)**: a complete project, from
+  scaffold to your first published version, in about ten minutes.
 
 ### Reference
 
@@ -66,6 +66,8 @@ and source builds.
 
 ### Guides
 
+- **[Publishing](guides/publishing.md)**: versioning, dist tags, and the release
+  lifecycle.
 - **[CI/CD](guides/ci.md)**: recipes for GitHub Actions, GitLab, and Docker
   builds.
 

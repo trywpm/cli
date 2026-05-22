@@ -150,10 +150,9 @@ checked against your declared runtime; mismatches fail the install. See
 
 ## SemVer
 
-Semantic Versioning. The `X.Y.Z` versioning scheme wpm uses for package
-versions. Version specifiers in `dependencies` must be strict SemVer or `*`;
-constraint strings in `requires` accept the full SemVer constraint syntax
-(ranges, carets, tildes).
+[Semantic Versioning](https://semver.org/) (`X.Y.Z`). wpm requires strict SemVer
+for `version` and for entries in `dependencies` (or `*`). Range syntax (`^1.0`,
+`~1.2`, `>=6.0 <7.0`) is only allowed in `requires.wp` and `requires.php`.
 
 ## Tarball
 

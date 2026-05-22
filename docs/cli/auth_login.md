@@ -17,9 +17,9 @@ Log in to the wpm registry
 Authenticate to the wpm registry and persist the credentials locally so other
 commands can reuse them.
 
-`wpm auth login` validates the token by calling the registry's identity
-endpoint. On success it writes two fields to your config file
-(`~/.wpm/config.json` by default):
+`wpm auth login` validates the token with the registry, then stores it locally.
+On success it writes two fields to your config file (`~/.wpm/config.json` by
+default):
 
 - `authToken`: the token you supplied, stored base64-encoded
 - `defaultUser`: the username the registry resolved the token to

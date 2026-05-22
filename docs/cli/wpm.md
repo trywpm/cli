@@ -135,6 +135,7 @@ when the first signal is caught and graceful shutdown is taking too long.
 
 - New to wpm? Start with the [getting started](../getting-started/index.md)
   walkthrough.
+- Releasing a package? See the [publishing guide](../guides/publishing.md).
 - Setting up CI? See the [CI/CD guide](../guides/ci.md).
 - File-format references: [`wpm.json`](../wpm-json/index.md),
   [`wpm.lock`](../wpm-lock/index.md), and [`.wpmignore`](../wpmignore/index.md).
@@ -183,20 +184,5 @@ $ CI=true NO_COLOR=1 wpm install
 
 ### First five minutes with wpm
 
-```console
-$ wpm init -y --type plugin
-config created at /work/awesome-plugin/wpm.json
-
-$ wpm install akismet hello-dolly@1.7.2
-wpm install v0.1.0
-
-+ akismet 5.3.1
-+ hello-dolly 1.7.2
-
-2 packages installed
-
-$ wpm ls
-awesome-plugin
-├── akismet@5.3.1
-└── hello-dolly@1.7.2
-```
+For a full walkthrough from scaffold to first publish, see
+[Getting started](../getting-started/index.md).
