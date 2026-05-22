@@ -99,16 +99,27 @@ If you want to remove a package from `wpm.json` but keep the extracted files on
 disk, edit the file directly and skip running install. `wpm install` will
 reconcile the disk on its next run, so that state is temporary.
 
-## Limits
+## Limits when you publish
 
-Each map is capped at 16 entries. If you hit this limit:
+The dependency maps have a hard cap of **16 entries each** when wpm validates
+your package for publishing. That cap doesn't apply to local WordPress projects.
+It only kicks in for packages headed to the registry.
 
-- Look for accidental duplicates or per-environment packages that should be
-  conditional, not committed.
-- Consider whether some "dependencies" are actually transitive and could be
-  removed (wpm resolves the full tree from the lockfile).
-- If you still need more, split the package into smaller packages with their own
-  manifests.
+The reason: a reusable plugin or theme that declares more than 16 direct
+dependencies is almost always doing something it shouldn't. The limit is a
+guardrail to keep distributable packages small and focused.
+
+If you hit it while preparing to publish:
+
+- Look for accidental duplicates or per-environment packages that don't need to
+  ship.
+- Check whether some entries are actually transitive and don't need to be listed
+  directly.
+- If you still need more, your package is probably better split into smaller
+  pieces with their own manifests.
+
+Local WordPress projects can declare as many dependencies as they need.
+`wpm install` doesn't check the count.
 
 ## Versions, tags, and the resolver
 

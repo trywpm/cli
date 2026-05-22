@@ -94,15 +94,16 @@ wpm rejects ASCII control characters and a few look-alike Unicode code points
 
 ### Dependencies
 
-| Field             | Type                   | Notes                                                                                    |
-| :---------------- | :--------------------- | :--------------------------------------------------------------------------------------- |
-| `dependencies`    | object<string, string> | Production dependencies. Installed by default. Up to 16 entries.                         |
-| `devDependencies` | object<string, string> | Development dependencies. Skipped when `wpm install --no-dev` is used. Up to 16 entries. |
+| Field             | Type                   | Notes                                                                  |
+| :---------------- | :--------------------- | :--------------------------------------------------------------------- |
+| `dependencies`    | object<string, string> | Production dependencies. Installed by default.                         |
+| `devDependencies` | object<string, string> | Development dependencies. Skipped when `wpm install --no-dev` is used. |
 
 Each key must satisfy the package name rules. Each value must be strict SemVer
-or `*`. See [Dependencies](dependencies.md) for the full behavior, including how
-`wpm install`, `wpm uninstall`, and the conflict resolver interact with these
-maps.
+or `*`. When you publish a package, wpm caps each map at 16 entries as a
+guardrail; local projects have no such cap. See [Dependencies](dependencies.md)
+for the full behavior, including the publish-time limit and how `wpm install`,
+`wpm uninstall`, and the conflict resolver interact with these maps.
 
 ### Compatibility
 
