@@ -1,43 +1,104 @@
-# Overview
+# Welcome to wpm
 
-wpm is a package manager for WordPress plugins and themes. It lets you declare
-what your project needs, install it reproducibly, and publish your own plugins
-or themes to a registry.
+wpm is an open source package manager for WordPress plugins and themes.
 
-If you've used npm or Composer, the model will feel familiar.
+It's built in Go for performance and reliability, with a globally distributed
+registry powered by Cloudflare Workers for fast installs around the world.
 
-## What you'll work with
+wpm makes WordPress dependencies reproducible, shareable, and easy to manage.
 
-Every wpm project revolves around these files:
+## Why wpm?
 
-| File          | Who writes it  | Purpose                                                                            |
-| :------------ | :------------- | :--------------------------------------------------------------------------------- |
-| `wpm.json`    | You            | Lists your package's name, version, type, dependencies, and runtime needs.         |
-| `wpm.lock`    | wpm            | Records the exact versions wpm installed. Commit it to version control.            |
-| `wp-content/` | wpm            | Where wpm extracts plugins, themes, and mu-plugins. WordPress reads from here too. |
-| `.wpmignore`  | You (optional) | Lists files `wpm publish` should leave out of the published tarball.               |
+- Built for WordPress out of the box. No extra configuration required.
+- Plugins, themes, and mu-plugins are first-class package types.
+- Dependency resolution works automatically.
+- Reproducible installs with `wpm.lock`.
+- Built-in package integrity and supply chain security checks.
+- Fast installs and reliable caching.
+- Fully open source.
 
-A fifth file, `~/.wpm/config.json`, lives outside your project. wpm writes your
-auth token there after `wpm auth login`.
+## Quick install
 
-## The loop
+### Linux and macOS
 
-The basic workflow looks like this:
+```bash
+curl -fsSL https://wpm.so/install | bash
+```
 
-1. **Declare** what you need in `wpm.json`.
-2. **Install** with `wpm install`. wpm fetches the packages from the registry,
-   extracts them into `wp-content/`, and records the exact versions in
-   `wpm.lock`.
-3. **Commit** both `wpm.json` and `wpm.lock` to version control. Anyone else who
-   clones your project and runs `wpm install` gets the same set of files.
-4. **Publish** your own plugins or themes with `wpm publish` when you're ready
-   to share.
+### Windows (PowerShell)
 
-## Where to go next
+```powershell
+irm https://wpm.so/install.ps1 | iex
+```
 
-- **[Install wpm](installation.md)** on your machine.
-- **[First project](first-project.md)**: a ten-minute walkthrough from empty
-  directory to a working project with dependencies.
-- **[`wpm.json` reference](../fundamentals/wpm-json.md)**: the full manifest
-  schema.
-- **[CLI reference](../reference/cli/wpm.md)**: every command and flag.
+For Docker, `go install`, source builds, and shell completions, see the
+[installation guide](getting-started/installation.md).
+
+After installation, verify that wpm is available on your system path:
+
+```bash
+wpm --version
+```
+
+## First steps
+
+Create a new project:
+
+```bash
+mkdir my-wp-project
+cd my-wp-project
+
+wpm init -y
+```
+
+Install dependencies:
+
+```bash
+wpm install akismet hello-dolly
+```
+
+wpm downloads the packages into `wp-content/plugins/` and records the exact
+versions in `wpm.lock`.
+
+Inspect the dependency tree:
+
+```bash
+wpm ls
+```
+
+Continue with:
+
+- [Installation](getting-started/installation.md)
+- [First project](getting-started/first-project.md)
+
+## Learn wpm
+
+### Fundamentals
+
+Learn how the wpm ecosystem works:
+
+- [Dependencies](fundamentals/dependencies.md)
+- [`wpm.json`](fundamentals/wpm-json.md)
+- [`wpm.lock`](fundamentals/wpm-lock.md)
+- [Runtime compatibility](fundamentals/runtime.md)
+- [Package types](fundamentals/package-types.md)
+- [Registry](fundamentals/registry.md)
+
+### Guides
+
+Common workflows and real-world usage:
+
+- [Authentication](guides/authentication.md)
+- [Publishing packages](guides/publishing.md)
+- [CI/CD](guides/ci.md)
+
+### Reference
+
+- [CLI reference](reference/cli/wpm.md)
+- [Glossary](reference/glossary.md)
+
+## Community
+
+- GitHub: https://github.com/trywpm/cli
+- Issues: https://github.com/trywpm/cli/issues
+- Discussions: https://github.com/trywpm/cli/discussions
