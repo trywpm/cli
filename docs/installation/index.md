@@ -88,6 +88,65 @@ onto your `PATH` to use it from anywhere:
 sudo mv wpm /usr/local/bin/wpm
 ```
 
+## Shell completion
+
+The install script for Linux and macOS, and the PowerShell installer for
+Windows, set up shell completion for you. There's nothing extra to do if you
+used one of them.
+
+What the installers do:
+
+- **Linux and macOS (`install.sh`)**: generates completion scripts under
+  `~/.wpm/completions/` for `bash`, `zsh`, and `fish`, then adds a one-line
+  `source` to your shell's startup file (`.bashrc`, `.zshrc`, or
+  `~/.config/fish/config.fish`). Open a new shell or `source` the file once to
+  pick the changes up.
+- **Windows (`install.ps1`)**: generates a `wpm.ps1` completion script under the
+  install directory and adds a load line to your PowerShell profile
+  (`$PROFILE`). Either run `. $PROFILE` once or open a new PowerShell window.
+
+### Windows: enable script execution
+
+> [!IMPORTANT] PowerShell blocks profile scripts by default on Windows. If
+> completion doesn't work after installing, your execution policy is the most
+> likely reason.
+
+Set the policy once per user with:
+
+```powershell
+Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
+```
+
+Then reopen PowerShell. `RemoteSigned` allows local scripts (including your
+profile) to run while still requiring signatures on scripts downloaded from the
+internet. Microsoft has the full reference at
+<https://learn.microsoft.com/powershell/module/microsoft.powershell.security/set-executionpolicy>.
+
+### Manual setup
+
+If you installed wpm a different way (`go install`, source build, Docker without
+the installers), wire completion up yourself. wpm can emit the right script for
+any supported shell:
+
+```sh
+wpm completion <bash|zsh|fish|powershell>
+```
+
+| Shell      | One-time setup                                                      |
+| :--------- | :------------------------------------------------------------------ | ------------------------------------------------ |
+| bash       | `wpm completion bash                                                | sudo tee /etc/bash_completion.d/wpm > /dev/null` |
+| zsh        | `wpm completion zsh > "${fpath[1]}/_wpm"` (with `compinit` enabled) |
+| fish       | `wpm completion fish > ~/.config/fish/completions/wpm.fish`         |
+| powershell | `wpm completion powershell                                          | Out-File -Encoding utf8 "$PROFILE.d\wpm.ps1"`    |
+
+For a one-off in the current session, source the output instead:
+
+```sh
+source <(wpm completion bash)
+```
+
+The same works for `zsh` and `fish` with the appropriate shell-source syntax.
+
 ## Verify the install
 
 After installing, confirm wpm is on your `PATH` and check its version:

@@ -31,6 +31,10 @@ Package Manager for WordPress ecosystem
 
 ## Description
 
+> [!IMPORTANT] wpm is in active development and pre-1.0. Expect occasional
+> breaking changes to CLI flags and to the `wpm.lock` format until 1.0.
+> Significant changes are called out in release notes.
+
 `wpm` is a package manager for the WordPress ecosystem. It treats plugins,
 themes, and must-use plugins as versioned packages that you can install, update,
 publish, and depend on, the same way you would with npm or Composer in their

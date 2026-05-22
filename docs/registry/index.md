@@ -78,7 +78,8 @@ publishing a new version with the desired `--access` value.
 
 ### `private: true` is not the same as `--access private`
 
-These two things use the same word but answer different questions.
+> [!IMPORTANT] These two settings share a word but produce opposite outcomes.
+> The table below makes the distinction explicit.
 
 | Setting            | Lives in           | Effect                                                                                                  |
 | :----------------- | :----------------- | :------------------------------------------------------------------------------------------------------ |

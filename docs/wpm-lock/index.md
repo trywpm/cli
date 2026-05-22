@@ -6,7 +6,8 @@ install reads this file before talking to the registry; when the requested
 versions still match what's on record, the install short-circuits the network
 and reuses the cached resolution.
 
-Commit `wpm.lock` to version control. Without it, installs are not reproducible.
+> [!IMPORTANT] Commit `wpm.lock` to version control. Without it, installs are
+> not reproducible across machines or CI runs.
 
 ## Lifecycle
 
@@ -121,8 +122,11 @@ rewrites until the file is fully regenerated.
 
 ## Hand-editing
 
-In normal use, never edit `wpm.lock` by hand. If you've gotten into a state
-where you think you need to:
+> [!CAUTION] Never edit `wpm.lock` by hand in normal use. Use `wpm install` to
+> regenerate it from `wpm.json`. Direct edits can desync the lockfile from
+> what's actually on disk and produce hard-to-diagnose install failures.
+
+If you've gotten into a state where you think you need to:
 
 - To reset the lockfile, delete it and run `wpm install`. wpm will rebuild it
   from scratch using `wpm.json` and the registry.

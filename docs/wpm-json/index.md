@@ -80,6 +80,14 @@ Validation fails for the entire manifest if any of these are missing or invalid.
 | `tags`        | string[] | Up to 5 entries; each 2 to 64 characters; duplicates rejected.                                         |
 | `team`        | string[] | Up to 100 entries; each 2 to 100 characters; duplicates rejected.                                      |
 
+`tags` are short keywords the registry uses for search and discovery. Pick words
+a consumer would type when looking for your package, like `seo`, `caching`, or
+`payments`. Tags are not categories; they're free-form.
+
+`team` lists the people or organizations responsible for the package, typically
+by username or display name. wpm populates this automatically from plugin and
+theme headers (`Author`, `Contributors`) when you run `wpm init --existing`.
+
 `tags` and `team` strings cannot contain ASCII control characters or a handful
 of look-alike Unicode code points (zero-width separators and similar). The same
 restriction applies to `description` and `license`.

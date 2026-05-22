@@ -137,6 +137,14 @@ Adjust the path if you've changed `config.content-dir`.
 
 ## Publish
 
+### Can I republish the same version?
+
+> [!CAUTION] A published version cannot be replaced. The registry rejects any
+> publish for a version that already exists, and yanked versions stay reserved.
+
+Bump the `version` field in `wpm.json` to a higher SemVer value and run
+`wpm publish` again.
+
 ### `package marked as private cannot be published`
 
 Your `wpm.json` has `"private": true`. This is a tripwire that prevents
