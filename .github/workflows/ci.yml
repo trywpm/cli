@@ -36,7 +36,9 @@ jobs:
           echo platforms=$(docker buildx bake binary-cross --print | jq -cr '.target."binary-cross".platforms') >> $GITHUB_OUTPUT
 
       - name: print platforms
-        run: echo ${{ steps.platforms.outputs.platforms }}
+        run: echo "$PLATFORMS"
+        env:
+          PLATFORMS: ${{ steps.platforms.outputs.platforms }}
 
   lint:
     runs-on: ubuntu-latest
@@ -81,8 +83,9 @@ jobs:
       - name: set platform pair
         id: platform
         run: |
-          platform=${{ matrix.platform }}
-          echo "pair=${platform//\//-}" >> $GITHUB_OUTPUT
+          echo "pair=${PLATFORM//\//-}" >> $GITHUB_OUTPUT
+        env:
+          PLATFORM: ${{ matrix.platform }}
 
       - name: setup qemu
         uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4.0.0
@@ -137,9 +140,11 @@ jobs:
       - name: comment body
         id: comment-body
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 #v9.0.0
+        env:
+          PLATFORMS: ${{ needs.prepare.outputs.platforms }}
         with:
           script: |
-            const platforms = JSON.parse(${{ toJson(needs.prepare.outputs.platforms) }})
+            const platforms = JSON.parse(process.env.PLATFORMS)
             const builds = platforms.map((platform) => {
               const platformPair = platform.split('/')
               const buildPath = `wpm-${platformPair[0]}-${platformPair[1]}${platformPair[2] ? `-v${platformPair[2]}` : ''}`
@@ -152,25 +157,30 @@ jobs:
       - name: create comment
         if: ${{ steps.find-existing-comment.outputs.result == 'null' }}
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 #v9.0.0
+        env:
+          COMMENT_BODY: ${{ steps.comment-body.outputs.result }}
         with:
           script: |
             github.rest.issues.createComment({
               repo: context.repo.repo,
               owner: context.repo.owner,
               issue_number: context.issue.number,
-              body: ${{ steps.comment-body.outputs.result }},
+              body: JSON.parse(process.env.COMMENT_BODY),
             });
 
       - name: update comment
         if: ${{ steps.find-existing-comment.outputs.result != 'null' }}
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 #v9.0.0
+        env:
+          COMMENT_ID: ${{ steps.find-existing-comment.outputs.result }}
+          COMMENT_BODY: ${{ steps.comment-body.outputs.result }}
         with:
           script: |
             github.rest.issues.updateComment({
               repo: context.repo.repo,
               owner: context.repo.owner,
-              body: ${{ steps.comment-body.outputs.result }},
-              comment_id: ${{ steps.find-existing-comment.outputs.result }},
+              body: JSON.parse(process.env.COMMENT_BODY),
+              comment_id: JSON.parse(process.env.COMMENT_ID),
             });
 
   release:
@@ -244,10 +254,12 @@ jobs:
 
       - name: upload release assets
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 #v9.0.0
+        env:
+          UPLOAD_URL: ${{ steps.draft-release.outputs.upload_url }}
         with:
           script: |
             const fs = require('fs');
-            let uploadUrl = '${{ steps.draft-release.outputs.upload_url }}';
+            let uploadUrl = process.env.UPLOAD_URL;
             const templateMarkerPos = uploadUrl.indexOf("{");
             if (templateMarkerPos !== -1) {
               uploadUrl = uploadUrl.substring(0, templateMarkerPos);
