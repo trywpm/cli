@@ -8,6 +8,8 @@ updates:
     labels:
       - 'go'
       - 'dependencies'
+    cooldown:
+      default-days: 7
 
   - package-ecosystem: github-actions
     directory: '/'
@@ -21,6 +23,8 @@ updates:
     labels:
       - 'dependencies'
       - 'github-actions'
+    cooldown:
+      default-days: 7
 
   - package-ecosystem: github-actions
     directory: '.github/actions/build-wpm'
@@ -34,3 +38,5 @@ updates:
     labels:
       - 'dependencies'
       - 'github-actions'
+    cooldown:
+      default-days: 7
