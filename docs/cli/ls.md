@@ -25,6 +25,11 @@ to know what's available upstream, use `wpm outdated` instead.
 Both `wpm.json` and `wpm.lock` must exist. If you have never installed, run
 `wpm install` first.
 
+> [!TIP] Run `wpm ls` before deploying to a live WordPress site. It shows the
+> exact plugin and theme versions you're about to ship, so there are no
+> surprises when the tree hits production. This is wpm's closest equivalent to a
+> release artifact for the dependency set.
+
 ### Reading the output
 
 The first line is the package name from `wpm.json` (or the directory name if

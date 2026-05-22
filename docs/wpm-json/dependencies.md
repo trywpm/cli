@@ -33,18 +33,33 @@ write.
 | `"*"`     | Any version. wpm resolves it to whatever the registry returns for the `latest` dist tag. |
 
 That's it. The dependency value does not accept SemVer ranges, carets, or
-tildes. Two reasons:
+tildes. This is a deliberate design choice, not a limitation we plan to remove.
 
-- wpm pins to exact versions for reproducibility. The version recorded in
-  `wpm.json` is the version that was actually resolved, not the request that
-  produced it.
+> [!IMPORTANT] WordPress plugins and themes are not pure libraries. They can
+> change database schema, write options, register cron jobs, and modify content.
+> A solver cannot tell whether a "compatible" upgrade is safe for _your_ site,
+> because that answer depends on runtime state the solver cannot see. You are
+> the only one who can make that call.
+
+So wpm refuses to let the resolver decide. Every dependency version is something
+you choose deliberately and record, and every install reproduces the exact tree
+you last reviewed.
+
+A few consequences of this rule:
+
+- The version recorded in `wpm.json` is the version the registry actually
+  resolved, not the specifier you typed. Asking for `akismet@latest` that the
+  registry returns as `5.3.1` records `"akismet": "5.3.1"` in `wpm.json`.
 - Ranges are reserved for `requires.wp` and `requires.php` (the compatibility
   constraints your package imposes on its host), not for dependency selection.
   See [Runtime compatibility](runtime.md).
+- Before deploying to a live site, verify the exact tree with `wpm ls`. That's
+  the closest thing wpm gives you to a release artifact for the dependency set;
+  it shows the resolved versions you are actually about to ship.
 
-If you need a range-style "newest in 1.x" effect, run `wpm install pkg@latest`
-whenever you want to refresh, or maintain the pin yourself when you want to
-upgrade.
+If you need a "newest in 1.x" effect, re-run `wpm install pkg@latest` when you
+want to refresh. The trigger stays explicit, and the new version becomes a
+deliberate change in your commit history.
 
 ## Production vs development
 
