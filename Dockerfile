@@ -1,10 +1,10 @@
-ARG GO_VERSION=1.25.4
+ARG GO_VERSION=1.26.3
 
-ARG ALPINE_VERSION=3.22
+ARG ALPINE_VERSION=3.23
 
 # XX_VERSION specifies the version of the xx utility to use.
 # It must be a valid tag in the docker.io/tonistiigi/xx image repository.
-ARG XX_VERSION=1.7.0
+ARG XX_VERSION=1.9.0
 
 # GOVERSIONINFO_VERSION is the version of GoVersionInfo to install.
 # It must be a valid tag from https://github.com/josephspurrier/goversioninfo

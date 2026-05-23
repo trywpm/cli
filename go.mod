@@ -1,6 +1,6 @@
 module go.wpm.so/cli
 
-go 1.25.0
+go 1.26.3
 
 require (
 	github.com/Masterminds/semver/v3 v3.5.0
