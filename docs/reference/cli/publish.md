@@ -95,7 +95,7 @@ or leave it at `private` for organization-only releases. Any value other than
 > `--access private` is not the same as `"private": true` in
 > `wpm.json`. `--access private` publishes the package with private visibility
 > on the registry. `"private": true` blocks publishing entirely. See
-> [wpm registry](../../fundamentals/registry.md) for the full distinction.
+> [wpm registry](/fundamentals/registry) for the full distinction.
 
 ### Republishing a version
 
