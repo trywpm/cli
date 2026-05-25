@@ -61,8 +61,7 @@ func runWhy(wpmCli command.Cli, targetPkg string) error {
 		return errors.New("no wpm.lock found. Run 'wpm install' first to generate a lockfile.")
 	}
 
-	_, exists := lock.Packages[targetPkg]
-	if !exists {
+	if _, exists := lock.Packages[targetPkg]; !exists {
 		return fmt.Errorf("package '%s' is not found in wpm.lock", targetPkg)
 	}
 
@@ -72,6 +71,24 @@ func runWhy(wpmCli command.Cli, targetPkg string) error {
 	}
 
 	colorize := wpmCli.Out().IsColorEnabled()
+	dependents := buildDependentsMap(config, lock, rootNode, colorize)
+	paths := findPathsToRoot(targetPkg, dependents)
+
+	if len(paths) == 0 {
+		wpmCli.Output().Prettyln(output.Text{
+			Plain: targetPkg + " is present in lockfile but has no apparent dependents (orphaned?).",
+			Fancy: aec.Bold.Apply(targetPkg) + " is present in lockfile but has no apparent dependents (orphaned?).",
+		})
+		return nil
+	}
+
+	printPaths(wpmCli, lock, paths)
+	return nil
+}
+
+// buildDependentsMap returns "name -> list of packages that depend on name". Root entries
+// for the project's dependencies and devDependencies use formatted display names.
+func buildDependentsMap(config *wpmjson.Config, lock *wpmlock.Lockfile, rootNode string, colorize bool) map[string][]string {
 	dependents := make(map[string][]string)
 	rootNodeIdDeps := getRootNodeID(rootNode, depsSuffix, colorize)
 	rootNodeIdDevDeps := getRootNodeID(rootNode, devDepsSuffix, colorize)
@@ -91,22 +108,15 @@ func runWhy(wpmCli command.Cli, targetPkg string) error {
 		if parentPkg.Dependencies == nil {
 			continue
 		}
-
 		for depName := range *parentPkg.Dependencies {
 			dependents[depName] = append(dependents[depName], parentName)
 		}
 	}
+	return dependents
+}
 
-	paths := findPathsToRoot(targetPkg, dependents)
-
-	if len(paths) == 0 {
-		wpmCli.Output().Prettyln(output.Text{
-			Plain: targetPkg + " is present in lockfile but has no apparent dependents (orphaned?).",
-			Fancy: aec.Bold.Apply(targetPkg) + " is present in lockfile but has no apparent dependents (orphaned?).",
-		})
-		return nil
-	}
-
+// printPaths renders each dependency chain from the target package up to a root entry.
+func printPaths(wpmCli command.Cli, lock *wpmlock.Lockfile, paths [][]string) {
 	for _, path := range paths {
 		indent := ""
 		for i := len(path) - 1; i >= 0; i-- {
@@ -119,23 +129,18 @@ func runWhy(wpmCli command.Cli, targetPkg string) error {
 				}
 			}
 
-			// If it's the last item, don't print the branch line
 			if i == len(path)-1 {
 				wpmCli.Out().WriteString(fmt.Sprintf("%s%s\n", indent, name))
 			} else {
 				wpmCli.Out().WriteString(fmt.Sprintf("%s└─ %s%s\n", indent, name, info))
 			}
 
-			// Increase indent for the next level
 			if i < len(path)-1 {
 				indent += "   "
 			}
 		}
-
 		wpmCli.Out().WriteString("\n")
 	}
-
-	return nil
 }
 
 // findPathsToRoot performs a BFS traversal backwards to find chains to the root

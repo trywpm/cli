@@ -41,49 +41,19 @@ func (t *Sanitizer) Transform(dst, src []byte, atEOF bool) (nDst, nSrc int, err 
 	}
 
 	for len(src) > 0 {
-		// When sanitizing JSON strings make sure that we have 6 bytes if available.
-		if t.JSON && len(src) < 6 && !atEOF {
-			err = transform.ErrShortSrc
-			return nDst, nSrc, err
+		r, size, decodeErr := decodeNextRune(t.JSON, src, atEOF)
+		if decodeErr != nil {
+			return nDst, nSrc, decodeErr
 		}
-		r, size := utf8.DecodeRune(src)
-		if r == utf8.RuneError && size < 2 {
-			if !atEOF {
-				err = transform.ErrShortSrc
-				return nDst, nSrc, err
-			} else {
-				err = errors.New("invalid UTF-8 string")
+
+		if repl, consumed, found := t.findReplacement(r, size, src); found {
+			if err = transfer(repl, src[:consumed]); err != nil {
 				return nDst, nSrc, err
 			}
+			continue
 		}
-		// Replace C0 and C1 control characters.
-		if unicode.IsControl(r) {
-			if repl, found := mapControlToCaret(r); found {
-				err = transfer(repl, src[:size])
-				if err != nil {
-					return nDst, nSrc, err
-				}
-				continue
-			}
-		}
-		// Replace JSON C0 and C1 control characters.
-		if t.JSON && len(src) >= 6 {
-			if repl, found := mapJSONControlToCaret(src[:6]); found {
-				if t.addEscape {
-					// Add an escape character when necessary to prevent creating
-					// invalid JSON with our replacements.
-					repl = append([]byte{'\\'}, repl...)
-					t.addEscape = false
-				}
-				err = transfer(repl, src[:6])
-				if err != nil {
-					return nDst, nSrc, err
-				}
-				continue
-			}
-		}
-		err = transfer(src[:size], src[:size])
-		if err != nil {
+
+		if err = transfer(src[:size], src[:size]); err != nil {
 			return nDst, nSrc, err
 		}
 		if t.JSON {
@@ -95,6 +65,44 @@ func (t *Sanitizer) Transform(dst, src []byte, atEOF bool) (nDst, nSrc int, err 
 		}
 	}
 	return nDst, nSrc, err
+}
+
+// decodeNextRune validates the JSON short-window invariant and decodes the next
+// rune, mapping decode failures to either ErrShortSrc or an "invalid UTF-8" error.
+func decodeNextRune(json bool, src []byte, atEOF bool) (rune, int, error) {
+	if json && len(src) < 6 && !atEOF {
+		return 0, 0, transform.ErrShortSrc
+	}
+	r, size := utf8.DecodeRune(src)
+	if r == utf8.RuneError && size < 2 {
+		if !atEOF {
+			return 0, 0, transform.ErrShortSrc
+		}
+		return 0, 0, errors.New("invalid UTF-8 string")
+	}
+	return r, size, nil
+}
+
+// findReplacement looks for either a C0/C1 control rune or its JSON-encoded
+// form at the start of src and returns the substitution plus the number of
+// source bytes it covers.
+func (t *Sanitizer) findReplacement(r rune, size int, src []byte) (repl []byte, consumed int, found bool) {
+	if unicode.IsControl(r) {
+		if rep, ok := mapControlToCaret(r); ok {
+			return rep, size, true
+		}
+	}
+	if t.JSON && len(src) >= 6 {
+		if rep, ok := mapJSONControlToCaret(src[:6]); ok {
+			if t.addEscape {
+				// Prepend an escape so the replacement doesn't produce invalid JSON.
+				rep = append([]byte{'\\'}, rep...)
+				t.addEscape = false
+			}
+			return rep, 6, true
+		}
+	}
+	return nil, 0, false
 }
 
 // Reset resets the state and allows the Sanitizer to be reused.

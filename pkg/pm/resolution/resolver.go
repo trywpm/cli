@@ -61,7 +61,7 @@ type fetchResult struct {
 
 func (r *Resolver) Resolve(ctx context.Context, progress ProgressReporter, w io.Writer) (map[string]Node, error) {
 	resolved := make(map[string]Node)
-	queue := make([]dependencyRequest, 0)
+	queue := r.seedQueue()
 
 	progress.StartProgressIndicator(w)
 	defer func() {
@@ -69,109 +69,128 @@ func (r *Resolver) Resolve(ctx context.Context, progress ProgressReporter, w io.
 		progress.StopProgressIndicator()
 	}()
 
-	// Seed the queue with root dependencies
-	if r.rootConfig.Dependencies != nil {
-		for name, version := range *r.rootConfig.Dependencies {
-			queue = append(queue, dependencyRequest{
-				name:      name,
-				version:   version,
-				requestor: "<root>",
-			})
-		}
-	}
-	if r.rootConfig.DevDependencies != nil {
-		for name, version := range *r.rootConfig.DevDependencies {
-			queue = append(queue, dependencyRequest{
-				name:      name,
-				version:   version,
-				requestor: "<root>",
-			})
-		}
-	}
-
 	for len(queue) > 0 {
-		uniqueRequests := make(map[string]dependencyRequest)
-		for _, req := range queue {
-			// If already resolved with the same version, skip
-			if exists, ok := resolved[req.name]; ok && exists.Version == req.version {
-				continue
-			}
+		uniqueRequests := dedupeRequests(queue, resolved)
+		queue = nil // clear queue for next iteration
 
-			uniqueRequests[req.name+"@"+req.version] = req
-		}
-
-		queue = nil // Clear queue for next iteration
-
-		results := make(chan fetchResult, len(uniqueRequests))
-		g, gtx := errgroup.WithContext(ctx)
-		g.SetLimit(16) // Limit concurrent fetches
-
-		count := 0
-		for _, req := range uniqueRequests {
-			count++
-
-			progress.Stream(w, fmt.Sprintf("  Resolving %s@%s [%d/%d]", req.name, req.version, count, len(uniqueRequests)))
-
-			g.Go(func() error {
-				manifest, err := r.fetchMetadata(gtx, req.name, req.version)
-				results <- fetchResult{req: req, manifest: manifest, err: err}
-				return nil
-			})
-		}
-
-		if err := g.Wait(); err != nil {
+		results, err := r.fetchAll(ctx, uniqueRequests, progress, w)
+		if err != nil {
 			return nil, err
 		}
-		close(results)
 
-		for res := range results {
-			if res.err != nil {
-				return nil, fmt.Errorf("failed to fetch metadata for %s@%s required by %s: %w", res.req.name, res.req.version, res.req.requestor, res.err)
+		for _, res := range results {
+			children, err := r.applyResult(res, resolved)
+			if err != nil {
+				return nil, err
 			}
-
-			// --- Conflict Resolution ---
-			if existing, ok := resolved[res.req.name]; ok {
-				if existing.Version == res.req.version {
-					continue // Same version already resolved
-				}
-
-				if err := r.resolveConflict(res.req, existing); err != nil {
-					return nil, err
-				}
-
-				continue
-			}
-
-			// -- Runtime Compatibility Check ---
-			if err := r.checkRuntimeCompatibility(res.manifest); err != nil {
-				return nil, fmt.Errorf(
-					"package %s@%s incompatible:\n"+
-						"  %w",
-					res.req.name, res.req.version, err,
-				)
-			}
-
-			// Add to resolved map
-			resolved[res.req.name] = Node{
-				Name:         res.manifest.Name,
-				Version:      res.manifest.Version,
-				Type:         res.manifest.Type,
-				Resolved:     "/" + res.manifest.Name + "/" + res.manifest.Version + ".tar.zst",
-				Digest:       res.manifest.Dist.Digest,
-				Bin:          res.manifest.Bin,
-				Dependencies: res.manifest.Dependencies,
-			}
-
-			// Enqueue child dependencies
-			if res.manifest.Dependencies != nil {
-				for name, version := range *res.manifest.Dependencies {
-					queue = append(queue, dependencyRequest{name, version, res.req.name})
-				}
-			}
+			queue = append(queue, children...)
 		}
 	}
 
 	return resolved, nil
+}
+
+func (r *Resolver) seedQueue() []dependencyRequest {
+	var queue []dependencyRequest
+	if r.rootConfig.Dependencies != nil {
+		for name, version := range *r.rootConfig.Dependencies {
+			queue = append(queue, dependencyRequest{name: name, version: version, requestor: "<root>"})
+		}
+	}
+	if r.rootConfig.DevDependencies != nil {
+		for name, version := range *r.rootConfig.DevDependencies {
+			queue = append(queue, dependencyRequest{name: name, version: version, requestor: "<root>"})
+		}
+	}
+	return queue
+}
+
+// dedupeRequests drops requests already satisfied at the same version
+// and folds identical name@version pairs in this iteration into one entry.
+func dedupeRequests(queue []dependencyRequest, resolved map[string]Node) map[string]dependencyRequest {
+	uniqueRequests := make(map[string]dependencyRequest)
+	for _, req := range queue {
+		if exists, ok := resolved[req.name]; ok && exists.Version == req.version {
+			continue
+		}
+		uniqueRequests[req.name+"@"+req.version] = req
+	}
+	return uniqueRequests
+}
+
+// fetchAll fetches metadata for every request concurrently and returns the collected results.
+func (r *Resolver) fetchAll(ctx context.Context, requests map[string]dependencyRequest, progress ProgressReporter, w io.Writer) ([]fetchResult, error) {
+	results := make(chan fetchResult, len(requests))
+	g, gtx := errgroup.WithContext(ctx)
+	g.SetLimit(16)
+
+	count := 0
+	for _, req := range requests {
+		count++
+		progress.Stream(w, fmt.Sprintf("  Resolving %s@%s [%d/%d]", req.name, req.version, count, len(requests)))
+
+		g.Go(func() error {
+			manifest, err := r.fetchMetadata(gtx, req.name, req.version)
+			results <- fetchResult{req: req, manifest: manifest, err: err}
+			return nil
+		})
+	}
+
+	if err := g.Wait(); err != nil {
+		return nil, err
+	}
+	close(results)
+
+	collected := make([]fetchResult, 0, len(requests))
+	for res := range results {
+		collected = append(collected, res)
+	}
+	return collected, nil
+}
+
+// applyResult validates and registers a single fetch result into `resolved`,
+// returning any newly discovered child dependencies to enqueue.
+func (r *Resolver) applyResult(res fetchResult, resolved map[string]Node) ([]dependencyRequest, error) {
+	if res.err != nil {
+		return nil, fmt.Errorf("failed to fetch metadata for %s@%s required by %s: %w", res.req.name, res.req.version, res.req.requestor, res.err)
+	}
+
+	if existing, ok := resolved[res.req.name]; ok {
+		if existing.Version == res.req.version {
+			return nil, nil
+		}
+		if err := r.resolveConflict(res.req, existing); err != nil {
+			return nil, err
+		}
+		return nil, nil
+	}
+
+	if err := r.checkRuntimeCompatibility(res.manifest); err != nil {
+		return nil, fmt.Errorf(
+			"package %s@%s incompatible:\n"+
+				"  %w",
+			res.req.name, res.req.version, err,
+		)
+	}
+
+	resolved[res.req.name] = Node{
+		Name:         res.manifest.Name,
+		Version:      res.manifest.Version,
+		Type:         res.manifest.Type,
+		Resolved:     "/" + res.manifest.Name + "/" + res.manifest.Version + ".tar.zst",
+		Digest:       res.manifest.Dist.Digest,
+		Bin:          res.manifest.Bin,
+		Dependencies: res.manifest.Dependencies,
+	}
+
+	if res.manifest.Dependencies == nil {
+		return nil, nil
+	}
+	children := make([]dependencyRequest, 0, len(*res.manifest.Dependencies))
+	for name, version := range *res.manifest.Dependencies {
+		children = append(children, dependencyRequest{name, version, res.req.name})
+	}
+	return children, nil
 }
 
 type ResolutionError struct {

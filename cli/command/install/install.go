@@ -126,21 +126,11 @@ func runInstall(ctx context.Context, wpmCli command.Cli, opts installOptions, pa
 		if err := addPackages(ctx, cfg, wpmCli, packages, opts); err != nil {
 			return err
 		}
-
-		// If dependencies or devDependencies still have zero entries, set them to nil
-		if cfg.Dependencies != nil && len(*cfg.Dependencies) == 0 {
-			cfg.Dependencies = nil
-		}
-		if cfg.DevDependencies != nil && len(*cfg.DevDependencies) == 0 {
-			cfg.DevDependencies = nil
-		}
-
+		pruneEmptyDeps(cfg)
 		configModified = true
 	}
 
-	// Bail if there is no packages to install
-	if (cfg.Dependencies == nil || len(*cfg.Dependencies) == 0) &&
-		(cfg.DevDependencies == nil || len(*cfg.DevDependencies) == 0) {
+	if !hasInstallableDeps(cfg) {
 		wpmCli.Out().WriteString("\nNo packages to install.\n")
 		return nil
 	}
@@ -154,6 +144,24 @@ func runInstall(ctx context.Context, wpmCli command.Cli, opts installOptions, pa
 		NetworkConcurrency: opts.networkConcurrency,
 		Trigger:            TriggerInstall,
 	})
+}
+
+// pruneEmptyDeps sets Dependencies / DevDependencies to nil when their maps are empty,
+// so they don't get serialized as empty objects in wpm.json.
+func pruneEmptyDeps(cfg *wpmjson.Config) {
+	if cfg.Dependencies != nil && len(*cfg.Dependencies) == 0 {
+		cfg.Dependencies = nil
+	}
+	if cfg.DevDependencies != nil && len(*cfg.DevDependencies) == 0 {
+		cfg.DevDependencies = nil
+	}
+}
+
+// hasInstallableDeps reports whether either dependency map has at least one entry.
+func hasInstallableDeps(cfg *wpmjson.Config) bool {
+	hasDeps := cfg.Dependencies != nil && len(*cfg.Dependencies) > 0
+	hasDevDeps := cfg.DevDependencies != nil && len(*cfg.DevDependencies) > 0
+	return hasDeps || hasDevDeps
 }
 
 func addPackages(ctx context.Context, config *wpmjson.Config, wpmCli command.Cli, packages []string, opts installOptions) error {

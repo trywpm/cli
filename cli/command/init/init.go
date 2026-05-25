@@ -133,6 +133,83 @@ func runNewInit(ctx context.Context, wpmCli command.Cli, opts *initOptions) erro
 	return nil
 }
 
+// extractPackageHeaders inspects the working directory for the package's main
+// file (style.css for themes, main plugin .php for plugins) and returns the
+// parsed headers plus the version string it found. Returns (nil, "", nil) when
+// the main file is missing but --version was supplied.
+func extractPackageHeaders(wpmCli command.Cli, cwd string, opts *initOptions) (mainFileHeaders any, extractedVersion string, err error) {
+	switch opts.packageType {
+	case "theme":
+		mainFilePath := filepath.Join(cwd, "style.css")
+		if _, err := os.Stat(mainFilePath); err != nil {
+			if os.IsNotExist(err) && opts.version == "" {
+				return nil, "", errors.Errorf("style.css not found in %s", cwd)
+			}
+			if !os.IsNotExist(err) {
+				return nil, "", errors.Wrapf(err, "failed to stat style.css")
+			}
+			return nil, "", nil
+		}
+		headers, hErr := parser.GetThemeHeaders(mainFilePath)
+		if hErr != nil {
+			if opts.version == "" {
+				return nil, "", errors.Wrapf(hErr, "failed to parse theme headers from style.css")
+			}
+			return nil, "", nil
+		}
+		return headers, headers.Version, nil
+
+	case "plugin":
+		dirEntries, dErr := os.ReadDir(cwd)
+		if dErr != nil {
+			return nil, "", errors.Wrap(dErr, "failed to read current directory for plugin files")
+		}
+
+		foundPath, headers, fErr := findMainPluginFile(cwd, dirEntries)
+		if fErr != nil {
+			if opts.version == "" {
+				return nil, "", errors.Wrap(fErr, "failed to identify main plugin file")
+			}
+			return nil, "", nil
+		}
+		_, _ = fmt.Fprintf(wpmCli.Out(), "main plugin file found: %s\n", foundPath)
+		return headers, headers.Version, nil
+
+	default:
+		return nil, "", errors.Errorf("unsupported package type for existing project init: %s", opts.packageType)
+	}
+}
+
+// resolveConfigVersion fills wpmCfg.Version from --version or the extracted
+// header, warns on mismatch, and normalizes to strict semver.
+func resolveConfigVersion(wpmCli command.Cli, wpmCfg *wpmjson.Config, opts *initOptions, extractedVersion string) error {
+	switch {
+	case opts.version != "":
+		wpmCfg.Version = opts.version
+		if extractedVersion != "" && extractedVersion != opts.version {
+			wpmCli.Output().PrettyErrorln(output.Text{
+				Plain: fmt.Sprintf("warn: provided version (%s) differs from version in parsed headers (%s)", opts.version, extractedVersion),
+				Fancy: fmt.Sprintf(
+					"%s provided version (%s) differs from version in parsed headers (%s)",
+					aec.YellowF.Apply("warn:"),
+					aec.LightBlueF.Apply(opts.version), aec.LightBlueF.Apply(extractedVersion),
+				),
+			})
+		}
+	case extractedVersion == "":
+		return errors.New("unable to determine version; please specify it with --version")
+	default:
+		wpmCfg.Version = extractedVersion
+	}
+
+	v, err := version.Normalize(wpmCfg.Version)
+	if err != nil {
+		return errors.New("invalid version format: " + err.Error())
+	}
+	wpmCfg.Version = v
+	return nil
+}
+
 func runExistingInit(wpmCli command.Cli, opts *initOptions) error {
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -165,89 +242,23 @@ func runExistingInit(wpmCli command.Cli, opts *initOptions) error {
 		readmeParser.Parse(string(readmeTxtContent))
 	}
 
-	// Extract package info based on type
-	var extractedVersion string
-	var mainFileHeaders any
-
-	switch opts.packageType {
-	case "theme":
-		mainFilePath := filepath.Join(cwd, "style.css")
-		if _, err := os.Stat(mainFilePath); err != nil {
-			if os.IsNotExist(err) && opts.version == "" {
-				return errors.Errorf("style.css not found in %s", cwd)
-			}
-			if !os.IsNotExist(err) {
-				return errors.Wrapf(err, "failed to stat style.css")
-			}
-		} else {
-			headers, err := parser.GetThemeHeaders(mainFilePath)
-			if err != nil {
-				if opts.version == "" {
-					return errors.Wrapf(err, "failed to parse theme headers from style.css")
-				}
-			} else {
-				mainFileHeaders = headers
-				extractedVersion = headers.Version
-			}
-		}
-
-	case "plugin":
-		dirEntries, err := os.ReadDir(cwd)
-		if err != nil {
-			return errors.Wrap(err, "failed to read current directory for plugin files")
-		}
-
-		foundPath, headers, err := findMainPluginFile(cwd, dirEntries)
-		if err != nil {
-			if opts.version == "" {
-				return errors.Wrap(err, "failed to identify main plugin file")
-			}
-		} else {
-			_, _ = fmt.Fprintf(wpmCli.Out(), "main plugin file found: %s\n", foundPath)
-			mainFileHeaders = headers
-			extractedVersion = headers.Version
-		}
-
-	default:
-		return errors.Errorf("unsupported package type for existing project init: %s", opts.packageType)
+	mainFileHeaders, extractedVersion, err := extractPackageHeaders(wpmCli, cwd, opts)
+	if err != nil {
+		return err
 	}
 
-	// Build wpm.json config
 	wpmCfg := buildWpmConfig(*opts, opts.packageType, mainFileHeaders, readmeParser.GetMetadata())
 
-	// Set name
 	if opts.name != "" {
 		wpmCfg.Name = opts.name
 	} else {
 		wpmCfg.Name = filepath.Base(cwd)
 	}
 
-	if opts.version != "" {
-		wpmCfg.Version = opts.version
-		if extractedVersion != "" && extractedVersion != opts.version {
-			wpmCli.Output().PrettyErrorln(output.Text{
-				Plain: fmt.Sprintf("warn: provided version (%s) differs from version in parsed headers (%s)", opts.version, extractedVersion),
-				Fancy: fmt.Sprintf(
-					"%s provided version (%s) differs from version in parsed headers (%s)",
-					aec.YellowF.Apply("warn:"),
-					aec.LightBlueF.Apply(opts.version), aec.LightBlueF.Apply(extractedVersion),
-				),
-			})
-		}
-	} else {
-		if extractedVersion == "" {
-			return errors.New("unable to determine version; please specify it with --version")
-		}
-		wpmCfg.Version = extractedVersion
+	if err := resolveConfigVersion(wpmCli, wpmCfg, opts, extractedVersion); err != nil {
+		return err
 	}
-
-	// Normalize and validate version
-	v, err := version.Normalize(wpmCfg.Version)
-	if err != nil {
-		return errors.New("invalid version format: " + err.Error())
-	}
-	wpmCfg.Version = v
-	if err = wpmCfg.Validate(); err != nil {
+	if err := wpmCfg.Validate(); err != nil {
 		return err
 	}
 
@@ -527,7 +538,6 @@ func buildWpmConfig(opts initOptions, pkgType string, mainFileHeaders any, readm
 		cfg.Tags = tags
 	}
 
-	requires := &types.Requires{}
 	dependencies := &types.Dependencies{}
 	cfg.Team = getMetaStringSlice(readmeMeta, "contributors")
 	wpRequires := getMetaString(readmeMeta, "requires", "")
@@ -536,116 +546,13 @@ func buildWpmConfig(opts initOptions, pkgType string, mainFileHeaders any, readm
 
 	switch h := mainFileHeaders.(type) {
 	case parser.ThemeFileHeaders:
-		if cfg.License == "" {
-			cfg.License = h.License
-		}
-
-		if cfg.Description == "" || !isMeaningfulText(cfg.Description) {
-			cfg.Description = h.Description
-		}
-
-		if len(cfg.Team) == 0 && h.Author != "" {
-			cfg.Team = []string{h.Author}
-		}
-
-		if len(tags) == 0 && len(h.Tags) > 0 {
-			cfg.Tags = h.Tags
-		}
-
-		if h.ThemeURI != "" {
-			if err := validator.IsValidHomepage(h.ThemeURI); err == nil {
-				cfg.Homepage = h.ThemeURI
-			}
-		}
-
-		if wpRequires == "" && h.RequiresWP != "" {
-			wpRequires = h.RequiresWP
-		}
-
-		if phpRequires == "" && h.RequiresPHP != "" {
-			phpRequires = h.RequiresPHP
-		}
-
+		applyThemeHeaders(cfg, h, tags, &wpRequires, &phpRequires)
 	case parser.PluginFileHeaders:
-		if cfg.License == "" {
-			cfg.License = h.License
-		}
-
-		if cfg.Description == "" || !isMeaningfulText(cfg.Description) {
-			cfg.Description = h.Description
-		}
-
-		if len(cfg.Team) == 0 && h.Author != "" {
-			cfg.Team = []string{h.Author}
-		}
-
-		if len(tags) == 0 && len(h.Tags) > 0 {
-			cfg.Tags = h.Tags
-		}
-
-		if h.PluginURI != "" {
-			if err := validator.IsValidHomepage(h.PluginURI); err == nil {
-				cfg.Homepage = h.PluginURI
-			}
-		}
-
-		if wpRequires == "" && h.RequiresWP != "" {
-			wpRequires = h.RequiresWP
-		}
-
-		if phpRequires == "" && h.RequiresPHP != "" {
-			phpRequires = h.RequiresPHP
-		}
-
-		if len(h.RequiresPlugins) > 0 {
-			for _, reqPlugin := range h.RequiresPlugins {
-				if err := validator.IsValidPackageName(reqPlugin); err != nil {
-					continue
-				}
-
-				// Add "*" as version since requires plugins only specify the plugin slug, not a version.
-				(*dependencies)[reqPlugin] = "*"
-			}
-		}
+		applyPluginHeaders(cfg, h, tags, dependencies, &wpRequires, &phpRequires)
 	}
 
-	// Trim tags to max 5
-	if len(cfg.Tags) > 5 {
-		cfg.Tags = cfg.Tags[:5]
-	}
-
-	if len(cfg.Tags) > 0 {
-		// pop tags having minimum 2 and maximum 64 characters
-		validTags := []string{}
-		for _, tag := range cfg.Tags {
-			if len(tag) >= 2 && len(tag) <= 64 {
-				validTags = append(validTags, tag)
-			}
-		}
-
-		slices.Sort(validTags)
-
-		cfg.Tags = slices.Compact(validTags)
-	}
-
-	// Trim team to max 100 members
-	if len(cfg.Team) > 100 {
-		cfg.Team = cfg.Team[:100]
-	}
-
-	if len(cfg.Team) > 0 {
-		// pop team members having minimum 2 and maximum 100 characters
-		validTeam := []string{}
-		for _, member := range cfg.Team {
-			if len(member) >= 2 && len(member) <= 100 {
-				validTeam = append(validTeam, member)
-			}
-		}
-
-		slices.Sort(validTeam)
-
-		cfg.Team = slices.Compact(validTeam)
-	}
+	cfg.Tags = sanitizeStringList(cfg.Tags, 5, 2, 64)
+	cfg.Team = sanitizeStringList(cfg.Team, 100, 2, 100)
 
 	// Trim description to max 512 characters
 	if len(cfg.Description) > 512 {
@@ -657,34 +564,120 @@ func buildWpmConfig(opts initOptions, pkgType string, mainFileHeaders any, readm
 		cfg.License = ""
 	}
 
-	if wpRequires != "" {
-		_, err := semver.NewConstraint(wpRequires)
-		if err == nil {
-			requires.WP = ">=" + wpRequires
-		}
-
-		_, err = semver.NewVersion(testedUpTo)
-		if err == nil && wpRequires != testedUpTo {
-			requires.WP += " <=" + testedUpTo
-			requires.WP = strings.TrimSpace(requires.WP)
-		}
-	}
-	if phpRequires != "" {
-		_, err := semver.NewConstraint(phpRequires)
-		if err == nil {
-			requires.PHP = ">=" + phpRequires
-		}
-	}
+	requires := buildRequires(wpRequires, phpRequires, testedUpTo)
 
 	if len(*dependencies) > 0 {
 		cfg.Dependencies = dependencies
 	}
-
 	if requires.PHP != "" || requires.WP != "" {
 		cfg.Requires = requires
 	}
 
 	return cfg
+}
+
+// applyThemeHeaders fills config fields from a theme's style.css headers,
+// only overwriting empty values and only forwarding WP/PHP requires when
+// they weren't already set from readme.txt metadata.
+func applyThemeHeaders(cfg *wpmjson.Config, h parser.ThemeFileHeaders, tags []string, wpRequires, phpRequires *string) {
+	if cfg.License == "" {
+		cfg.License = h.License
+	}
+	if cfg.Description == "" || !isMeaningfulText(cfg.Description) {
+		cfg.Description = h.Description
+	}
+	if len(cfg.Team) == 0 && h.Author != "" {
+		cfg.Team = []string{h.Author}
+	}
+	if len(tags) == 0 && len(h.Tags) > 0 {
+		cfg.Tags = h.Tags
+	}
+	if h.ThemeURI != "" {
+		if err := validator.IsValidHomepage(h.ThemeURI); err == nil {
+			cfg.Homepage = h.ThemeURI
+		}
+	}
+	if *wpRequires == "" && h.RequiresWP != "" {
+		*wpRequires = h.RequiresWP
+	}
+	if *phpRequires == "" && h.RequiresPHP != "" {
+		*phpRequires = h.RequiresPHP
+	}
+}
+
+// applyPluginHeaders fills config fields from a plugin's main file headers
+// and, additionally, populates the dependencies map from "Requires Plugins".
+func applyPluginHeaders(cfg *wpmjson.Config, h parser.PluginFileHeaders, tags []string, dependencies *types.Dependencies, wpRequires, phpRequires *string) {
+	if cfg.License == "" {
+		cfg.License = h.License
+	}
+	if cfg.Description == "" || !isMeaningfulText(cfg.Description) {
+		cfg.Description = h.Description
+	}
+	if len(cfg.Team) == 0 && h.Author != "" {
+		cfg.Team = []string{h.Author}
+	}
+	if len(tags) == 0 && len(h.Tags) > 0 {
+		cfg.Tags = h.Tags
+	}
+	if h.PluginURI != "" {
+		if err := validator.IsValidHomepage(h.PluginURI); err == nil {
+			cfg.Homepage = h.PluginURI
+		}
+	}
+	if *wpRequires == "" && h.RequiresWP != "" {
+		*wpRequires = h.RequiresWP
+	}
+	if *phpRequires == "" && h.RequiresPHP != "" {
+		*phpRequires = h.RequiresPHP
+	}
+	for _, reqPlugin := range h.RequiresPlugins {
+		if err := validator.IsValidPackageName(reqPlugin); err != nil {
+			continue
+		}
+		// "Requires Plugins" header carries only slugs, so pin to "*".
+		(*dependencies)[reqPlugin] = "*"
+	}
+}
+
+// sanitizeStringList trims the list to maxItems, drops entries outside
+// [minLen, maxLen], sorts, and compacts duplicates.
+func sanitizeStringList(items []string, maxItems, minLen, maxLen int) []string {
+	if len(items) > maxItems {
+		items = items[:maxItems]
+	}
+	if len(items) == 0 {
+		return items
+	}
+	valid := []string{}
+	for _, it := range items {
+		if len(it) >= minLen && len(it) <= maxLen {
+			valid = append(valid, it)
+		}
+	}
+	slices.Sort(valid)
+	return slices.Compact(valid)
+}
+
+// buildRequires constructs the runtime requires from raw WP/PHP constraint
+// strings plus an optional "tested up to" upper bound on the WP range.
+func buildRequires(wpRequires, phpRequires, testedUpTo string) *types.Requires {
+	requires := &types.Requires{}
+	if wpRequires != "" {
+		if _, err := semver.NewConstraint(wpRequires); err == nil {
+			requires.WP = ">=" + wpRequires
+		}
+		if _, err := semver.NewVersion(testedUpTo); err == nil && wpRequires != testedUpTo {
+			requires.WP += " <=" + testedUpTo
+			requires.WP = strings.TrimSpace(requires.WP)
+		}
+	}
+	if phpRequires != "" {
+		if _, err := semver.NewConstraint(phpRequires); err == nil {
+			requires.PHP = ">=" + phpRequires
+		}
+	}
+	return requires
 }
 
 func detectPackageType(cwd string) string {
