@@ -54,9 +54,8 @@ type WpmCli struct {
 // It applies by default the standard streams, and the content trust from
 // environment.
 func NewWpmCli(ops ...CLIOption) (*WpmCli, error) {
-	defaultOps := []CLIOption{
-		WithStandardStreams(),
-	}
+	defaultOps := make([]CLIOption, 0, len(ops)+1)
+	defaultOps = append(defaultOps, WithStandardStreams())
 	ops = append(defaultOps, ops...)
 
 	cli := &WpmCli{}

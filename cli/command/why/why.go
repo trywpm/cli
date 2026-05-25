@@ -172,8 +172,8 @@ func findPathsToRoot(start string, dependents map[string][]string) [][]string {
 			}
 
 			// Create new path: target -> ... -> current -> parent
-			newPath := make([]string, len(path))
-			copy(newPath, path)
+			newPath := make([]string, 0, len(path)+1)
+			newPath = append(newPath, path...)
 			newPath = append(newPath, parent)
 			queue = append(queue, newPath)
 		}
