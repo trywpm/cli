@@ -89,7 +89,7 @@ func runOutdated(ctx context.Context, wpmCli command.Cli) error {
 		return nil
 	}
 
-	results, err := findOutdatedPackages(ctx, config, wpmCli, checks)
+	results, err := findOutdatedPackages(ctx, wpmCli, checks)
 	if err != nil {
 		return err
 	}
@@ -119,7 +119,7 @@ type outdatedInfo struct {
 	diffType string // major, minor, patch, or unknown
 }
 
-func findOutdatedPackages(ctx context.Context, config *wpmjson.Config, wpmCli command.Cli, checks []depCheck) ([]outdatedInfo, error) {
+func findOutdatedPackages(ctx context.Context, wpmCli command.Cli, checks []depCheck) ([]outdatedInfo, error) {
 	client, err := wpmCli.RegistryClient()
 	if err != nil {
 		return nil, err

@@ -286,7 +286,7 @@ func (ta *tarAppender) addTarFile(path, name string) error {
 	return nil
 }
 
-func createTarFile(path, extractDir string, hdr *tar.Header, reader io.Reader, options *TarOptions) error {
+func createTarFile(path string, hdr *tar.Header, reader io.Reader, options *TarOptions) error {
 	switch hdr.Typeflag {
 	case tar.TypeDir:
 		// Create directory unless it exists as a directory already.
@@ -665,7 +665,7 @@ loop:
 			}
 		}
 
-		if err := createTarFile(path, dest, hdr, tr, options); err != nil {
+		if err := createTarFile(path, hdr, tr, options); err != nil {
 			return err
 		}
 
