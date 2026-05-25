@@ -199,13 +199,14 @@ func addPackages(ctx context.Context, config *wpmjson.Config, wpmCli command.Cli
 			mu.Lock()
 			defer mu.Unlock()
 
-			if opts.saveDev {
+			switch {
+			case opts.saveDev:
 				(*config.DevDependencies)[name] = manifest.Version
 				delete(*config.Dependencies, name)
-			} else if opts.saveProd {
+			case opts.saveProd:
 				(*config.Dependencies)[name] = manifest.Version
 				delete(*config.DevDependencies, name)
-			} else {
+			default:
 				if _, exists := (*config.DevDependencies)[name]; exists {
 					(*config.DevDependencies)[name] = manifest.Version
 				} else {
