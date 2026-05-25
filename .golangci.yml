@@ -80,6 +80,9 @@ linters:
         - all
     gocyclo:
       min-complexity: 16
+    gosec:
+      excludes:
+        - G306 # G306: Expect WriteFile permissions to be 0600 or less (too restrictive; also flags "0o644" permissions)
     govet:
       enable:
         - shadow
