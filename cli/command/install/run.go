@@ -48,6 +48,8 @@ func installerProgress(out *output.Output) func(action installer.Action) {
 		case installer.ActionUpdate:
 			actionStr = "+" // we use "+" for updates as well to indicate addition of new version
 			color = aec.YellowF
+		case installer.ActionInstall:
+			// keep defaults
 		}
 
 		out.Prettyln(output.Text{

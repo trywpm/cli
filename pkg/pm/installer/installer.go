@@ -368,12 +368,16 @@ func (i *Installer) getTargetDir(pkgType types.PackageType, name string) (string
 		return "", errors.Wrapf(err, "refusing to operate on package with invalid name %q", name)
 	}
 
-	subDir := "plugins"
+	var subDir string
 	switch pkgType {
 	case types.TypeTheme:
 		subDir = "themes"
 	case types.TypeMuPlugin:
 		subDir = "mu-plugins"
+	case types.TypePlugin:
+		subDir = "plugins"
+	default:
+		return "", errors.Errorf("unknown package type %q for package %q", pkgType, name)
 	}
 
 	target := filepath.Join(i.contentDir, subDir, name)

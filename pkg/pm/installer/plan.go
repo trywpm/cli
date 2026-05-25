@@ -53,12 +53,16 @@ func CalculatePlan(
 		}
 
 		// Calculate target path to check filesystem state
-		subDir := "plugins"
+		var subDir string
 		switch node.Type {
 		case types.TypeTheme:
 			subDir = "themes"
 		case types.TypeMuPlugin:
 			subDir = "mu-plugins"
+		case types.TypePlugin:
+			subDir = "plugins"
+		default:
+			continue
 		}
 		targetPath := filepath.Join(contentDir, subDir, name)
 
