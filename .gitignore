@@ -16,6 +16,8 @@
 !README.md
 !docker-bake.hcl
 !Dockerfile
+!AGENTS.md
+!CLAUDE.md
 !.oxfmtrc.json
 !.git-blame-ignore-revs
 
