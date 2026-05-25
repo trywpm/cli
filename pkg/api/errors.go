@@ -16,7 +16,6 @@ type HTTPError struct {
 	StatusCode int
 }
 
-// Allow HTTPError to satisfy error interface.
 func (err *HTTPError) Error() string {
 	if err.Message == "" {
 		return "wpm registry error: " + strings.ToLower(http.StatusText(err.StatusCode))
