@@ -170,8 +170,8 @@ func runPublish(ctx context.Context, wpmCli command.Cli, opts publishOptions) er
 		return errors.Wrap(err, "failed to create temporary tarball")
 	}
 	defer func() {
-		_ = os.Remove(tempFile.Name())
 		_ = tempFile.Close()
+		_ = os.Remove(tempFile.Name())
 	}()
 
 	tarballer, err := pack(cwd, opts, wpmCli.Output())
