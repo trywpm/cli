@@ -55,11 +55,13 @@ func New(
 		concurrency = 16
 	}
 
+	//nolint:gosec // Dir perms are intentionally permissive here.
 	if err := os.MkdirAll(contentDir, 0o755); err != nil {
 		return nil, errors.Wrap(err, "failed to create content directory")
 	}
 
 	tmpDir := filepath.Join(contentDir, ".tmp")
+	//nolint:gosec // Dir perms are intentionally permissive here.
 	if err := os.MkdirAll(tmpDir, 0o755); err != nil {
 		return nil, errors.Wrap(err, "failed to create tmp directory")
 	}
@@ -173,7 +175,9 @@ func (i *Installer) installOrUpdate(ctx context.Context, action Action, targetDi
 	if err != nil {
 		return errors.Wrapf(err, "failed to download %s", action.Resolved)
 	}
-	defer resp.Close()
+	defer func() {
+		_ = resp.Close()
+	}()
 
 	hasher := sha256.New()
 	stream := io.TeeReader(resp, hasher)
@@ -230,6 +234,7 @@ func (i *Installer) unpackToStaging(r io.Reader) (string, string, error) {
 }
 
 func (i *Installer) replaceDir(ctx context.Context, sourceDir, targetDir string) error {
+	//nolint:gosec // Dir perms are intentionally permissive here.
 	if err := os.MkdirAll(filepath.Dir(targetDir), 0o755); err != nil {
 		return errors.Wrap(err, "failed to create parent directory")
 	}

@@ -71,17 +71,17 @@ func isZstd(source []byte) bool {
 // IsArchivePath checks if the (possibly compressed) file at the given path
 // starts with a tar file header.
 func IsArchivePath(path string) bool {
-	file, err := os.Open(path)
+	file, err := os.Open(path) //nolint:gosec // callers pass paths they want to inspect
 	if err != nil {
 		return false
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	rdr, err := DecompressStream(file)
 	if err != nil {
 		return false
 	}
-	defer rdr.Close()
+	defer func() { _ = rdr.Close() }()
 
 	r := tar.NewReader(rdr)
 	_, err = r.Next()
@@ -125,7 +125,7 @@ func (r *bufferedReader) Read(p []byte) (n int, err error) {
 	}
 	n, err = r.buf.Read(p)
 	if err == io.EOF {
-		r.Close()
+		_ = r.Close()
 	}
 	return n, err
 }
@@ -255,7 +255,7 @@ func (ta *tarAppender) addTarFile(path, name string) error {
 			hdr.Name += "/"
 		}
 	} else {
-		hdr.Name = filepath.ToSlash(filepath.Join("package", originalHdrName))
+		hdr.Name = filepath.ToSlash(filepath.Join("package", originalHdrName)) //nolint:gosec // prefix is a constant; this builds an archive entry name, not a filesystem path
 	}
 
 	// if it's not a directory and has more than 1 link, it's hard linked
@@ -277,7 +277,7 @@ func (ta *tarAppender) addTarFile(path, name string) error {
 		}
 
 		_, err = copyWithBuffer(ta.TarWriter, file)
-		file.Close()
+		_ = file.Close()
 		if err != nil {
 			return err
 		}
@@ -305,10 +305,10 @@ func createTarFile(path string, hdr *tar.Header, reader io.Reader, options *TarO
 			return err
 		}
 		if _, err := copyWithBuffer(file, io.LimitReader(reader, hdr.Size)); err != nil {
-			file.Close()
+			_ = file.Close()
 			return err
 		}
-		file.Close()
+		_ = file.Close()
 
 	case tar.TypeLink, tar.TypeSymlink:
 		if options != nil && options.Logger != nil {
@@ -375,8 +375,8 @@ func NewTarballer(srcPath string, options *TarOptions, reporterFn func(fs.FileIn
 
 	zstdWriter, err := zstd.NewWriter(pipeWriter, zstd.WithEncoderLevel(zstd.SpeedBestCompression))
 	if err != nil {
-		pipeReader.Close()
-		pipeWriter.Close()
+		_ = pipeReader.Close()
+		_ = pipeWriter.Close()
 		return nil, fmt.Errorf("failed to create zstd writer: %w", err)
 	}
 
@@ -431,9 +431,9 @@ func (t *Tarballer) Do() {
 		}
 
 		if doErr != nil {
-			t.pipeWriter.CloseWithError(doErr)
+			_ = t.pipeWriter.CloseWithError(doErr)
 		} else {
-			t.pipeWriter.Close()
+			_ = t.pipeWriter.Close()
 		}
 	}()
 
@@ -632,7 +632,7 @@ loop:
 			return err
 		}
 
-		path := filepath.Join(dest, hdr.Name)
+		path := filepath.Join(dest, hdr.Name) //nolint:gosec // traversal is guarded by the filepath.Rel check immediately below
 		rel, err := filepath.Rel(dest, path)
 		if err != nil {
 			return err
@@ -677,7 +677,7 @@ loop:
 	}
 
 	for _, hdr := range dirs {
-		path := filepath.Join(dest, hdr.Name)
+		path := filepath.Join(dest, hdr.Name) //nolint:gosec // hdr.Name was already validated by the main extract loop above
 
 		if err := chtimes(path, boundTime(latestTime(hdr.AccessTime, hdr.ModTime)), boundTime(hdr.ModTime)); err != nil {
 			return err
@@ -773,7 +773,7 @@ func Untar(tarArchive io.Reader, dest string, options *TarOptions) error {
 	if err != nil {
 		return err
 	}
-	defer decompressedArchive.Close()
+	defer func() { _ = decompressedArchive.Close() }()
 
 	detector := &extractionLimiter{
 		compressedTracker:  compressedTracker,

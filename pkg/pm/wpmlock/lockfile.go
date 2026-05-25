@@ -50,7 +50,7 @@ func Read(cwd string) (*Lockfile, error) {
 		return nil, nil
 	}
 
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) //nolint:gosec // path is cwd + LockfileName constant
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to read lockfile")
 	}

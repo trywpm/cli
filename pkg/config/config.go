@@ -113,7 +113,7 @@ func load(configDir string) (*configfile.ConfigFile, error) {
 	filename := filepath.Join(configDir, ConfigFileName)
 	configFile := configfile.New(filename)
 
-	file, err := os.Open(filename)
+	file, err := os.Open(filename) //nolint:gosec // filename is built from configDir + a constant
 	if err != nil {
 		if os.IsNotExist(err) {
 			// It is OK for no configuration file to be present, in which

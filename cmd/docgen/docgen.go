@@ -71,6 +71,7 @@ func run() error {
 		return err
 	}
 
+	//nolint:gosec // Dir perms are intentionally permissive here.
 	if err := os.MkdirAll(opts.target, 0o755); err != nil {
 		return fmt.Errorf("create %s: %w", opts.target, err)
 	}

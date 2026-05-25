@@ -216,7 +216,7 @@ func (d decompressingRoundTripper) RoundTrip(req *http.Request) (*http.Response,
 	if resp.Header.Get("Content-Encoding") == "zstd" {
 		decoder := zstdDecoderPool.Get().(*zstd.Decoder)
 		if err := decoder.Reset(resp.Body); err != nil {
-			resp.Body.Close()
+			_ = resp.Body.Close()
 			zstdDecoderPool.Put(decoder)
 			return nil, fmt.Errorf("failed to reset zstd reader: %w", err)
 		}

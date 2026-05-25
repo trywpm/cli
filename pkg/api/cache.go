@@ -102,7 +102,7 @@ func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 }
 
 func (t *Transport) executeRequest(req *http.Request, finalPath string, force bool) (*http.Response, error) {
-	if err := os.MkdirAll(filepath.Dir(finalPath), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(finalPath), 0o750); err != nil {
 		return t.base().RoundTrip(req)
 	}
 
@@ -114,7 +114,7 @@ func (t *Transport) executeRequest(req *http.Request, finalPath string, force bo
 			if et := h.Get(HeaderEtag); et != "" {
 				req.Header.Set(HeaderIfNoneMatch, et)
 			}
-			body.Close()
+			_ = body.Close()
 		}
 	}
 
@@ -125,7 +125,7 @@ func (t *Transport) executeRequest(req *http.Request, finalPath string, force bo
 
 	// Handle 304 Not Modified
 	if resp.StatusCode == http.StatusNotModified {
-		resp.Body.Close()
+		_ = resp.Body.Close()
 		if body, h, err := t.open(finalPath); err == nil {
 			h.Set(HeaderLocalCache, CacheHit)
 			return t.response(req, body, h), nil
@@ -149,13 +149,13 @@ func (t *Transport) executeRequest(req *http.Request, finalPath string, force bo
 }
 
 func (*Transport) open(path string) (io.ReadCloser, http.Header, error) {
-	f, err := os.Open(path)
+	f, err := os.Open(path) //nolint:gosec // path is derived from a sha256 hash of the request URL within our cache dir
 	if err != nil {
 		return nil, nil, err
 	}
 
 	fail := func(e error) (io.ReadCloser, http.Header, error) {
-		f.Close()
+		_ = f.Close()
 		return nil, nil, e
 	}
 
@@ -222,7 +222,7 @@ func (*Transport) open(path string) (io.ReadCloser, http.Header, error) {
 
 func (t *Transport) write(src io.ReadCloser, finalPath string, h http.Header) io.ReadCloser {
 	tmpDir := filepath.Join(t.cacheDir, "tmp")
-	if err := os.MkdirAll(tmpDir, 0o755); err != nil {
+	if err := os.MkdirAll(tmpDir, 0o750); err != nil {
 		return src
 	}
 
@@ -231,11 +231,11 @@ func (t *Transport) write(src io.ReadCloser, finalPath string, h http.Header) io
 		return src
 	}
 
-	_ = os.Chmod(f.Name(), 0o644)
+	_ = os.Chmod(f.Name(), 0o600)
 
 	if err := t.writeMeta(f, h); err != nil {
-		f.Close()
-		os.Remove(f.Name())
+		_ = f.Close()
+		_ = os.Remove(f.Name())
 		return src
 	}
 
@@ -271,7 +271,7 @@ func (*Transport) writeMeta(w io.Writer, h http.Header) error {
 	if len(b) > maxMetaLen {
 		return fmt.Errorf("cacheable headers too large: %d bytes", len(b))
 	}
-	if err := binary.Write(w, binary.BigEndian, uint32(len(b))); err != nil {
+	if err := binary.Write(w, binary.BigEndian, uint32(len(b))); err != nil { //nolint:gosec // bounded above by maxMetaLen check
 		return err
 	}
 	_, err = w.Write(b)
@@ -292,8 +292,8 @@ func (w *writer) Read(p []byte) (int, error) {
 	if n > 0 && !w.cacheFailed {
 		if _, wErr := w.dst.Write(p[:n]); wErr != nil {
 			w.cacheFailed = true
-			w.dst.Close()
-			os.Remove(w.tmp)
+			_ = w.dst.Close()
+			_ = os.Remove(w.tmp)
 		}
 	}
 	if err == io.EOF {
@@ -317,12 +317,12 @@ func (w *writer) Close() error {
 
 	closeErr := w.dst.Close()
 	if !success || closeErr != nil {
-		os.Remove(w.tmp)
+		_ = os.Remove(w.tmp)
 		return srcErr
 	}
 
 	if err := renameFile(w.tmp, w.final); err != nil {
-		os.Remove(w.tmp)
+		_ = os.Remove(w.tmp)
 	}
 	return srcErr
 }

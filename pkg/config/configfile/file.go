@@ -124,7 +124,7 @@ func (configFile *ConfigFile) SaveToWriter(writer io.Writer) error {
 		}
 	}
 
-	data, err := json.MarshalIndent(configFile, "", "\t")
+	data, err := json.MarshalIndent(configFile, "", "\t") //nolint:gosec // serializing AuthToken is the entire purpose of writing the config file
 	if err != nil {
 		return err
 	}
@@ -147,7 +147,7 @@ func (configFile *ConfigFile) Save() (retErr error) {
 		return err
 	}
 	defer func() {
-		temp.Close()
+		_ = temp.Close()
 		if retErr != nil {
 			if err := os.Remove(temp.Name()); err != nil {
 				logrus.WithError(err).WithField("file", temp.Name()).Debug("Error cleaning up temp file")

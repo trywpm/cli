@@ -20,11 +20,11 @@ type ProjectLock struct {
 // read-modify-write window.
 func AcquireLock(ctx context.Context, baseDir string, printWaitMsg func()) (*ProjectLock, error) {
 	wpmDir := filepath.Join(baseDir, ".wpm")
-	if err := os.MkdirAll(wpmDir, 0o755); err != nil {
+	if err := os.MkdirAll(wpmDir, 0o750); err != nil {
 		return nil, errors.Wrap(err, "failed to create workspace directory")
 	}
 
-	_ = os.WriteFile(filepath.Join(wpmDir, ".gitignore"), []byte("*\n"), 0o644)
+	_ = os.WriteFile(filepath.Join(wpmDir, ".gitignore"), []byte("*\n"), 0o600)
 
 	fileLock := flock.New(filepath.Join(wpmDir, "install.lock"))
 

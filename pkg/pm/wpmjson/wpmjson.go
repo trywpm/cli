@@ -157,7 +157,7 @@ func Read(cwd string) (*Config, error) {
 		return nil, nil
 	}
 
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) //nolint:gosec // path is cwd + ConfigFile constant
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to read wpm.json")
 	}

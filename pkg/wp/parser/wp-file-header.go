@@ -77,12 +77,12 @@ func getRawFileHeaders(filePath, expectedExtension string, headerSpecs map[strin
 		return nil
 	}
 
-	file, err := os.Open(filePath)
+	file, err := os.Open(filePath) //nolint:gosec // filePath is supplied by the caller for header inspection
 	if err != nil {
 		// Mimic PHP's behavior of proceeding with empty data on most read failures.
 		return processHeaderData("", headerSpecs)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	buffer := make([]byte, maxHeaderBytes)
 	n, readErr := file.Read(buffer)

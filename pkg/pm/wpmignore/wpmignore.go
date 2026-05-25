@@ -13,7 +13,7 @@ import (
 func ReadWpmIgnore(path string) ([]string, error) {
 	var excludes []string
 
-	f, err := os.Open(filepath.Join(path, ".wpmignore"))
+	f, err := os.Open(filepath.Join(path, ".wpmignore")) //nolint:gosec // .wpmignore is a constant relative to the caller-supplied path
 	switch {
 	case os.IsNotExist(err):
 		return excludes, nil
