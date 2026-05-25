@@ -3,11 +3,11 @@ package auth
 import (
 	"fmt"
 
-	"go.wpm.so/cli/cli"
-	"go.wpm.so/cli/cli/command"
-
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
+
+	"go.wpm.so/cli/cli"
+	"go.wpm.so/cli/cli/command"
 )
 
 func NewLogoutCommand(wpmCli command.Cli) *cobra.Command {

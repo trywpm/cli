@@ -11,6 +11,6 @@ import (
 // If the modified time is prior to the Unix Epoch (unixMinTime), or after the
 // end of Unix Time (unixEpochTime), os.Chtimes has undefined behavior. In this
 // case, Chtimes defaults to Unix Epoch, just in case.
-func chtimes(name string, atime time.Time, mtime time.Time) error {
+func chtimes(name string, atime, mtime time.Time) error {
 	return os.Chtimes(name, atime, mtime)
 }

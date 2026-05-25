@@ -44,16 +44,16 @@ func (t *Sanitizer) Transform(dst, src []byte, atEOF bool) (nDst, nSrc int, err 
 		// When sanitizing JSON strings make sure that we have 6 bytes if available.
 		if t.JSON && len(src) < 6 && !atEOF {
 			err = transform.ErrShortSrc
-			return
+			return nDst, nSrc, err
 		}
 		r, size := utf8.DecodeRune(src)
 		if r == utf8.RuneError && size < 2 {
 			if !atEOF {
 				err = transform.ErrShortSrc
-				return
+				return nDst, nSrc, err
 			} else {
 				err = errors.New("invalid UTF-8 string")
-				return
+				return nDst, nSrc, err
 			}
 		}
 		// Replace C0 and C1 control characters.
@@ -61,7 +61,7 @@ func (t *Sanitizer) Transform(dst, src []byte, atEOF bool) (nDst, nSrc int, err 
 			if repl, found := mapControlToCaret(r); found {
 				err = transfer(repl, src[:size])
 				if err != nil {
-					return
+					return nDst, nSrc, err
 				}
 				continue
 			}
@@ -77,14 +77,14 @@ func (t *Sanitizer) Transform(dst, src []byte, atEOF bool) (nDst, nSrc int, err 
 				}
 				err = transfer(repl, src[:6])
 				if err != nil {
-					return
+					return nDst, nSrc, err
 				}
 				continue
 			}
 		}
 		err = transfer(src[:size], src[:size])
 		if err != nil {
-			return
+			return nDst, nSrc, err
 		}
 		if t.JSON {
 			if r == '\\' {
@@ -94,7 +94,7 @@ func (t *Sanitizer) Transform(dst, src []byte, atEOF bool) (nDst, nSrc int, err 
 			}
 		}
 	}
-	return
+	return nDst, nSrc, err
 }
 
 // Reset resets the state and allows the Sanitizer to be reused.
@@ -104,7 +104,7 @@ func (t *Sanitizer) Reset() {
 
 // mapControlToCaret maps C0 and C1 control characters to their caret notation.
 func mapControlToCaret(r rune) ([]byte, bool) {
-	//\t (09), \n (10), \v (11), \r (13) are safe C0 characters and are not sanitized.
+	// \t (09), \n (10), \v (11), \r (13) are safe C0 characters and are not sanitized.
 	m := map[rune]string{
 		0:   `^@`,
 		1:   `^A`,
@@ -183,7 +183,7 @@ func mapJSONControlToCaret(b []byte) ([]byte, bool) {
 	if !bytes.HasPrefix(b, []byte(`\u00`)) {
 		return nil, false
 	}
-	//\t (\u0009), \n (\u000a), \v (\u000b), \r (\u000d) are safe C0 characters and are not sanitized.
+	// \t (\u0009), \n (\u000a), \v (\u000b), \r (\u000d) are safe C0 characters and are not sanitized.
 	m := map[string]string{
 		`\u0000`: `^@`,
 		`\u0001`: `^A`,

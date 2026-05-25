@@ -2,7 +2,6 @@ package api
 
 import (
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -20,9 +19,9 @@ type HTTPError struct {
 // Allow HTTPError to satisfy error interface.
 func (err *HTTPError) Error() string {
 	if err.Message == "" {
-		return fmt.Sprintf("wpm registry error: %s", strings.ToLower(http.StatusText(err.StatusCode)))
+		return "wpm registry error: " + strings.ToLower(http.StatusText(err.StatusCode))
 	}
-	return fmt.Sprintf("wpm registry error: %s", strings.ToLower(err.Message))
+	return "wpm registry error: " + strings.ToLower(err.Message)
 }
 
 // HandleHTTPError parses a http.Response into a HTTPError.

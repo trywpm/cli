@@ -10,6 +10,11 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/Masterminds/semver/v3"
+	"github.com/morikuni/aec"
+	"github.com/pkg/errors"
+	"github.com/spf13/cobra"
+
 	"go.wpm.so/cli/cli/command"
 	"go.wpm.so/cli/cli/command/completion"
 	"go.wpm.so/cli/pkg/output"
@@ -18,11 +23,6 @@ import (
 	"go.wpm.so/cli/pkg/pm/wpmjson/validator"
 	"go.wpm.so/cli/pkg/version"
 	"go.wpm.so/cli/pkg/wp/parser"
-
-	"github.com/Masterminds/semver/v3"
-	"github.com/morikuni/aec"
-	"github.com/pkg/errors"
-	"github.com/spf13/cobra"
 )
 
 const (
@@ -260,7 +260,7 @@ func runExistingInit(wpmCli command.Cli, opts *initOptions) error {
 	if baseFiles.readmeTxt != "" && baseFiles.readmeMd == "" {
 		markdownContent := readmeParser.ToMarkdown()
 		readmeMdPath := strings.TrimSuffix(baseFiles.readmeTxt, filepath.Ext(baseFiles.readmeTxt)) + ".md"
-		if err := os.WriteFile(readmeMdPath, []byte(markdownContent), 0644); err != nil {
+		if err := os.WriteFile(readmeMdPath, []byte(markdownContent), 0o644); err != nil {
 			_, _ = fmt.Fprintf(wpmCli.Err(), "failed to write %s: %v\n", readmeMdPath, err)
 		} else {
 			_, _ = fmt.Fprintf(wpmCli.Out(), "%s created from readme.txt\n", filepath.Base(readmeMdPath))
@@ -449,7 +449,7 @@ func findMainPluginFile(cwd string, files []os.DirEntry) (string, parser.PluginF
 	return "", parser.PluginFileHeaders{}, errors.New("no main plugin file with valid plugin headers found")
 }
 
-func getMetaString(meta map[string]any, key string, defaultValue string) string {
+func getMetaString(meta map[string]any, key, defaultValue string) string {
 	if val, ok := meta[key]; ok {
 		if strVal, ok := val.(string); ok && strVal != "" {
 			return strVal

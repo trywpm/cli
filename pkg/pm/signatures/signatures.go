@@ -28,7 +28,7 @@ type keyJson struct {
 type KeysJson []keyJson
 
 // Verify verifies a Base64 encoded ASN.1 DER signature against a message using a PEM encoded Public Key.
-func Verify(keys KeysJson, keyId string, signatureBase64 string, originalMessage []byte) error {
+func Verify(keys KeysJson, keyId, signatureBase64 string, originalMessage []byte) error {
 	var rawPublicKeyBase64, keyType string
 	for _, key := range keys {
 		if key.KeyID == keyId {

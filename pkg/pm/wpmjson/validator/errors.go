@@ -26,7 +26,7 @@ func (e *ErrorList) Add(field string, err error) {
 }
 
 // AddMsg allows adding a string message directly.
-func (e *ErrorList) AddMsg(field string, msg string) {
+func (e *ErrorList) AddMsg(field, msg string) {
 	*e = append(*e, ValidationError{Field: field, Message: msg})
 }
 

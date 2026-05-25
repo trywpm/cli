@@ -351,7 +351,7 @@ func renameFile(src, dst string) error {
 
 func (t *Transport) response(req *http.Request, body io.ReadCloser, h http.Header) *http.Response {
 	return &http.Response{
-		StatusCode: 200,
+		StatusCode: http.StatusOK,
 		Body:       body,
 		Header:     h,
 		Request:    req,

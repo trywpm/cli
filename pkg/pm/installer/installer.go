@@ -16,14 +16,14 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/pkg/errors"
+	"golang.org/x/sync/errgroup"
+
 	"go.wpm.so/cli/pkg/archive"
 	"go.wpm.so/cli/pkg/pm/registry"
 	"go.wpm.so/cli/pkg/pm/signatures"
 	"go.wpm.so/cli/pkg/pm/wpmjson/types"
 	"go.wpm.so/cli/pkg/pm/wpmjson/validator"
-
-	"github.com/pkg/errors"
-	"golang.org/x/sync/errgroup"
 )
 
 const (

@@ -8,15 +8,15 @@ import (
 	"slices"
 	"strconv"
 
+	"github.com/morikuni/aec"
+	"github.com/pkg/errors"
+
 	"go.wpm.so/cli/cli/command"
 	"go.wpm.so/cli/pkg/output"
 	"go.wpm.so/cli/pkg/pm/installer"
 	"go.wpm.so/cli/pkg/pm/resolution"
 	"go.wpm.so/cli/pkg/pm/wpmjson"
 	"go.wpm.so/cli/pkg/pm/wpmlock"
-
-	"github.com/morikuni/aec"
-	"github.com/pkg/errors"
 )
 
 type Trigger int

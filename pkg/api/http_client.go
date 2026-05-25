@@ -9,13 +9,13 @@ import (
 	"sync"
 	"time"
 
-	"go.wpm.so/cli/pkg/asciisanitizer"
-
 	"github.com/henvic/httpretty"
 	"github.com/klauspost/compress/zstd"
 	"github.com/sirupsen/logrus"
 	"github.com/thlib/go-timezone-local/tzlocal"
 	"golang.org/x/text/transform"
+
+	"go.wpm.so/cli/pkg/asciisanitizer"
 )
 
 const (
@@ -145,9 +145,9 @@ func resolveHeaders(headers map[string]string) {
 	}
 }
 
-func newHeaderRoundTripper(host string, authToken string, headers map[string]string, rt http.RoundTripper) http.RoundTripper {
+func newHeaderRoundTripper(host, authToken string, headers map[string]string, rt http.RoundTripper) http.RoundTripper {
 	if _, ok := headers[HeaderAuthorization]; !ok && authToken != "" {
-		headers[HeaderAuthorization] = fmt.Sprintf("Bearer %s", authToken)
+		headers[HeaderAuthorization] = "Bearer " + authToken
 	}
 	if len(headers) == 0 {
 		return headerRoundTripper{host: host, headers: nil, rt: rt}

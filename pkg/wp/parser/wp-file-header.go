@@ -68,7 +68,7 @@ var headerCleanupRe = regexp.MustCompile(`\s*(?:\*\/|\?>).*`)
 
 // getRawFileHeaders reads the first part of a file and extracts raw header values.
 // Returns nil map if filePath has wrong extension or does not exist.
-func getRawFileHeaders(filePath string, expectedExtension string, headerSpecs map[string]string) (map[string]string, error) {
+func getRawFileHeaders(filePath, expectedExtension string, headerSpecs map[string]string) (map[string]string, error) {
 	if len(filePath) < len(expectedExtension)+1 || filePath[len(filePath)-len(expectedExtension):] != expectedExtension {
 		return nil, nil
 	}

@@ -3,11 +3,11 @@ package whoami
 import (
 	"context"
 
-	"go.wpm.so/cli/cli"
-	"go.wpm.so/cli/cli/command"
-
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
+
+	"go.wpm.so/cli/cli"
+	"go.wpm.so/cli/cli/command"
 )
 
 func NewWhoamiCommand(wpmCli command.Cli) *cobra.Command {

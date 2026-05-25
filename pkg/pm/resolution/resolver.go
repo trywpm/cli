@@ -4,16 +4,17 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strings"
+
+	"github.com/Masterminds/semver/v3"
+	"github.com/pkg/errors"
+	"golang.org/x/sync/errgroup"
 
 	"go.wpm.so/cli/pkg/pm/registry"
 	"go.wpm.so/cli/pkg/pm/wpmjson"
 	"go.wpm.so/cli/pkg/pm/wpmjson/manifest"
 	"go.wpm.so/cli/pkg/pm/wpmjson/types"
 	"go.wpm.so/cli/pkg/pm/wpmlock"
-
-	"github.com/Masterminds/semver/v3"
-	"github.com/pkg/errors"
-	"golang.org/x/sync/errgroup"
 )
 
 type Node struct {
@@ -181,9 +182,13 @@ type ResolutionError struct {
 
 func (e *ResolutionError) Error() string {
 	msg := e.Header + "\n"
+	var builder strings.Builder
 	for _, d := range e.Detail {
-		msg += "  " + d + "\n"
+		builder.WriteString("  ")
+		builder.WriteString(d)
+		builder.WriteString("\n")
 	}
+	msg += builder.String()
 	msg += "Action: " + e.Action
 	return msg
 }
@@ -226,7 +231,7 @@ func (r *Resolver) resolveConflict(req dependencyRequest, existing Node) error {
 			return &ResolutionError{
 				Header: fmt.Sprintf("Version downgrade detected for package %s:", req.name),
 				Detail: []string{
-					fmt.Sprintf("currently resolved: %s", rootVersion),
+					"currently resolved: " + rootVersion,
 					fmt.Sprintf("%s requires: %s", req.requestor, req.version),
 				},
 				Action: fmt.Sprintf("Upgrade %s in your wpm.json to %s or higher.", req.name, req.version),
@@ -241,7 +246,7 @@ func (r *Resolver) resolveConflict(req dependencyRequest, existing Node) error {
 	return &ResolutionError{
 		Header: fmt.Sprintf("Dependency version conflict for package %s:", req.name),
 		Detail: []string{
-			fmt.Sprintf("currently resolved: %s", existing.Version),
+			"currently resolved: " + existing.Version,
 			fmt.Sprintf("%s requires: %s", req.requestor, req.version),
 		},
 		Action: fmt.Sprintf(`Add "%s": "%s" (or %s) to the root wpm.json to force a resolution.`, req.name, req.version, existing.Version),

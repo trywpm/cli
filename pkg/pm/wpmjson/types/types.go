@@ -77,6 +77,8 @@ type Requires struct {
 	PHP string `json:"php,omitempty"`
 }
 
-type Bin map[string]string
-type Scripts map[string]string
-type Dependencies map[string]string
+type (
+	Bin          map[string]string
+	Scripts      map[string]string
+	Dependencies map[string]string
+)

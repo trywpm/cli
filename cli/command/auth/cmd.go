@@ -1,10 +1,10 @@
 package auth
 
 import (
+	"github.com/spf13/cobra"
+
 	"go.wpm.so/cli/cli"
 	"go.wpm.so/cli/cli/command"
-
-	"github.com/spf13/cobra"
 )
 
 func NewAuthCommand(wpmCli command.Cli) *cobra.Command {

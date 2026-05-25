@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"os"
 
-	"go.wpm.so/cli/pkg/config"
-
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
+
+	"go.wpm.so/cli/pkg/config"
 )
 
 // ClientOptions are the options used to configure the client cli.

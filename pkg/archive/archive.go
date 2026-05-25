@@ -38,9 +38,7 @@ const (
 	maxDecompressedSize int64 = 512 * 1024 * 1024 // 512 MB
 )
 
-var (
-	zstdMagic = []byte{0x28, 0xb5, 0x2f, 0xfd}
-)
+var zstdMagic = []byte{0x28, 0xb5, 0x2f, 0xfd}
 
 type TarOptions struct {
 	IncludeFiles    []string
@@ -106,11 +104,9 @@ func (r *readCloserWrapper) Close() error {
 	return nil
 }
 
-var (
-	bufioReader256KPool = &sync.Pool{
-		New: func() any { return bufio.NewReaderSize(nil, 256*1024) },
-	}
-)
+var bufioReader256KPool = &sync.Pool{
+	New: func() any { return bufio.NewReaderSize(nil, 256*1024) },
+}
 
 type bufferedReader struct {
 	buf    *bufio.Reader
@@ -131,7 +127,7 @@ func (r *bufferedReader) Read(p []byte) (n int, err error) {
 	if err == io.EOF {
 		r.Close()
 	}
-	return
+	return n, err
 }
 
 func (r *bufferedReader) Peek(n int) ([]byte, error) {
@@ -161,7 +157,7 @@ func DecompressStream(archive io.Reader) (io.ReadCloser, error) {
 
 	// check if the stream is compressed with zstd
 	if !isZstd(bs) {
-		return nil, fmt.Errorf("unsupported archive format: expected zstd compressed archive")
+		return nil, errors.New("unsupported archive format: expected zstd compressed archive")
 	}
 
 	zstdReader, err := zstd.NewReader(buf, zstd.WithDecoderMaxWindow(zstdMaxWindowSize))
@@ -728,10 +724,10 @@ type extractionLimiter struct {
 
 func (b *extractionLimiter) Read(p []byte) (int, error) {
 	if b.compressedTracker.bytesRead > maxCompressedSize {
-		return 0, fmt.Errorf("invalid archive: compressed size exceeds 128MB limit")
+		return 0, errors.New("invalid archive: compressed size exceeds 128MB limit")
 	}
 	if b.decompressedBytes >= maxDecompressedSize {
-		return 0, fmt.Errorf("invalid archive: decompressed size exceeds 512MB limit (potential zip bomb)")
+		return 0, errors.New("invalid archive: decompressed size exceeds 512MB limit (potential zip bomb)")
 	}
 
 	remaining := maxDecompressedSize - b.decompressedBytes
@@ -749,7 +745,7 @@ func (b *extractionLimiter) Read(p []byte) (int, error) {
 			cBytes = 1 // prevent division by zero
 		}
 		if b.decompressedBytes >= int64(maxCompressionRatio)*cBytes {
-			return n, fmt.Errorf("invalid archive: compression ratio exceeds 99.6%% (potential zip bomb)")
+			return n, errors.New("invalid archive: compression ratio exceeds 99.6%% (potential zip bomb)")
 		}
 	}
 

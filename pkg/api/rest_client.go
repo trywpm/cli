@@ -3,7 +3,6 @@ package api
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -50,7 +49,7 @@ func WithHeader(key, value string) RequestOption {
 	}
 }
 
-func (c *RESTClient) DoWithContext(ctx context.Context, method string, path string, body io.Reader, response any, opts ...RequestOption) error {
+func (c *RESTClient) DoWithContext(ctx context.Context, method, path string, body io.Reader, response any, opts ...RequestOption) error {
 	url := restURL(c.host, path)
 	req, err := http.NewRequestWithContext(ctx, method, url, body)
 	if err != nil {
@@ -95,7 +94,7 @@ func (c *RESTClient) DoWithContext(ctx context.Context, method string, path stri
 	}
 }
 
-func (c *RESTClient) RequestStream(ctx context.Context, method string, path string, body io.Reader, opts ...RequestOption) (io.ReadCloser, error) {
+func (c *RESTClient) RequestStream(ctx context.Context, method, path string, body io.Reader, opts ...RequestOption) (io.ReadCloser, error) {
 	url := restURL(c.host, path)
 	req, err := http.NewRequestWithContext(ctx, method, url, body)
 	if err != nil {
@@ -119,7 +118,7 @@ func (c *RESTClient) RequestStream(ctx context.Context, method string, path stri
 	return resp.Body, nil
 }
 
-func (c *RESTClient) Do(method string, path string, body io.Reader, response any, opts ...RequestOption) error {
+func (c *RESTClient) Do(method, path string, body io.Reader, response any, opts ...RequestOption) error {
 	return c.DoWithContext(context.Background(), method, path, body, response, opts...)
 }
 
@@ -154,5 +153,5 @@ func restURL(hostname, pathOrURL string) string {
 }
 
 func restPrefix(hostname string) string {
-	return fmt.Sprintf("https://%s", hostname)
+	return "https://" + hostname
 }

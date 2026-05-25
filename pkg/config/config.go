@@ -10,9 +10,9 @@ import (
 	"strings"
 	"sync"
 
-	"go.wpm.so/cli/pkg/config/configfile"
-
 	"github.com/pkg/errors"
+
+	"go.wpm.so/cli/pkg/config/configfile"
 )
 
 const (

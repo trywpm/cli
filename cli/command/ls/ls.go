@@ -8,14 +8,14 @@ import (
 	"path/filepath"
 	"sort"
 
+	"github.com/morikuni/aec"
+	"github.com/pkg/errors"
+	"github.com/spf13/cobra"
+
 	"go.wpm.so/cli/cli"
 	"go.wpm.so/cli/cli/command"
 	"go.wpm.so/cli/pkg/pm/wpmjson"
 	"go.wpm.so/cli/pkg/pm/wpmlock"
-
-	"github.com/morikuni/aec"
-	"github.com/pkg/errors"
-	"github.com/spf13/cobra"
 )
 
 type lsOptions struct {

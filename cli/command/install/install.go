@@ -8,6 +8,11 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/morikuni/aec"
+	"github.com/pkg/errors"
+	"github.com/spf13/cobra"
+	"golang.org/x/sync/errgroup"
+
 	"go.wpm.so/cli/cli/command"
 	"go.wpm.so/cli/cli/version"
 	"go.wpm.so/cli/pkg/output"
@@ -15,11 +20,6 @@ import (
 	"go.wpm.so/cli/pkg/pm/wpmjson"
 	"go.wpm.so/cli/pkg/pm/wpmjson/types"
 	"go.wpm.so/cli/pkg/pm/wpmjson/validator"
-
-	"github.com/morikuni/aec"
-	"github.com/pkg/errors"
-	"github.com/spf13/cobra"
-	"golang.org/x/sync/errgroup"
 )
 
 type installOptions struct {

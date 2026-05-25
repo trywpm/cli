@@ -1,6 +1,8 @@
 package commands
 
 import (
+	"github.com/spf13/cobra"
+
 	"go.wpm.so/cli/cli/command"
 	"go.wpm.so/cli/cli/command/auth"
 	pmInit "go.wpm.so/cli/cli/command/init"
@@ -11,8 +13,6 @@ import (
 	"go.wpm.so/cli/cli/command/uninstall"
 	"go.wpm.so/cli/cli/command/whoami"
 	"go.wpm.so/cli/cli/command/why"
-
-	"github.com/spf13/cobra"
 )
 
 func AddCommands(cmd *cobra.Command, wpmCli command.Cli) {

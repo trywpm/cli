@@ -24,9 +24,7 @@ const (
 	sectionUpgradeNotice            = "upgrade_notice"
 )
 
-var (
-	screenshotLineRegex = regexp.MustCompile(`^(\d+)\.\s+(.+)$`)
-)
+var screenshotLineRegex = regexp.MustCompile(`^(\d+)\.\s+(.+)$`)
 
 type ReadmeParser struct {
 	Name            string
@@ -255,7 +253,7 @@ func (p *ReadmeParser) parseSections(lines []string, start int) {
 }
 
 // getSectionContent retrieves section content, checking primary and alternative keys.
-func (p *ReadmeParser) getSectionContent(primaryKey string, alternateKeys ...string) (content string, keyUsed string, found bool) {
+func (p *ReadmeParser) getSectionContent(primaryKey string, alternateKeys ...string) (content, keyUsed string, found bool) {
 	if content, ok := p.Sections[primaryKey]; ok {
 		return content, primaryKey, true
 	}

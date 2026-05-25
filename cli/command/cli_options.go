@@ -3,9 +3,9 @@ package command
 import (
 	"io"
 
-	"go.wpm.so/cli/pkg/streams"
-
 	"github.com/moby/term"
+
+	"go.wpm.so/cli/pkg/streams"
 )
 
 // CLIOption is a functional argument to apply options to a [WpmCli]. These

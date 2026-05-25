@@ -4,13 +4,13 @@ import (
 	"context"
 	"fmt"
 
-	"go.wpm.so/cli/cli"
-	"go.wpm.so/cli/cli/command"
-	"go.wpm.so/cli/pkg/output"
-
 	"github.com/morikuni/aec"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
+
+	"go.wpm.so/cli/cli"
+	"go.wpm.so/cli/cli/command"
+	"go.wpm.so/cli/pkg/output"
 )
 
 type loginOptions struct {

@@ -8,16 +8,16 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/morikuni/aec"
+	"github.com/pkg/errors"
+	"github.com/spf13/cobra"
+
 	"go.wpm.so/cli/cli"
 	"go.wpm.so/cli/cli/command"
 	"go.wpm.so/cli/cli/command/completion"
 	"go.wpm.so/cli/pkg/output"
 	"go.wpm.so/cli/pkg/pm/wpmjson"
 	"go.wpm.so/cli/pkg/pm/wpmlock"
-
-	"github.com/morikuni/aec"
-	"github.com/pkg/errors"
-	"github.com/spf13/cobra"
 )
 
 const (
@@ -101,8 +101,8 @@ func runWhy(wpmCli command.Cli, targetPkg string) error {
 
 	if len(paths) == 0 {
 		wpmCli.Output().Prettyln(output.Text{
-			Plain: fmt.Sprintf("%s is present in lockfile but has no apparent dependents (orphaned?).", targetPkg),
-			Fancy: fmt.Sprintf("%s is present in lockfile but has no apparent dependents (orphaned?).", aec.Bold.Apply(targetPkg)),
+			Plain: targetPkg + " is present in lockfile but has no apparent dependents (orphaned?).",
+			Fancy: aec.Bold.Apply(targetPkg) + " is present in lockfile but has no apparent dependents (orphaned?).",
 		})
 		return nil
 	}
@@ -115,7 +115,7 @@ func runWhy(wpmCli command.Cli, targetPkg string) error {
 			info := ""
 			if !stringsContainsRoot(name) {
 				if pkg, ok := lock.Packages[name]; ok {
-					info = fmt.Sprintf("@%s", pkg.Version)
+					info = "@" + pkg.Version
 				}
 			}
 

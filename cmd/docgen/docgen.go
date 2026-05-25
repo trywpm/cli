@@ -28,15 +28,15 @@ import (
 	"log"
 	"os"
 
-	"go.wpm.so/cli/cli"
-	"go.wpm.so/cli/cli/command"
-	"go.wpm.so/cli/cli/command/commands"
-	"go.wpm.so/cli/cli/version"
-
 	clidocstool "github.com/docker/cli-docs-tool"
 	"github.com/spf13/cobra"
 	"github.com/spf13/cobra/doc"
 	"github.com/spf13/pflag"
+
+	"go.wpm.so/cli/cli"
+	"go.wpm.so/cli/cli/command"
+	"go.wpm.so/cli/cli/command/commands"
+	"go.wpm.so/cli/cli/version"
 )
 
 const (

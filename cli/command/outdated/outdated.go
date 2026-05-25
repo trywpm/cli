@@ -8,18 +8,18 @@ import (
 	"sort"
 	"sync"
 
+	"github.com/Masterminds/semver/v3"
+	"github.com/morikuni/aec"
+	"github.com/pkg/errors"
+	"github.com/spf13/cobra"
+	"golang.org/x/sync/errgroup"
+
 	"go.wpm.so/cli/cli"
 	"go.wpm.so/cli/cli/command"
 	"go.wpm.so/cli/cli/version"
 	"go.wpm.so/cli/pkg/output"
 	"go.wpm.so/cli/pkg/pm/wpmjson"
 	"go.wpm.so/cli/pkg/pm/wpmlock"
-
-	"github.com/Masterminds/semver/v3"
-	"github.com/morikuni/aec"
-	"github.com/pkg/errors"
-	"github.com/spf13/cobra"
-	"golang.org/x/sync/errgroup"
 )
 
 func NewOutdatedCommand(wpmCli command.Cli) *cobra.Command {

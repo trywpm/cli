@@ -4,10 +4,10 @@ import (
 	"io"
 	"os"
 
-	"go.wpm.so/cli/pkg/unsafeconv"
-
 	"github.com/moby/term"
 	"github.com/sirupsen/logrus"
+
+	"go.wpm.so/cli/pkg/unsafeconv"
 )
 
 // Out is an output stream to write normal program output. It implements
@@ -80,7 +80,7 @@ func (o *Out) SetRawTerminal() (err error) {
 
 // GetTtySize returns the height and width in characters of the TTY, or
 // zero for both if no TTY is connected.
-func (o *Out) GetTtySize() (height uint, width uint) {
+func (o *Out) GetTtySize() (height, width uint) {
 	if !o.isTerminal {
 		return 0, 0
 	}

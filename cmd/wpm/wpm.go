@@ -8,18 +8,18 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/containerd/errdefs"
+	"github.com/morikuni/aec"
+	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
+	"github.com/spf13/cobra"
+
 	"go.wpm.so/cli/cli"
 	"go.wpm.so/cli/cli/command"
 	"go.wpm.so/cli/cli/command/commands"
 	cliflags "go.wpm.so/cli/cli/flags"
 	"go.wpm.so/cli/cli/version"
 	platformsignals "go.wpm.so/cli/cmd/wpm/internal/signals"
-
-	"github.com/containerd/errdefs"
-	"github.com/morikuni/aec"
-	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
-	"github.com/spf13/cobra"
 )
 
 type errCtxSignalTerminated struct {
@@ -152,7 +152,7 @@ func newWpmCommand(wpmCli *command.WpmCli) *cli.TopLevelCommand {
 				}
 			}
 
-			return fmt.Errorf("\nRun 'wpm --help' for more information")
+			return errors.New("\nRun 'wpm --help' for more information")
 		},
 		Version:               ver,
 		DisableFlagsInUseLine: true,
