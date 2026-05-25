@@ -148,7 +148,7 @@ func (t *Transport) executeRequest(req *http.Request, finalPath string, force bo
 	return resp, nil
 }
 
-func (t *Transport) open(path string) (io.ReadCloser, http.Header, error) {
+func (*Transport) open(path string) (io.ReadCloser, http.Header, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, nil, err
@@ -247,7 +247,7 @@ func (t *Transport) write(src io.ReadCloser, finalPath string, h http.Header) io
 	}
 }
 
-func (t *Transport) writeMeta(w io.Writer, h http.Header) error {
+func (*Transport) writeMeta(w io.Writer, h http.Header) error {
 	if err := binary.Write(w, binary.BigEndian, uint32(headerMagic)); err != nil {
 		return err
 	}
@@ -349,7 +349,7 @@ func renameFile(src, dst string) error {
 	return err
 }
 
-func (t *Transport) response(req *http.Request, body io.ReadCloser, h http.Header) *http.Response {
+func (*Transport) response(req *http.Request, body io.ReadCloser, h http.Header) *http.Response {
 	return &http.Response{
 		StatusCode: http.StatusOK,
 		Body:       body,

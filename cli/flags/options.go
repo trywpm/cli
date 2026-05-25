@@ -36,7 +36,7 @@ func (o *ClientOptions) InstallFlags(flags *pflag.FlagSet) {
 
 // SetDefaultOptions sets default values for options after flag parsing is
 // complete
-func (o *ClientOptions) SetDefaultOptions(flags *pflag.FlagSet) {}
+func (*ClientOptions) SetDefaultOptions(_ *pflag.FlagSet) {}
 
 // SetLogLevel sets the logrus logging level
 func SetLogLevel(logLevel string) {

@@ -253,8 +253,8 @@ func (r *Resolver) resolveConflict(req dependencyRequest, existing Node) error {
 	}
 }
 
-func (r *Resolver) checkRuntimeCompatibility(manifest *manifest.Package) error {
-	if manifest == nil {
+func (r *Resolver) checkRuntimeCompatibility(pkg *manifest.Package) error {
+	if pkg == nil {
 		return errors.New("manifest is nil")
 	}
 
@@ -264,13 +264,13 @@ func (r *Resolver) checkRuntimeCompatibility(manifest *manifest.Package) error {
 	}
 
 	// If manifest has no requirements, skip
-	if manifest.Requires == nil {
+	if pkg.Requires == nil {
 		return nil
 	}
 
 	// PHP and WordPress version constraints
-	requiresWP := manifest.Requires.WP
-	requiresPHP := manifest.Requires.PHP
+	requiresWP := pkg.Requires.WP
+	requiresPHP := pkg.Requires.PHP
 
 	// PHP and WordPress runtime versions
 	runtimeWP := r.rootConfig.Config.Runtime.WP

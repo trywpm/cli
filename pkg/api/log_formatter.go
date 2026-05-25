@@ -16,6 +16,6 @@ func (f *jsonFormatter) Format(w io.Writer, src []byte) error {
 	return jsonpretty.Format(w, bytes.NewReader(src), "  ", f.colorize)
 }
 
-func (f *jsonFormatter) Match(t string) bool {
+func (*jsonFormatter) Match(t string) bool {
 	return jsonTypeRE.MatchString(t)
 }

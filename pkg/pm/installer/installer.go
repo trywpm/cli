@@ -278,7 +278,7 @@ func (i *Installer) rename(ctx context.Context, src, dst string) error {
 	}, isRetriableError)
 }
 
-func (i *Installer) removeAll(ctx context.Context, path string) error {
+func (*Installer) removeAll(ctx context.Context, path string) error {
 	if path == "" {
 		return nil
 	}

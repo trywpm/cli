@@ -57,7 +57,7 @@ func New(host, authToken, userAgent, cacheDir string, colorize bool, out io.Writ
 
 // PutPackage uploads a package to the registry
 func (c *client) PutPackage(ctx context.Context, data *manifest.Package, tarball io.Reader) error {
-	manifest, err := json.Marshal(data)
+	manifestBytes, err := json.Marshal(data)
 	if err != nil {
 		return err
 	}
@@ -67,13 +67,13 @@ func (c *client) PutPackage(ctx context.Context, data *manifest.Package, tarball
 		tarball,
 		nil,
 		api.WithHeader(api.HeaderContentType, contentTypeOctetStream),
-		api.WithHeader(wpmManifestHeader, base64.StdEncoding.EncodeToString(manifest)),
+		api.WithHeader(wpmManifestHeader, base64.StdEncoding.EncodeToString(manifestBytes)),
 	)
 }
 
 // GetPackageManifest retrieves a package manifest from the registry
 func (c *client) GetPackageManifest(ctx context.Context, packageName, versionOrTag string, force bool) (*manifest.Package, error) {
-	var manifest *manifest.Package
+	var pkg *manifest.Package
 
 	if versionOrTag == "" || versionOrTag == "*" {
 		versionOrTag = "latest"
@@ -86,7 +86,7 @@ func (c *client) GetPackageManifest(ctx context.Context, packageName, versionOrT
 
 	err := c.restClient.Get(
 		"/"+packageName+"/"+versionOrTag,
-		&manifest,
+		&pkg,
 		api.WithHeader(header, "true"), // Used by cache round tripper.
 		api.WithHeader(api.HeaderAccept, wpmContentTypeManifestV1),
 	)
@@ -94,7 +94,7 @@ func (c *client) GetPackageManifest(ctx context.Context, packageName, versionOrT
 		return nil, err
 	}
 
-	return manifest, nil
+	return pkg, nil
 }
 
 // DownloadTarball downloads a package tarball from the registry

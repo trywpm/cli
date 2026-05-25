@@ -111,7 +111,6 @@ func CalculatePlan(
 			}
 
 			// If it exists and matches lockfile, do nothing (NoOp)
-
 		} else {
 			// New package -> Install
 			actions = append(actions, Action{
