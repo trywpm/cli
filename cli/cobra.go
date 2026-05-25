@@ -6,16 +6,16 @@ import (
 	"sort"
 	"strings"
 
-	"go.wpm.so/cli/cli/command"
-	"go.wpm.so/cli/cli/command/completion"
-	cliflags "go.wpm.so/cli/cli/flags"
-
 	"github.com/fvbommel/sortorder"
 	"github.com/moby/term"
 	"github.com/morikuni/aec"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
+
+	"go.wpm.so/cli/cli/command"
+	"go.wpm.so/cli/cli/command/completion"
+	cliflags "go.wpm.so/cli/cli/flags"
 )
 
 // setupCommonRootCommand contains the setup common to
@@ -151,9 +151,13 @@ func commandAliases(cmd *cobra.Command) string {
 		parentPath = cmd.Parent().CommandPath() + " "
 	}
 	aliases := cmd.CommandPath()
+	var builder strings.Builder
 	for _, alias := range cmd.Aliases {
-		aliases += ", " + parentPath + alias
+		builder.WriteString(", ")
+		builder.WriteString(parentPath)
+		builder.WriteString(alias)
 	}
+	aliases += builder.String()
 	return aliases
 }
 

@@ -102,7 +102,7 @@ func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 }
 
 func (t *Transport) executeRequest(req *http.Request, finalPath string, force bool) (*http.Response, error) {
-	if err := os.MkdirAll(filepath.Dir(finalPath), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(finalPath), 0o750); err != nil {
 		return t.base().RoundTrip(req)
 	}
 
@@ -114,7 +114,7 @@ func (t *Transport) executeRequest(req *http.Request, finalPath string, force bo
 			if et := h.Get(HeaderEtag); et != "" {
 				req.Header.Set(HeaderIfNoneMatch, et)
 			}
-			body.Close()
+			_ = body.Close()
 		}
 	}
 
@@ -125,7 +125,7 @@ func (t *Transport) executeRequest(req *http.Request, finalPath string, force bo
 
 	// Handle 304 Not Modified
 	if resp.StatusCode == http.StatusNotModified {
-		resp.Body.Close()
+		_ = resp.Body.Close()
 		if body, h, err := t.open(finalPath); err == nil {
 			h.Set(HeaderLocalCache, CacheHit)
 			return t.response(req, body, h), nil
@@ -148,81 +148,88 @@ func (t *Transport) executeRequest(req *http.Request, finalPath string, force bo
 	return resp, nil
 }
 
-func (t *Transport) open(path string) (io.ReadCloser, http.Header, error) {
-	f, err := os.Open(path)
+func (*Transport) open(path string) (io.ReadCloser, http.Header, error) {
+	f, err := os.Open(path) //nolint:gosec // path is derived from a sha256 hash of the request URL within our cache dir
 	if err != nil {
 		return nil, nil, err
 	}
 
-	fail := func(e error) (io.ReadCloser, http.Header, error) {
-		f.Close()
-		return nil, nil, e
-	}
-
-	var magic uint32
-	if err := binary.Read(f, binary.BigEndian, &magic); err != nil || magic != headerMagic {
-		return fail(errors.New("bad magic"))
-	}
-
-	ver := make([]byte, len(cacheVersion))
-	if _, err := io.ReadFull(f, ver); err != nil || string(ver) != cacheVersion {
-		return fail(errors.New("version mismatch"))
-	}
-
-	var metaLen uint32
-	if err := binary.Read(f, binary.BigEndian, &metaLen); err != nil {
-		return fail(err)
-	}
-	if metaLen > maxMetaLen {
-		return fail(fmt.Errorf("meta length %d exceeds %d limit", metaLen, maxMetaLen))
-	}
-
-	rawMeta := make([]byte, metaLen)
-	if _, err := io.ReadFull(f, rawMeta); err != nil {
-		return fail(err)
-	}
-
-	var m meta
-	if err := json.Unmarshal(rawMeta, &m); err != nil {
-		return fail(err)
-	}
-
-	bodyStart, err := f.Seek(0, io.SeekCurrent)
+	headers, bodyStart, bodyEnd, err := readCacheEnvelope(f)
 	if err != nil {
-		return fail(err)
-	}
-
-	stat, err := f.Stat()
-	if err != nil {
-		return fail(err)
-	}
-
-	if stat.Size() < bodyStart+4 {
-		return fail(errors.New("truncated"))
-	}
-
-	if _, err := f.Seek(-4, io.SeekEnd); err != nil {
-		return fail(err)
-	}
-
-	var endMagic uint32
-	if err := binary.Read(f, binary.BigEndian, &endMagic); err != nil || endMagic != footerMagic {
-		return fail(errors.New("bad footer"))
-	}
-
-	if _, err := f.Seek(bodyStart, io.SeekStart); err != nil {
-		return fail(err)
+		_ = f.Close()
+		return nil, nil, err
 	}
 
 	return &safeReader{
 		f:             f,
-		SectionReader: io.NewSectionReader(f, bodyStart, stat.Size()-bodyStart-4),
-	}, m.Headers, nil
+		SectionReader: io.NewSectionReader(f, bodyStart, bodyEnd-bodyStart),
+	}, headers, nil
+}
+
+// readCacheEnvelope validates the cache file's magic/version/footer and returns
+// the parsed headers plus the byte range that the response body occupies.
+func readCacheEnvelope(f *os.File) (http.Header, int64, int64, error) {
+	var magic uint32
+	if err := binary.Read(f, binary.BigEndian, &magic); err != nil || magic != headerMagic {
+		return nil, 0, 0, errors.New("bad magic")
+	}
+
+	ver := make([]byte, len(cacheVersion))
+	if _, err := io.ReadFull(f, ver); err != nil || string(ver) != cacheVersion {
+		return nil, 0, 0, errors.New("version mismatch")
+	}
+
+	var metaLen uint32
+	if err := binary.Read(f, binary.BigEndian, &metaLen); err != nil {
+		return nil, 0, 0, err
+	}
+	if metaLen > maxMetaLen {
+		return nil, 0, 0, fmt.Errorf("meta length %d exceeds %d limit", metaLen, maxMetaLen)
+	}
+
+	rawMeta := make([]byte, metaLen)
+	if _, err := io.ReadFull(f, rawMeta); err != nil {
+		return nil, 0, 0, err
+	}
+
+	var m meta
+	if err := json.Unmarshal(rawMeta, &m); err != nil {
+		return nil, 0, 0, err
+	}
+
+	bodyStart, err := f.Seek(0, io.SeekCurrent)
+	if err != nil {
+		return nil, 0, 0, err
+	}
+
+	stat, err := f.Stat()
+	if err != nil {
+		return nil, 0, 0, err
+	}
+
+	if stat.Size() < bodyStart+4 {
+		return nil, 0, 0, errors.New("truncated")
+	}
+
+	if _, err := f.Seek(-4, io.SeekEnd); err != nil {
+		return nil, 0, 0, err
+	}
+
+	var endMagic uint32
+	if err := binary.Read(f, binary.BigEndian, &endMagic); err != nil || endMagic != footerMagic {
+		return nil, 0, 0, errors.New("bad footer")
+	}
+
+	if _, err := f.Seek(bodyStart, io.SeekStart); err != nil {
+		return nil, 0, 0, err
+	}
+
+	return m.Headers, bodyStart, stat.Size() - 4, nil
 }
 
 func (t *Transport) write(src io.ReadCloser, finalPath string, h http.Header) io.ReadCloser {
 	tmpDir := filepath.Join(t.cacheDir, "tmp")
-	if err := os.MkdirAll(tmpDir, 0o755); err != nil {
+	if err := os.MkdirAll(tmpDir, 0o750); err != nil {
 		return src
 	}
 
@@ -231,11 +238,11 @@ func (t *Transport) write(src io.ReadCloser, finalPath string, h http.Header) io
 		return src
 	}
 
-	_ = os.Chmod(f.Name(), 0o644)
+	_ = os.Chmod(f.Name(), 0o600)
 
 	if err := t.writeMeta(f, h); err != nil {
-		f.Close()
-		os.Remove(f.Name())
+		_ = f.Close()
+		_ = os.Remove(f.Name())
 		return src
 	}
 
@@ -247,7 +254,7 @@ func (t *Transport) write(src io.ReadCloser, finalPath string, h http.Header) io
 	}
 }
 
-func (t *Transport) writeMeta(w io.Writer, h http.Header) error {
+func (*Transport) writeMeta(w io.Writer, h http.Header) error {
 	if err := binary.Write(w, binary.BigEndian, uint32(headerMagic)); err != nil {
 		return err
 	}
@@ -271,7 +278,7 @@ func (t *Transport) writeMeta(w io.Writer, h http.Header) error {
 	if len(b) > maxMetaLen {
 		return fmt.Errorf("cacheable headers too large: %d bytes", len(b))
 	}
-	if err := binary.Write(w, binary.BigEndian, uint32(len(b))); err != nil {
+	if err := binary.Write(w, binary.BigEndian, uint32(len(b))); err != nil { //nolint:gosec // bounded above by maxMetaLen check
 		return err
 	}
 	_, err = w.Write(b)
@@ -292,8 +299,8 @@ func (w *writer) Read(p []byte) (int, error) {
 	if n > 0 && !w.cacheFailed {
 		if _, wErr := w.dst.Write(p[:n]); wErr != nil {
 			w.cacheFailed = true
-			w.dst.Close()
-			os.Remove(w.tmp)
+			_ = w.dst.Close()
+			_ = os.Remove(w.tmp)
 		}
 	}
 	if err == io.EOF {
@@ -317,12 +324,12 @@ func (w *writer) Close() error {
 
 	closeErr := w.dst.Close()
 	if !success || closeErr != nil {
-		os.Remove(w.tmp)
+		_ = os.Remove(w.tmp)
 		return srcErr
 	}
 
 	if err := renameFile(w.tmp, w.final); err != nil {
-		os.Remove(w.tmp)
+		_ = os.Remove(w.tmp)
 	}
 	return srcErr
 }
@@ -349,9 +356,9 @@ func renameFile(src, dst string) error {
 	return err
 }
 
-func (t *Transport) response(req *http.Request, body io.ReadCloser, h http.Header) *http.Response {
+func (*Transport) response(req *http.Request, body io.ReadCloser, h http.Header) *http.Response {
 	return &http.Response{
-		StatusCode: 200,
+		StatusCode: http.StatusOK,
 		Body:       body,
 		Header:     h,
 		Request:    req,

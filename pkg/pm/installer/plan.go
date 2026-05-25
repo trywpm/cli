@@ -47,28 +47,13 @@ func CalculatePlan(
 	for name, node := range resolved {
 		seen[name] = true
 
-		shouldInstall := true
+		subDir, ok := subDirForType(node.Type)
+		if !ok {
+			continue
+		}
+		exists := pathExists(filepath.Join(contentDir, subDir, name))
+
 		if noDev && !prodSet[name] {
-			shouldInstall = false
-		}
-
-		// Calculate target path to check filesystem state
-		subDir := "plugins"
-		switch node.Type {
-		case types.TypeTheme:
-			subDir = "themes"
-		case types.TypeMuPlugin:
-			subDir = "mu-plugins"
-		}
-		targetPath := filepath.Join(contentDir, subDir, name)
-
-		exists := false
-		if _, err := os.Stat(targetPath); err == nil {
-			exists = true
-		}
-
-		// If we shouldn't install it (dev dep in --no-dev mode)
-		if !shouldInstall {
 			if exists {
 				// It exists on disk but shouldn't be there -> Remove
 				actions = append(actions, Action{
@@ -80,44 +65,8 @@ func CalculatePlan(
 			continue
 		}
 
-		// Check if package exists in lockfile
-		if oldPkg, ok := lock.Packages[name]; ok {
-			// Update if version or digest has changed
-			if oldPkg.Version != node.Version || oldPkg.Digest != node.Digest {
-				actions = append(actions, Action{
-					Type:     ActionUpdate,
-					Name:     name,
-					Version:  node.Version,
-					Resolved: node.Resolved,
-					Digest:   node.Digest,
-					PkgType:  node.Type,
-				})
-				continue
-			}
-
-			if !exists {
-				actions = append(actions, Action{
-					Type:     ActionInstall,
-					Name:     name,
-					Version:  node.Version,
-					Resolved: node.Resolved,
-					Digest:   node.Digest,
-					PkgType:  node.Type,
-				})
-			}
-
-			// If it exists and matches lockfile, do nothing (NoOp)
-
-		} else {
-			// New package -> Install
-			actions = append(actions, Action{
-				Type:     ActionInstall,
-				Name:     name,
-				Version:  node.Version,
-				Resolved: node.Resolved,
-				Digest:   node.Digest,
-				PkgType:  node.Type,
-			})
+		if action, hasAction := resolveAction(name, node, lock, exists); hasAction {
+			actions = append(actions, action)
 		}
 	}
 
@@ -134,6 +83,66 @@ func CalculatePlan(
 	}
 
 	return actions
+}
+
+// subDirForType maps a package type to its content sub-directory. Returns false for unknown types.
+func subDirForType(t types.PackageType) (string, bool) {
+	switch t {
+	case types.TypeTheme:
+		return "themes", true
+	case types.TypeMuPlugin:
+		return "mu-plugins", true
+	case types.TypePlugin:
+		return "plugins", true
+	default:
+		return "", false
+	}
+}
+
+func pathExists(p string) bool {
+	_, err := os.Stat(p)
+	return err == nil
+}
+
+// resolveAction picks the Action (if any) for a resolved package by comparing it
+// against lockfile state and on-disk presence. Returns (zero, false) for NoOp.
+func resolveAction(name string, node resolution.Node, lock *wpmlock.Lockfile, exists bool) (Action, bool) {
+	oldPkg, inLock := lock.Packages[name]
+	if !inLock {
+		return Action{
+			Type:     ActionInstall,
+			Name:     name,
+			Version:  node.Version,
+			Resolved: node.Resolved,
+			Digest:   node.Digest,
+			PkgType:  node.Type,
+		}, true
+	}
+
+	if oldPkg.Version != node.Version || oldPkg.Digest != node.Digest {
+		return Action{
+			Type:     ActionUpdate,
+			Name:     name,
+			Version:  node.Version,
+			Resolved: node.Resolved,
+			Digest:   node.Digest,
+			PkgType:  node.Type,
+		}, true
+	}
+
+	if !exists {
+		return Action{
+			Type:     ActionInstall,
+			Name:     name,
+			Version:  node.Version,
+			Resolved: node.Resolved,
+			Digest:   node.Digest,
+			PkgType:  node.Type,
+		}, true
+	}
+
+	// Exists on disk and matches lockfile -> NoOp
+	return Action{}, false
 }
 
 // getProdDependencies returns a set of all production dependencies and their transitive dependencies.

@@ -8,18 +8,18 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/containerd/errdefs"
+	"github.com/morikuni/aec"
+	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
+	"github.com/spf13/cobra"
+
 	"go.wpm.so/cli/cli"
 	"go.wpm.so/cli/cli/command"
 	"go.wpm.so/cli/cli/command/commands"
 	cliflags "go.wpm.so/cli/cli/flags"
 	"go.wpm.so/cli/cli/version"
 	platformsignals "go.wpm.so/cli/cmd/wpm/internal/signals"
-
-	"github.com/containerd/errdefs"
-	"github.com/morikuni/aec"
-	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
-	"github.com/spf13/cobra"
 )
 
 type errCtxSignalTerminated struct {
@@ -133,7 +133,7 @@ func newWpmCommand(wpmCli *command.WpmCli) *cli.TopLevelCommand {
 				return command.ShowHelp(wpmCli.Err())(cmd, args)
 			}
 
-			fmt.Fprintf(wpmCli.Err(), "wpm: unknown command: wpm %s\n", args[0])
+			_, _ = fmt.Fprintf(wpmCli.Err(), "wpm: unknown command: wpm %s\n", args[0])
 
 			var candidates []string
 			if args[0] == "help" {
@@ -146,13 +146,13 @@ func newWpmCommand(wpmCli *command.WpmCli) *cli.TopLevelCommand {
 			}
 
 			if len(candidates) > 0 {
-				fmt.Fprint(wpmCli.Err(), "\nDid you mean this?\n")
+				_, _ = fmt.Fprint(wpmCli.Err(), "\nDid you mean this?\n")
 				for _, c := range candidates {
-					fmt.Fprintf(wpmCli.Err(), "\t%s\n", c)
+					_, _ = fmt.Fprintf(wpmCli.Err(), "\t%s\n", c)
 				}
 			}
 
-			return fmt.Errorf("\nRun 'wpm --help' for more information")
+			return errors.New("\nRun 'wpm --help' for more information")
 		},
 		Version:               ver,
 		DisableFlagsInUseLine: true,

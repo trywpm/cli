@@ -25,18 +25,18 @@ package main
 import (
 	"errors"
 	"fmt"
-	"log"
 	"os"
+
+	clidocstool "github.com/docker/cli-docs-tool"
+	"github.com/sirupsen/logrus"
+	"github.com/spf13/cobra"
+	"github.com/spf13/cobra/doc"
+	"github.com/spf13/pflag"
 
 	"go.wpm.so/cli/cli"
 	"go.wpm.so/cli/cli/command"
 	"go.wpm.so/cli/cli/command/commands"
 	"go.wpm.so/cli/cli/version"
-
-	clidocstool "github.com/docker/cli-docs-tool"
-	"github.com/spf13/cobra"
-	"github.com/spf13/cobra/doc"
-	"github.com/spf13/pflag"
 )
 
 const (
@@ -59,7 +59,7 @@ func main() {
 }
 
 func run() error {
-	log.SetFlags(0)
+	logrus.SetFormatter(&logrus.TextFormatter{DisableTimestamp: true})
 
 	opts, err := parseArgs(os.Args[1:])
 	if err != nil {
@@ -71,6 +71,7 @@ func run() error {
 		return err
 	}
 
+	//nolint:gosec // Dir perms are intentionally permissive here.
 	if err := os.MkdirAll(opts.target, 0o755); err != nil {
 		return fmt.Errorf("create %s: %w", opts.target, err)
 	}

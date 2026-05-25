@@ -6,6 +6,10 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/morikuni/aec"
+	"github.com/pkg/errors"
+	"github.com/spf13/cobra"
+
 	"go.wpm.so/cli/cli"
 	"go.wpm.so/cli/cli/command"
 	"go.wpm.so/cli/cli/command/completion"
@@ -14,10 +18,6 @@ import (
 	"go.wpm.so/cli/pkg/output"
 	"go.wpm.so/cli/pkg/pm/workspace"
 	"go.wpm.so/cli/pkg/pm/wpmjson"
-
-	"github.com/morikuni/aec"
-	"github.com/pkg/errors"
-	"github.com/spf13/cobra"
 )
 
 func NewUninstallCommand(wpmCli command.Cli) *cobra.Command {
@@ -71,7 +71,7 @@ func runUninstall(ctx context.Context, wpmCli command.Cli, packages []string) er
 	}
 
 	if cfg == nil {
-		return fmt.Errorf("no wpm.json found, so nothing to uninstall")
+		return errors.New("no wpm.json found, so nothing to uninstall")
 	}
 
 	changed := false
@@ -92,7 +92,7 @@ func runUninstall(ctx context.Context, wpmCli command.Cli, packages []string) er
 
 	if !changed {
 		wpmCli.Out().WriteString("\n")
-		fmt.Fprintln(wpmCli.Out(), "No matching packages found to uninstall.")
+		_, _ = fmt.Fprintln(wpmCli.Out(), "No matching packages found to uninstall.")
 		return nil
 	}
 

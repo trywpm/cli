@@ -8,15 +8,15 @@ import (
 	"slices"
 	"strconv"
 
+	"github.com/morikuni/aec"
+	"github.com/pkg/errors"
+
 	"go.wpm.so/cli/cli/command"
 	"go.wpm.so/cli/pkg/output"
 	"go.wpm.so/cli/pkg/pm/installer"
 	"go.wpm.so/cli/pkg/pm/resolution"
 	"go.wpm.so/cli/pkg/pm/wpmjson"
 	"go.wpm.so/cli/pkg/pm/wpmlock"
-
-	"github.com/morikuni/aec"
-	"github.com/pkg/errors"
 )
 
 type Trigger int
@@ -48,6 +48,8 @@ func installerProgress(out *output.Output) func(action installer.Action) {
 		case installer.ActionUpdate:
 			actionStr = "+" // we use "+" for updates as well to indicate addition of new version
 			color = aec.YellowF
+		case installer.ActionInstall:
+			// keep defaults
 		}
 
 		out.Prettyln(output.Text{
@@ -108,18 +110,8 @@ func Run(ctx context.Context, cwd string, wpmCli command.Cli, opts RunOptions) e
 		return nil
 	}
 
-	// -- Dry Run --
 	if opts.DryRun {
-		for _, action := range plan {
-			installerProgress(wpmCli.Output())(action)
-		}
-		totalPackages := len(plan)
-
-		wpmCli.Output().Prettyln(output.Text{
-			Plain: fmt.Sprintf("\n%d %s can be installed", totalPackages, command.Pluralize("package", "s", totalPackages)),
-			Fancy: fmt.Sprintf("\n%s %s can be installed", aec.GreenF.Apply(strconv.Itoa(totalPackages)), command.Pluralize("package", "s", totalPackages)),
-		})
-
+		printDryRunPlan(wpmCli, plan)
 		return nil
 	}
 
@@ -130,7 +122,7 @@ func Run(ctx context.Context, cwd string, wpmCli command.Cli, opts RunOptions) e
 	if err != nil {
 		return errors.Wrap(err, "failed to initialize installer")
 	}
-	defer inst.Close()
+	defer func() { _ = inst.Close() }()
 
 	if err := inst.InstallAll(ctx, plan, installerProgress(wpmCli.Output())); err != nil {
 		return errors.Wrap(err, "installation failed")
@@ -140,7 +132,35 @@ func Run(ctx context.Context, cwd string, wpmCli command.Cli, opts RunOptions) e
 
 	// @todo: dependencies lifecycle scripts
 
-	// -- Update Lockfile --
+	updateLockPackages(lock, resolved)
+	if err := lock.Write(cwd); err != nil {
+		return errors.Wrap(err, "failed to save lockfile")
+	}
+
+	// @todo: run root lifecycle scripts
+
+	if opts.SaveConfig {
+		if err := wpmCfg.Write(cwd); err != nil {
+			return errors.Wrap(err, "failed to save wpm.json")
+		}
+	}
+
+	printRunSummary(wpmCli, opts.Trigger, len(plan))
+	return nil
+}
+
+func printDryRunPlan(wpmCli command.Cli, plan []installer.Action) {
+	for _, action := range plan {
+		installerProgress(wpmCli.Output())(action)
+	}
+	totalPackages := len(plan)
+	wpmCli.Output().Prettyln(output.Text{
+		Plain: fmt.Sprintf("\n%d %s can be installed", totalPackages, command.Pluralize("package", "s", totalPackages)),
+		Fancy: fmt.Sprintf("\n%s %s can be installed", aec.GreenF.Apply(strconv.Itoa(totalPackages)), command.Pluralize("package", "s", totalPackages)),
+	})
+}
+
+func updateLockPackages(lock *wpmlock.Lockfile, resolved map[string]resolution.Node) {
 	lock.Packages = make(map[string]wpmlock.LockPackage, len(resolved))
 	for _, name := range slices.Sorted(maps.Keys(resolved)) {
 		node := resolved[name]
@@ -153,23 +173,11 @@ func Run(ctx context.Context, cwd string, wpmCli command.Cli, opts RunOptions) e
 			Dependencies: node.Dependencies,
 		}
 	}
+}
 
-	if err := lock.Write(cwd); err != nil {
-		return errors.Wrap(err, "failed to save lockfile")
-	}
-
-	// @todo: run root lifecycle scripts
-
-	// -- Save wpm.json --
-	if opts.SaveConfig {
-		if err := wpmCfg.Write(cwd); err != nil {
-			return errors.Wrap(err, "failed to save wpm.json")
-		}
-	}
-
-	// -- Print Summary --
+func printRunSummary(wpmCli command.Cli, trigger Trigger, count int) {
 	var action string
-	switch opts.Trigger {
+	switch trigger {
 	case TriggerInstall:
 		action = "installed"
 	case TriggerUpdate:
@@ -178,12 +186,11 @@ func Run(ctx context.Context, cwd string, wpmCli command.Cli, opts RunOptions) e
 		action = "uninstalled"
 	}
 
-	if action != "" {
-		wpmCli.Output().Prettyln(output.Text{
-			Plain: fmt.Sprintf("\n%d %s %s", len(plan), command.Pluralize("package", "s", len(plan)), action),
-			Fancy: fmt.Sprintf("\n%s %s %s", aec.GreenF.Apply(strconv.Itoa(len(plan))), command.Pluralize("package", "s", len(plan)), action),
-		})
+	if action == "" {
+		return
 	}
-
-	return nil
+	wpmCli.Output().Prettyln(output.Text{
+		Plain: fmt.Sprintf("\n%d %s %s", count, command.Pluralize("package", "s", count), action),
+		Fancy: fmt.Sprintf("\n%s %s %s", aec.GreenF.Apply(strconv.Itoa(count)), command.Pluralize("package", "s", count), action),
+	})
 }

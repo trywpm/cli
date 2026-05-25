@@ -26,11 +26,11 @@ func (e *ErrorList) Add(field string, err error) {
 }
 
 // AddMsg allows adding a string message directly.
-func (e *ErrorList) AddMsg(field string, msg string) {
+func (e *ErrorList) AddMsg(field, msg string) {
 	*e = append(*e, ValidationError{Field: field, Message: msg})
 }
 
-// Merge combines another error (single or ErrorList) into this list.
+// MustMerge merges another error into the list, panicking if the error is not an ErrorList.
 func (e *ErrorList) MustMerge(err error) {
 	if err == nil {
 		return

@@ -6,11 +6,11 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/pkg/errors"
+
 	"go.wpm.so/cli/pkg/pm"
 	"go.wpm.so/cli/pkg/pm/wpmjson/types"
 	"go.wpm.so/cli/pkg/pm/wpmjson/validator"
-
-	"github.com/pkg/errors"
 )
 
 const ConfigFile = "wpm.json"
@@ -157,7 +157,7 @@ func Read(cwd string) (*Config, error) {
 		return nil, nil
 	}
 
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) //nolint:gosec // path is cwd + ConfigFile constant
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to read wpm.json")
 	}
@@ -183,7 +183,7 @@ func (c *Config) Write(cwd string) error {
 	}
 
 	// Write with 0644 permissions (rw-r--r--)
-	if err := os.WriteFile(path, data, 0644); err != nil {
+	if err := os.WriteFile(path, data, 0o644); err != nil {
 		return errors.Wrap(err, "failed to write wpm.json to disk")
 	}
 

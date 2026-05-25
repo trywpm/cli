@@ -5,6 +5,8 @@ import (
 	"os"
 	"runtime"
 
+	"github.com/spf13/cobra"
+
 	"go.wpm.so/cli/cli/debug"
 	cliflags "go.wpm.so/cli/cli/flags"
 	"go.wpm.so/cli/cli/version"
@@ -14,8 +16,6 @@ import (
 	"go.wpm.so/cli/pkg/pm/registry"
 	"go.wpm.so/cli/pkg/progress"
 	"go.wpm.so/cli/pkg/streams"
-
-	"github.com/spf13/cobra"
 )
 
 // Streams is an interface which exposes the standard input and output streams
@@ -54,9 +54,8 @@ type WpmCli struct {
 // It applies by default the standard streams, and the content trust from
 // environment.
 func NewWpmCli(ops ...CLIOption) (*WpmCli, error) {
-	defaultOps := []CLIOption{
-		WithStandardStreams(),
-	}
+	defaultOps := make([]CLIOption, 0, len(ops)+1)
+	defaultOps = append(defaultOps, WithStandardStreams())
 	ops = append(defaultOps, ops...)
 
 	cli := &WpmCli{}

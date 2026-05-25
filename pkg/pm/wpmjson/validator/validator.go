@@ -1,6 +1,7 @@
 package validator
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
 	"path/filepath"
@@ -8,25 +9,23 @@ import (
 	"strings"
 	"unicode"
 
-	"go.wpm.so/cli/pkg/pm/wpmjson/types"
-
 	"github.com/Masterminds/semver/v3"
+
+	"go.wpm.so/cli/pkg/pm/wpmjson/types"
 )
 
-var (
-	packageNameRegex = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
-)
+var packageNameRegex = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
 
 // IsValidPackageName checks if the package name adheres to naming conventions.
 func IsValidPackageName(name string) error {
 	if len(name) < 3 {
-		return fmt.Errorf("must be at least 3 characters")
+		return errors.New("must be at least 3 characters")
 	}
 	if len(name) > 164 {
-		return fmt.Errorf("must be at most 164 characters")
+		return errors.New("must be at most 164 characters")
 	}
 	if !packageNameRegex.MatchString(name) {
-		return fmt.Errorf("must consist of lowercase alphanumeric characters separated by hyphens")
+		return errors.New("must consist of lowercase alphanumeric characters separated by hyphens")
 	}
 	return nil
 }
@@ -34,7 +33,7 @@ func IsValidPackageName(name string) error {
 // IsValidDistTag checks if the dist tag is valid.
 func IsValidDistTag(tag string) error {
 	if len(tag) > 64 {
-		return fmt.Errorf("must be at most 64 characters")
+		return errors.New("must be at most 64 characters")
 	}
 
 	return IsValidPackageName(tag)
@@ -43,7 +42,7 @@ func IsValidDistTag(tag string) error {
 // IsValidPackageType checks if the package type is valid.
 func IsValidPackageType(t types.PackageType) error {
 	if !t.Valid() {
-		return fmt.Errorf("must be one of: theme, plugin, or mu-plugin")
+		return errors.New("must be one of: theme, plugin, or mu-plugin")
 	}
 	return nil
 }
@@ -51,19 +50,19 @@ func IsValidPackageType(t types.PackageType) error {
 // IsValidVersion checks if the version string is a valid semantic version.
 func IsValidVersion(v string) error {
 	if v == "" {
-		return fmt.Errorf("cannot be empty")
+		return errors.New("cannot be empty")
 	}
 	if len(v) < 5 {
-		return fmt.Errorf("must be at least 5 characters")
+		return errors.New("must be at least 5 characters")
 	}
 	if len(v) > 64 {
-		return fmt.Errorf("must be at most 64 characters")
+		return errors.New("must be at most 64 characters")
 	}
 	if strings.HasPrefix(v, "v") {
-		return fmt.Errorf("cannot start with 'v'")
+		return errors.New("cannot start with 'v'")
 	}
 	if _, err := semver.StrictNewVersion(v); err != nil {
-		return fmt.Errorf("must be a valid semantic version (X.Y.Z)")
+		return errors.New("must be a valid semantic version (X.Y.Z)")
 	}
 	return nil
 }
@@ -71,7 +70,7 @@ func IsValidVersion(v string) error {
 // IsValidDescription checks if the description meets length requirements.
 func IsValidDescription(desc string) error {
 	if len(desc) < 3 || len(desc) > 512 {
-		return fmt.Errorf("must be between 3 and 512 characters")
+		return errors.New("must be between 3 and 512 characters")
 	}
 
 	return IsSafeString(desc)
@@ -80,7 +79,7 @@ func IsValidDescription(desc string) error {
 // IsValidLicense checks if the license string meets length requirements.
 func IsValidLicense(license string) error {
 	if len(license) < 3 || len(license) > 100 {
-		return fmt.Errorf("must be between 3 and 100 characters")
+		return errors.New("must be between 3 and 100 characters")
 	}
 	return IsSafeString(license)
 }
@@ -88,16 +87,16 @@ func IsValidLicense(license string) error {
 // IsValidHomepage checks if the homepage string is a valid URL.
 func IsValidHomepage(homepage string) error {
 	if len(homepage) < 10 || len(homepage) > 200 {
-		return fmt.Errorf("must be between 10 and 200 characters")
+		return errors.New("must be between 10 and 200 characters")
 	}
 
 	u, err := url.Parse(homepage)
 	if err != nil {
-		return fmt.Errorf("must be a valid URL")
+		return errors.New("must be a valid URL")
 	}
 
 	if u.Scheme != "http" && u.Scheme != "https" {
-		return fmt.Errorf("URL scheme must be http or https")
+		return errors.New("URL scheme must be http or https")
 	}
 
 	return nil
@@ -106,16 +105,16 @@ func IsValidHomepage(homepage string) error {
 // IsValidConstraint checks if the version constraint string is valid.
 func IsValidConstraint(v string) error {
 	if v == "" {
-		return fmt.Errorf("constraint cannot be empty")
+		return errors.New("constraint cannot be empty")
 	}
 	if v == "*" {
 		return nil
 	}
 	if strings.HasPrefix(v, "v") {
-		return fmt.Errorf("constraint cannot start with 'v'")
+		return errors.New("constraint cannot start with 'v'")
 	}
 	if _, err := semver.NewConstraint(v); err != nil {
-		return fmt.Errorf("invalid version constraint")
+		return errors.New("invalid version constraint")
 	}
 	return nil
 }
@@ -124,13 +123,13 @@ func IsValidConstraint(v string) error {
 func IsSafeString(s string) error {
 	for _, r := range s {
 		if r == '\u2028' || r == '\u2029' || r == '\uFFFD' || r == '\uFFFC' || r == '\u3164' {
-			return fmt.Errorf("contains invalid unicode characters")
+			return errors.New("contains invalid unicode characters")
 		}
 		if unicode.IsControl(r) {
 			if r == '\t' || r == '\n' || r == '\r' || r == '\u200D' || (r >= 0xE0020 && r <= 0xE007F) {
 				continue
 			}
-			return fmt.Errorf("contains invalid control characters")
+			return errors.New("contains invalid control characters")
 		}
 	}
 	return nil
@@ -238,14 +237,14 @@ func ValidateRequires(wp, php string) error {
 // IsValidProjectRelPath checks that a path is relative, non-empty, and stays within the project root.
 func IsValidProjectRelPath(p string) error {
 	if p == "" {
-		return fmt.Errorf("must not be empty")
+		return errors.New("must not be empty")
 	}
 	if filepath.IsAbs(p) {
-		return fmt.Errorf("must be a relative path")
+		return errors.New("must be a relative path")
 	}
 	cleaned := filepath.Clean(p)
 	if !filepath.IsLocal(cleaned) {
-		return fmt.Errorf("must not contain '..' or escape the project directory")
+		return errors.New("must not contain '..' or escape the project directory")
 	}
 	return nil
 }

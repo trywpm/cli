@@ -8,18 +8,18 @@ import (
 	"sort"
 	"sync"
 
+	"github.com/Masterminds/semver/v3"
+	"github.com/morikuni/aec"
+	"github.com/pkg/errors"
+	"github.com/spf13/cobra"
+	"golang.org/x/sync/errgroup"
+
 	"go.wpm.so/cli/cli"
 	"go.wpm.so/cli/cli/command"
 	"go.wpm.so/cli/cli/version"
 	"go.wpm.so/cli/pkg/output"
 	"go.wpm.so/cli/pkg/pm/wpmjson"
 	"go.wpm.so/cli/pkg/pm/wpmlock"
-
-	"github.com/Masterminds/semver/v3"
-	"github.com/morikuni/aec"
-	"github.com/pkg/errors"
-	"github.com/spf13/cobra"
-	"golang.org/x/sync/errgroup"
 )
 
 func NewOutdatedCommand(wpmCli command.Cli) *cobra.Command {
@@ -89,7 +89,7 @@ func runOutdated(ctx context.Context, wpmCli command.Cli) error {
 		return nil
 	}
 
-	results, err := findOutdatedPackages(ctx, config, wpmCli, checks)
+	results, err := findOutdatedPackages(ctx, wpmCli, checks)
 	if err != nil {
 		return err
 	}
@@ -119,7 +119,7 @@ type outdatedInfo struct {
 	diffType string // major, minor, patch, or unknown
 }
 
-func findOutdatedPackages(ctx context.Context, config *wpmjson.Config, wpmCli command.Cli, checks []depCheck) ([]outdatedInfo, error) {
+func findOutdatedPackages(ctx context.Context, wpmCli command.Cli, checks []depCheck) ([]outdatedInfo, error) {
 	client, err := wpmCli.RegistryClient()
 	if err != nil {
 		return nil, err
@@ -218,7 +218,7 @@ func printOutdatedList(out io.Writer, colorize bool, results []outdatedInfo) {
 			devStr = c(aec.Faint, "(dev)")
 		}
 
-		fmt.Fprintf(out, "%s %s %s\n", nameStr, typeStr, devStr)
+		_, _ = fmt.Fprintf(out, "%s %s %s\n", nameStr, typeStr, devStr)
 
 		var diffLabel string
 		var severityColor aec.ANSI
@@ -241,19 +241,19 @@ func printOutdatedList(out io.Writer, colorize bool, results []outdatedInfo) {
 		treeEnd := c(aec.LightBlackF, "└──")
 		treeBranch := c(aec.LightBlackF, "├──")
 
-		fmt.Fprintf(out, "%s current: %s\n",
+		_, _ = fmt.Fprintf(out, "%s current: %s\n",
 			treeBranch,
 			r.current,
 		)
 
-		fmt.Fprintf(out, "%s latest:  %s %s\n",
+		_, _ = fmt.Fprintf(out, "%s latest:  %s %s\n",
 			treeEnd,
 			c(severityColor, r.latest),  // Colorized Version
 			c(severityColor, diffLabel), // Colorized Label
 		)
 
 		if i < len(results)-1 {
-			fmt.Fprintln(out, "")
+			_, _ = fmt.Fprintln(out, "")
 		}
 	}
 }

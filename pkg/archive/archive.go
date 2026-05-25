@@ -38,9 +38,7 @@ const (
 	maxDecompressedSize int64 = 512 * 1024 * 1024 // 512 MB
 )
 
-var (
-	zstdMagic = []byte{0x28, 0xb5, 0x2f, 0xfd}
-)
+var zstdMagic = []byte{0x28, 0xb5, 0x2f, 0xfd}
 
 type TarOptions struct {
 	IncludeFiles    []string
@@ -73,17 +71,17 @@ func isZstd(source []byte) bool {
 // IsArchivePath checks if the (possibly compressed) file at the given path
 // starts with a tar file header.
 func IsArchivePath(path string) bool {
-	file, err := os.Open(path)
+	file, err := os.Open(path) //nolint:gosec // callers pass paths they want to inspect
 	if err != nil {
 		return false
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	rdr, err := DecompressStream(file)
 	if err != nil {
 		return false
 	}
-	defer rdr.Close()
+	defer func() { _ = rdr.Close() }()
 
 	r := tar.NewReader(rdr)
 	_, err = r.Next()
@@ -106,11 +104,9 @@ func (r *readCloserWrapper) Close() error {
 	return nil
 }
 
-var (
-	bufioReader256KPool = &sync.Pool{
-		New: func() any { return bufio.NewReaderSize(nil, 256*1024) },
-	}
-)
+var bufioReader256KPool = &sync.Pool{
+	New: func() any { return bufio.NewReaderSize(nil, 256*1024) },
+}
 
 type bufferedReader struct {
 	buf    *bufio.Reader
@@ -129,9 +125,9 @@ func (r *bufferedReader) Read(p []byte) (n int, err error) {
 	}
 	n, err = r.buf.Read(p)
 	if err == io.EOF {
-		r.Close()
+		_ = r.Close()
 	}
-	return
+	return n, err
 }
 
 func (r *bufferedReader) Peek(n int) ([]byte, error) {
@@ -161,7 +157,7 @@ func DecompressStream(archive io.Reader) (io.ReadCloser, error) {
 
 	// check if the stream is compressed with zstd
 	if !isZstd(bs) {
-		return nil, fmt.Errorf("unsupported archive format: expected zstd compressed archive")
+		return nil, errors.New("unsupported archive format: expected zstd compressed archive")
 	}
 
 	zstdReader, err := zstd.NewReader(buf, zstd.WithDecoderMaxWindow(zstdMaxWindowSize))
@@ -259,7 +255,7 @@ func (ta *tarAppender) addTarFile(path, name string) error {
 			hdr.Name += "/"
 		}
 	} else {
-		hdr.Name = filepath.ToSlash(filepath.Join("package", originalHdrName))
+		hdr.Name = filepath.ToSlash(filepath.Join("package", originalHdrName)) //nolint:gosec // prefix is a constant; this builds an archive entry name, not a filesystem path
 	}
 
 	// if it's not a directory and has more than 1 link, it's hard linked
@@ -281,7 +277,7 @@ func (ta *tarAppender) addTarFile(path, name string) error {
 		}
 
 		_, err = copyWithBuffer(ta.TarWriter, file)
-		file.Close()
+		_ = file.Close()
 		if err != nil {
 			return err
 		}
@@ -290,7 +286,7 @@ func (ta *tarAppender) addTarFile(path, name string) error {
 	return nil
 }
 
-func createTarFile(path, extractDir string, hdr *tar.Header, reader io.Reader, options *TarOptions) error {
+func createTarFile(path string, hdr *tar.Header, reader io.Reader, options *TarOptions) error {
 	switch hdr.Typeflag {
 	case tar.TypeDir:
 		// Create directory unless it exists as a directory already.
@@ -309,10 +305,10 @@ func createTarFile(path, extractDir string, hdr *tar.Header, reader io.Reader, o
 			return err
 		}
 		if _, err := copyWithBuffer(file, io.LimitReader(reader, hdr.Size)); err != nil {
-			file.Close()
+			_ = file.Close()
 			return err
 		}
-		file.Close()
+		_ = file.Close()
 
 	case tar.TypeLink, tar.TypeSymlink:
 		if options != nil && options.Logger != nil {
@@ -379,8 +375,8 @@ func NewTarballer(srcPath string, options *TarOptions, reporterFn func(fs.FileIn
 
 	zstdWriter, err := zstd.NewWriter(pipeWriter, zstd.WithEncoderLevel(zstd.SpeedBestCompression))
 	if err != nil {
-		pipeReader.Close()
-		pipeWriter.Close()
+		_ = pipeReader.Close()
+		_ = pipeWriter.Close()
 		return nil, fmt.Errorf("failed to create zstd writer: %w", err)
 	}
 
@@ -420,6 +416,8 @@ func (t *Tarballer) Close() error {
 // Do performs the archiving operation in the background. The resulting archive
 // can be read from t.Reader(). Do should only be called once on each Tarballer
 // instance.
+//
+//nolint:gocyclo // this function is necessarily complex due to the file walking and pattern matching logic
 func (t *Tarballer) Do() {
 	ta := newTarAppender(t.compressWriter)
 
@@ -435,9 +433,9 @@ func (t *Tarballer) Do() {
 		}
 
 		if doErr != nil {
-			t.pipeWriter.CloseWithError(doErr)
+			_ = t.pipeWriter.CloseWithError(doErr)
 		} else {
-			t.pipeWriter.Close()
+			_ = t.pipeWriter.Close()
 		}
 	}()
 
@@ -578,6 +576,8 @@ func (t *Tarballer) Do() {
 }
 
 // Unpack unpacks the decompressedArchive to dest with options.
+//
+//nolint:gocyclo // this function is necessarily complex due to the file walking and pattern matching logic
 func Unpack(decompressedArchive io.Reader, dest string, options *TarOptions) error {
 	tr := tar.NewReader(decompressedArchive)
 
@@ -636,7 +636,7 @@ loop:
 			return err
 		}
 
-		path := filepath.Join(dest, hdr.Name)
+		path := filepath.Join(dest, hdr.Name) //nolint:gosec // traversal is guarded by the filepath.Rel check immediately below
 		rel, err := filepath.Rel(dest, path)
 		if err != nil {
 			return err
@@ -669,7 +669,7 @@ loop:
 			}
 		}
 
-		if err := createTarFile(path, dest, hdr, tr, options); err != nil {
+		if err := createTarFile(path, hdr, tr, options); err != nil {
 			return err
 		}
 
@@ -681,7 +681,7 @@ loop:
 	}
 
 	for _, hdr := range dirs {
-		path := filepath.Join(dest, hdr.Name)
+		path := filepath.Join(dest, hdr.Name) //nolint:gosec // hdr.Name was already validated by the main extract loop above
 
 		if err := chtimes(path, boundTime(latestTime(hdr.AccessTime, hdr.ModTime)), boundTime(hdr.ModTime)); err != nil {
 			return err
@@ -728,10 +728,10 @@ type extractionLimiter struct {
 
 func (b *extractionLimiter) Read(p []byte) (int, error) {
 	if b.compressedTracker.bytesRead > maxCompressedSize {
-		return 0, fmt.Errorf("invalid archive: compressed size exceeds 128MB limit")
+		return 0, errors.New("invalid archive: compressed size exceeds 128MB limit")
 	}
 	if b.decompressedBytes >= maxDecompressedSize {
-		return 0, fmt.Errorf("invalid archive: decompressed size exceeds 512MB limit (potential zip bomb)")
+		return 0, errors.New("invalid archive: decompressed size exceeds 512MB limit (potential zip bomb)")
 	}
 
 	remaining := maxDecompressedSize - b.decompressedBytes
@@ -748,8 +748,8 @@ func (b *extractionLimiter) Read(p []byte) (int, error) {
 		if cBytes == 0 {
 			cBytes = 1 // prevent division by zero
 		}
-		if b.decompressedBytes >= int64(maxCompressionRatio)*cBytes {
-			return n, fmt.Errorf("invalid archive: compression ratio exceeds 99.6%% (potential zip bomb)")
+		if b.decompressedBytes >= maxCompressionRatio*cBytes {
+			return n, errors.New("invalid archive: compression ratio exceeds 99.6%% (potential zip bomb)")
 		}
 	}
 
@@ -777,7 +777,7 @@ func Untar(tarArchive io.Reader, dest string, options *TarOptions) error {
 	if err != nil {
 		return err
 	}
-	defer decompressedArchive.Close()
+	defer func() { _ = decompressedArchive.Close() }()
 
 	detector := &extractionLimiter{
 		compressedTracker:  compressedTracker,

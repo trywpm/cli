@@ -68,21 +68,21 @@ var headerCleanupRe = regexp.MustCompile(`\s*(?:\*\/|\?>).*`)
 
 // getRawFileHeaders reads the first part of a file and extracts raw header values.
 // Returns nil map if filePath has wrong extension or does not exist.
-func getRawFileHeaders(filePath string, expectedExtension string, headerSpecs map[string]string) (map[string]string, error) {
+func getRawFileHeaders(filePath, expectedExtension string, headerSpecs map[string]string) map[string]string {
 	if len(filePath) < len(expectedExtension)+1 || filePath[len(filePath)-len(expectedExtension):] != expectedExtension {
-		return nil, nil
+		return nil
 	}
 
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
-		return nil, nil
+		return nil
 	}
 
-	file, err := os.Open(filePath)
+	file, err := os.Open(filePath) //nolint:gosec // filePath is supplied by the caller for header inspection
 	if err != nil {
 		// Mimic PHP's behavior of proceeding with empty data on most read failures.
 		return processHeaderData("", headerSpecs)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	buffer := make([]byte, maxHeaderBytes)
 	n, readErr := file.Read(buffer)
@@ -95,7 +95,7 @@ func getRawFileHeaders(filePath string, expectedExtension string, headerSpecs ma
 }
 
 // processHeaderData extracts and cleans header values from a given string content.
-func processHeaderData(fileDataString string, headerSpecs map[string]string) (map[string]string, error) {
+func processHeaderData(fileDataString string, headerSpecs map[string]string) map[string]string {
 	fileDataString = strings.ReplaceAll(fileDataString, "\r", "\n")
 	extractedValues := make(map[string]string)
 
@@ -123,15 +123,12 @@ func processHeaderData(fileDataString string, headerSpecs map[string]string) (ma
 		extractedValues[fieldName] = extractedVal
 	}
 
-	return extractedValues, nil
+	return extractedValues
 }
 
 // GetPluginHeaders retrieves headers for a WordPress plugin file.
 func GetPluginHeaders(filePath string) (PluginFileHeaders, error) {
-	rawHeaders, err := getRawFileHeaders(filePath, phpFileExtension, pluginFileHeaders)
-	if err != nil {
-		return PluginFileHeaders{}, err
-	}
+	rawHeaders := getRawFileHeaders(filePath, phpFileExtension, pluginFileHeaders)
 	if rawHeaders == nil {
 		return PluginFileHeaders{}, nil
 	}
@@ -153,10 +150,7 @@ func GetPluginHeaders(filePath string) (PluginFileHeaders, error) {
 
 // GetThemeHeaders retrieves headers for a WordPress theme stylesheet.
 func GetThemeHeaders(filePath string) (ThemeFileHeaders, error) {
-	rawHeaders, err := getRawFileHeaders(filePath, cssFileExtension, themeFileHeaders)
-	if err != nil {
-		return ThemeFileHeaders{}, err
-	}
+	rawHeaders := getRawFileHeaders(filePath, cssFileExtension, themeFileHeaders)
 	if rawHeaders == nil {
 		return ThemeFileHeaders{}, nil
 	}

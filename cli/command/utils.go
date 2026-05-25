@@ -9,9 +9,9 @@ import (
 	"runtime"
 	"strings"
 
-	"go.wpm.so/cli/pkg/streams"
-
 	"github.com/moby/term"
+
+	"go.wpm.so/cli/pkg/streams"
 )
 
 type cancelledErr string

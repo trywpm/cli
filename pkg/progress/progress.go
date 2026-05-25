@@ -5,9 +5,9 @@ import (
 	"sync"
 	"time"
 
-	"go.wpm.so/cli/pkg/unsafeconv"
-
 	"github.com/briandowns/spinner"
+
+	"go.wpm.so/cli/pkg/unsafeconv"
 )
 
 type Progress struct {

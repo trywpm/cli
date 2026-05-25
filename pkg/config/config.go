@@ -10,9 +10,9 @@ import (
 	"strings"
 	"sync"
 
-	"go.wpm.so/cli/pkg/config/configfile"
-
 	"github.com/pkg/errors"
+
+	"go.wpm.so/cli/pkg/config/configfile"
 )
 
 const (
@@ -113,7 +113,7 @@ func load(configDir string) (*configfile.ConfigFile, error) {
 	filename := filepath.Join(configDir, ConfigFileName)
 	configFile := configfile.New(filename)
 
-	file, err := os.Open(filename)
+	file, err := os.Open(filename) //nolint:gosec // filename is built from configDir + a constant
 	if err != nil {
 		if os.IsNotExist(err) {
 			// It is OK for no configuration file to be present, in which
@@ -123,7 +123,7 @@ func load(configDir string) (*configfile.ConfigFile, error) {
 		// Any other error happening when failing to read the file must be returned.
 		return configFile, errors.Wrap(err, "loading config file")
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 	err = configFile.LoadFromReader(file)
 	if err != nil {
 		err = errors.Wrapf(err, "parsing config file (%s)", filename)

@@ -18,7 +18,7 @@ func copyWithBuffer(dst io.Writer, src io.Reader) (written int64, err error) {
 	buf := copyPool.Get().(*[]byte)
 	written, err = io.CopyBuffer(dst, src, *buf)
 	copyPool.Put(buf)
-	return
+	return written, err
 }
 
 var copyPool = sync.Pool{

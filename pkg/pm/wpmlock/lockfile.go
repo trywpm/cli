@@ -5,11 +5,11 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/pkg/errors"
+
 	"go.wpm.so/cli/pkg/pm"
 	"go.wpm.so/cli/pkg/pm/wpmjson/types"
 	"go.wpm.so/cli/pkg/pm/wpmjson/validator"
-
-	"github.com/pkg/errors"
 )
 
 const (
@@ -50,7 +50,7 @@ func Read(cwd string) (*Lockfile, error) {
 		return nil, nil
 	}
 
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) //nolint:gosec // path is cwd + LockfileName constant
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to read lockfile")
 	}
@@ -96,7 +96,7 @@ func (l *Lockfile) Write(cwd string) error {
 	}
 
 	// Write with 0644 permissions (rw-r--r--)
-	if err := os.WriteFile(path, data, 0644); err != nil {
+	if err := os.WriteFile(path, data, 0o644); err != nil {
 		return errors.Wrap(err, "failed to write lockfile to disk")
 	}
 

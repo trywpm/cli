@@ -8,14 +8,14 @@ import (
 	"path/filepath"
 	"sort"
 
+	"github.com/morikuni/aec"
+	"github.com/pkg/errors"
+	"github.com/spf13/cobra"
+
 	"go.wpm.so/cli/cli"
 	"go.wpm.so/cli/cli/command"
 	"go.wpm.so/cli/pkg/pm/wpmjson"
 	"go.wpm.so/cli/pkg/pm/wpmlock"
-
-	"github.com/morikuni/aec"
-	"github.com/pkg/errors"
-	"github.com/spf13/cobra"
 )
 
 type lsOptions struct {
@@ -111,61 +111,15 @@ func (p *treePrinter) printLevel(deps map[string]string, colorize bool, prefix s
 	sort.Strings(keys)
 
 	for i, name := range keys {
-		requestedVersion := deps[name]
 		isLast := i == len(keys)-1
-
 		connector := "├── "
 		if isLast {
 			connector = "└── "
 		}
 
-		var info string
-		var subDeps map[string]string
-		var isMissing bool
-		var isCycle bool
-
-		// Check for cycles
-		if visited[name] {
-			isCycle = true
-		}
-
-		if pkg, ok := p.lock.Packages[name]; ok {
-			info = fmt.Sprintf("%s@%s", name, pkg.Version)
-			if colorize {
-				info = fmt.Sprintf("%s%s%s", name, aec.LightBlackF.Apply("@"), aec.LightBlackF.Apply(pkg.Version))
-			}
-
-			if pkg.Version != requestedVersion && requestedVersion != "*" {
-				invalidMsg := fmt.Sprintf("(invalid: \"%s\")", requestedVersion)
-				if colorize {
-					info += " " + aec.RedF.Apply(invalidMsg)
-				} else {
-					info += " " + invalidMsg
-				}
-			}
-
-			if isCycle {
-				cycleMsg := "(cycle)"
-				if colorize {
-					info += " " + aec.MagentaF.Apply(cycleMsg)
-				} else {
-					info += " " + cycleMsg
-				}
-			}
-
-			if pkg.Dependencies != nil {
-				subDeps = *pkg.Dependencies
-			}
-		} else {
-			if colorize {
-				info = fmt.Sprintf("%s@%s %s", name, requestedVersion, aec.RedF.Apply("UNMET DEPENDENCY"))
-			} else {
-				info = fmt.Sprintf("%s@%s UNMET DEPENDENCY", name, requestedVersion)
-			}
-			isMissing = true
-		}
-
-		fmt.Fprintf(p.out, "%s%s%s\n", prefix, connector, info)
+		isCycle := visited[name]
+		info, subDeps, isMissing := p.formatNode(name, deps[name], colorize, isCycle)
+		_, _ = fmt.Fprintf(p.out, "%s%s%s\n", prefix, connector, info)
 
 		// Recurse only if:
 		// 1. It's not a missing package
@@ -185,4 +139,46 @@ func (p *treePrinter) printLevel(deps map[string]string, colorize bool, prefix s
 			delete(visited, name)
 		}
 	}
+}
+
+// formatNode renders the display string for a single tree node and returns its
+// sub-dependencies along with whether the node is missing from the lockfile.
+func (p *treePrinter) formatNode(name, requestedVersion string, colorize, isCycle bool) (info string, subDeps map[string]string, isMissing bool) {
+	pkg, ok := p.lock.Packages[name]
+	if !ok {
+		if colorize {
+			info = fmt.Sprintf("%s@%s %s", name, requestedVersion, aec.RedF.Apply("UNMET DEPENDENCY"))
+		} else {
+			info = fmt.Sprintf("%s@%s UNMET DEPENDENCY", name, requestedVersion)
+		}
+		return info, nil, true
+	}
+
+	info = fmt.Sprintf("%s@%s", name, pkg.Version)
+	if colorize {
+		info = fmt.Sprintf("%s%s%s", name, aec.LightBlackF.Apply("@"), aec.LightBlackF.Apply(pkg.Version))
+	}
+
+	if pkg.Version != requestedVersion && requestedVersion != "*" {
+		invalidMsg := fmt.Sprintf("(invalid: \"%s\")", requestedVersion)
+		if colorize {
+			info += " " + aec.RedF.Apply(invalidMsg)
+		} else {
+			info += " " + invalidMsg
+		}
+	}
+
+	if isCycle {
+		cycleMsg := "(cycle)"
+		if colorize {
+			info += " " + aec.MagentaF.Apply(cycleMsg)
+		} else {
+			info += " " + cycleMsg
+		}
+	}
+
+	if pkg.Dependencies != nil {
+		subDeps = *pkg.Dependencies
+	}
+	return info, subDeps, false
 }

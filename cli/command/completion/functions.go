@@ -4,11 +4,11 @@ import (
 	"os"
 	"sort"
 
+	"github.com/spf13/cobra"
+
 	"go.wpm.so/cli/pkg/pm/wpmjson"
 	"go.wpm.so/cli/pkg/pm/wpmjson/types"
 	"go.wpm.so/cli/pkg/pm/wpmlock"
-
-	"github.com/spf13/cobra"
 )
 
 // PackagesFromWpmJson offers completion for package names declared in

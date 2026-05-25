@@ -1,7 +1,7 @@
 package api
 
 import (
-	"fmt"
+	"errors"
 	"io"
 	"time"
 )
@@ -57,7 +57,7 @@ func optionsNeedResolution(opts ClientOptions) bool {
 
 func resolveOptions(opts ClientOptions) (ClientOptions, error) {
 	if opts.Host == "" {
-		return ClientOptions{}, fmt.Errorf("host not found")
+		return ClientOptions{}, errors.New("host not found")
 	}
 
 	return opts, nil

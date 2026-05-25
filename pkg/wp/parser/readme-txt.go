@@ -24,9 +24,7 @@ const (
 	sectionUpgradeNotice            = "upgrade_notice"
 )
 
-var (
-	screenshotLineRegex = regexp.MustCompile(`^(\d+)\.\s+(.+)$`)
-)
+var screenshotLineRegex = regexp.MustCompile(`^(\d+)\.\s+(.+)$`)
 
 type ReadmeParser struct {
 	Name            string
@@ -87,7 +85,7 @@ func (p *ReadmeParser) Parse(content string) {
 	p.processSpecialSections()
 }
 
-func (p *ReadmeParser) stripBOM(lines []string) []string {
+func (*ReadmeParser) stripBOM(lines []string) []string {
 	if len(lines) > 0 && strings.HasPrefix(lines[0], "\xEF\xBB\xBF") {
 		lines[0] = strings.TrimPrefix(lines[0], "\xEF\xBB\xBF")
 	}
@@ -95,13 +93,13 @@ func (p *ReadmeParser) stripBOM(lines []string) []string {
 }
 
 // parsePluginName extracts the plugin name stripping markers.
-func (p *ReadmeParser) parsePluginName(line, marker string) string {
+func (*ReadmeParser) parsePluginName(line, marker string) string {
 	name := strings.TrimPrefix(line, marker)
 	name = strings.TrimSuffix(name, marker)
 	return strings.TrimSpace(name)
 }
 
-func (p *ReadmeParser) skipEmptyLines(lines []string, start int) int {
+func (*ReadmeParser) skipEmptyLines(lines []string, start int) int {
 	for i := start; i < len(lines); i++ {
 		if strings.TrimSpace(lines[i]) != "" {
 			return i
@@ -120,6 +118,29 @@ func parseCommaSeparatedList(value string) []string {
 		}
 	}
 	return result
+}
+
+func (p *ReadmeParser) applyHeaderValue(canonicalKey, value string) {
+	switch canonicalKey {
+	case "contributors":
+		p.Contributors = parseCommaSeparatedList(value)
+	case "tags":
+		p.Tags = parseCommaSeparatedList(value)
+	case "requires":
+		p.Requires = value
+	case "tested":
+		p.Tested = value
+	case "requires_php":
+		p.RequiresPHP = value
+	case "stable_tag":
+		p.StableTag = value
+	case "license":
+		p.License = value
+	case "license_uri":
+		p.LicenseURI = value
+	case "donate_link":
+		p.DonateLink = value
+	}
 }
 
 func (p *ReadmeParser) parseHeaders(lines []string, start int) int {
@@ -163,26 +184,7 @@ func (p *ReadmeParser) parseHeaders(lines []string, start int) int {
 				value := strings.TrimSpace(parts[1])
 
 				if canonicalKey, ok := validHeaders[key]; ok {
-					switch canonicalKey {
-					case "contributors":
-						p.Contributors = parseCommaSeparatedList(value)
-					case "tags":
-						p.Tags = parseCommaSeparatedList(value)
-					case "requires":
-						p.Requires = value
-					case "tested":
-						p.Tested = value
-					case "requires_php":
-						p.RequiresPHP = value
-					case "stable_tag":
-						p.StableTag = value
-					case "license":
-						p.License = value
-					case "license_uri":
-						p.LicenseURI = value
-					case "donate_link":
-						p.DonateLink = value
-					}
+					p.applyHeaderValue(canonicalKey, value)
 				}
 			} else {
 				// Malformed header (e.g., "Key:" with no value, or ": value"), end of headers.
@@ -245,23 +247,22 @@ func (p *ReadmeParser) parseSections(lines []string, start int) {
 			}
 
 			currentSectionKey = strings.ToLower(strings.ReplaceAll(sectionTitle, " ", "_"))
-		} else {
-			if currentSectionKey != "" {
-				currentContent.WriteString(line + "\n")
-			}
+		} else if currentSectionKey != "" {
+			currentContent.WriteString(line)
+			currentContent.WriteString("\n")
 		}
 	}
 	saveSection()
 }
 
 // getSectionContent retrieves section content, checking primary and alternative keys.
-func (p *ReadmeParser) getSectionContent(primaryKey string, alternateKeys ...string) (content string, keyUsed string, found bool) {
-	if content, ok := p.Sections[primaryKey]; ok {
-		return content, primaryKey, true
+func (p *ReadmeParser) getSectionContent(primaryKey string, alternateKeys ...string) (content, keyUsed string, found bool) {
+	if c, ok := p.Sections[primaryKey]; ok {
+		return c, primaryKey, true
 	}
 	for _, altKey := range alternateKeys {
-		if content, ok := p.Sections[altKey]; ok {
-			return content, altKey, true
+		if c, ok := p.Sections[altKey]; ok {
+			return c, altKey, true
 		}
 	}
 	return "", "", false
@@ -283,7 +284,7 @@ func (p *ReadmeParser) processSpecialSections() {
 
 // parseBlockStyleItems parses sections like FAQ or UpgradeNotice.
 // Handles Classic "= Item Title =" and Markdown "### Item Title".
-func (p *ReadmeParser) parseBlockStyleItems(content string) map[string]string {
+func (*ReadmeParser) parseBlockStyleItems(content string) map[string]string {
 	itemsMap := make(map[string]string)
 	lines := strings.Split(content, "\n")
 	var currentItemTitle string
@@ -314,7 +315,8 @@ func (p *ReadmeParser) parseBlockStyleItems(content string) map[string]string {
 				currentItemTitle = strings.TrimSpace(currentItemTitle)
 			}
 		} else if currentItemTitle != "" { // Only append if we have an active item title
-			currentItemContent.WriteString(line + "\n")
+			currentItemContent.WriteString(line)
+			currentItemContent.WriteString("\n")
 		}
 	}
 	saveItem()
@@ -322,8 +324,8 @@ func (p *ReadmeParser) parseBlockStyleItems(content string) map[string]string {
 }
 
 func (p *ReadmeParser) parseScreenshots(content string) {
-	lines := strings.Split(content, "\n")
-	for _, line := range lines {
+	lines := strings.SplitSeq(content, "\n")
+	for line := range lines {
 		trimmedLine := strings.TrimSpace(line)
 		if trimmedLine == "" {
 			continue
@@ -337,7 +339,7 @@ func (p *ReadmeParser) parseScreenshots(content string) {
 	}
 }
 
-func (p *ReadmeParser) convertSubsections(content string) string {
+func (*ReadmeParser) convertSubsections(content string) string {
 	lines := strings.Split(content, "\n")
 	var result strings.Builder
 	for i, line := range lines {
@@ -345,7 +347,8 @@ func (p *ReadmeParser) convertSubsections(content string) string {
 		if strings.HasPrefix(trimmedLine, "=") && strings.HasSuffix(trimmedLine, "=") &&
 			!strings.HasPrefix(trimmedLine, "==") && len(trimmedLine) >= 3 {
 			subsectionTitle := strings.TrimSpace(trimmedLine[1 : len(trimmedLine)-1])
-			result.WriteString("### " + subsectionTitle)
+			result.WriteString("### ")
+			result.WriteString(subsectionTitle)
 		} else {
 			result.WriteString(line)
 		}
@@ -372,8 +375,11 @@ func renderFAQMarkdown(parser *ReadmeParser, _ string, md *strings.Builder) bool
 		// Sort carefully to keep things somewhat stable
 		sort.Strings(questions)
 		for _, question := range questions {
-			md.WriteString("### " + question + "\n\n")
-			md.WriteString(parser.FAQ[question] + "\n\n")
+			md.WriteString("### ")
+			md.WriteString(question)
+			md.WriteString("\n\n")
+			md.WriteString(parser.FAQ[question])
+			md.WriteString("\n\n")
 		}
 		return true
 	}
@@ -392,7 +398,9 @@ func renderScreenshotsMarkdown(parser *ReadmeParser, _ string, md *strings.Build
 			title := parser.Screenshots[k]
 			safeAltTitle := strings.ReplaceAll(title, "\"", "&quot;")
 
-			md.WriteString("### " + title + "\n")
+			md.WriteString("### ")
+			md.WriteString(title)
+			md.WriteString("\n")
 			fmt.Fprintf(md, `<img id="screenshot-%d" src="/screenshot-%d.png" alt="%s" />`+"\n\n", k, k, safeAltTitle)
 		}
 		return true
@@ -408,8 +416,11 @@ func renderUpgradeNoticeMarkdown(parser *ReadmeParser, _ string, md *strings.Bui
 		}
 		sort.Strings(versions)
 		for _, version := range versions {
-			md.WriteString("### " + version + "\n\n")
-			md.WriteString(parser.UpgradeNotice[version] + "\n\n")
+			md.WriteString("### ")
+			md.WriteString(version)
+			md.WriteString("\n\n")
+			md.WriteString(parser.UpgradeNotice[version])
+			md.WriteString("\n\n")
 		}
 		return true
 	}
@@ -441,14 +452,16 @@ func (p *ReadmeParser) ToMarkdown() string {
 			continue
 		}
 
-		md.WriteString(config.markdownTitle + "\n\n")
+		md.WriteString(config.markdownTitle)
+		md.WriteString("\n\n")
 
 		handledByCustomRender := false
 		if config.render != nil {
 			handledByCustomRender = config.render(p, content, &md)
 		}
 		if !handledByCustomRender {
-			md.WriteString(p.convertSubsections(content) + "\n\n")
+			md.WriteString(p.convertSubsections(content))
+			md.WriteString("\n\n")
 		}
 	}
 
@@ -468,8 +481,11 @@ func (p *ReadmeParser) ToMarkdown() string {
 			continue
 		}
 		title := titleCaser.String(strings.ReplaceAll(sectionKey, "_", " "))
-		md.WriteString("## " + title + "\n\n")
-		md.WriteString(p.convertSubsections(content) + "\n\n")
+		md.WriteString("## ")
+		md.WriteString(title)
+		md.WriteString("\n\n")
+		md.WriteString(p.convertSubsections(content))
+		md.WriteString("\n\n")
 	}
 
 	return strings.TrimSpace(md.String())

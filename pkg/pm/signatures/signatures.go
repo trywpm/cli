@@ -28,7 +28,7 @@ type keyJson struct {
 type KeysJson []keyJson
 
 // Verify verifies a Base64 encoded ASN.1 DER signature against a message using a PEM encoded Public Key.
-func Verify(keys KeysJson, keyId string, signatureBase64 string, originalMessage []byte) error {
+func Verify(keys KeysJson, keyId, signatureBase64 string, originalMessage []byte) error {
 	var rawPublicKeyBase64, keyType string
 	for _, key := range keys {
 		if key.KeyID == keyId {
@@ -66,13 +66,13 @@ func Verify(keys KeysJson, keyId string, signatureBase64 string, originalMessage
 		return fmt.Errorf("failed to decode base64 signature: %v", err)
 	}
 
-	var sig sig
-	if _, err := asn1.Unmarshal(sigBytes, &sig); err != nil {
+	var s sig
+	if _, err := asn1.Unmarshal(sigBytes, &s); err != nil {
 		return fmt.Errorf("failed to unmarshal ASN.1 signature: %v", err)
 	}
 
 	hash := sha256.Sum256(originalMessage)
-	valid := ecdsa.Verify(publicKey, hash[:], sig.R, sig.S)
+	valid := ecdsa.Verify(publicKey, hash[:], s.R, s.S)
 	if !valid {
 		return errors.New("signature verification failed: invalid signature")
 	}

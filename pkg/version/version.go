@@ -46,26 +46,7 @@ func Normalize(version string) (string, error) {
 		return "", errors.New("version contains only 'v' prefixes")
 	}
 
-	// Isolate the core version from prerelease/build metadata to prevent
-	// mangling valid semver extensions (e.g., dotted prereleases) below.
-	core := version
-	var meta string
-
-	idxPre := strings.IndexByte(version, '-')
-	idxBld := strings.IndexByte(version, '+')
-	cutoff := -1
-
-	if idxPre != -1 {
-		cutoff = idxPre
-	}
-	if idxBld != -1 && (cutoff == -1 || idxBld < cutoff) {
-		cutoff = idxBld
-	}
-
-	if cutoff != -1 {
-		core = version[:cutoff]
-		meta = version[cutoff:]
-	}
+	core, meta := splitVersionMeta(version)
 
 	// Insert hyphen before an alphabetic qualifier with no separator.
 	// 1.0.0beta1 -> 1.0.0-beta1,  2.1rc1 -> 2.1-rc1,  3.0a -> 3.0-a
@@ -77,29 +58,7 @@ func Normalize(version string) (string, error) {
 		core = core[:idx]
 	}
 
-	// Collapse 4+ dotted segments into a prerelease, stripping leading zeros
-	// from any purely numeric segment (semver forbids them in numeric IDs).
-	// 1.0.0.0       -> 1.0.0-0
-	// 1.0.0.01      -> 1.0.0-1
-	// 1.0.0.01.02   -> 1.0.0-1.2
-	// 1.2.3.4.5     -> 1.2.3-4.5
-	// 1.0.0.alpha.1 -> 1.0.0-alpha.1
-	// 1.0.0.0beta   -> 1.0.0-0beta  (mixed; left alone)
-	if parts := strings.Split(core, "."); len(parts) > 3 {
-		pre := make([]string, len(parts)-3)
-		for i, p := range parts[3:] {
-			pre[i] = stripLeadingZeros(p)
-		}
-		core = fmt.Sprintf("%s.%s.%s", parts[0], parts[1], parts[2])
-
-		// Prepend the collapsed segments to any existing metadata
-		if meta == "" || meta[0] == '+' {
-			meta = "-" + strings.Join(pre, ".") + meta
-		} else {
-			// Merge with existing prerelease by replacing the initial '-' with a '.'
-			meta = "-" + strings.Join(pre, ".") + "." + meta[1:]
-		}
-	}
+	core, meta = collapseExtraSegments(core, meta)
 
 	// Coerce to semver, which will handle leading zeros and short forms.
 	v, err := semver.NewVersion(core + meta)
@@ -118,6 +77,57 @@ func Normalize(version string) (string, error) {
 	}
 
 	return result, nil
+}
+
+// splitVersionMeta isolates the core version from prerelease/build metadata to prevent
+// mangling valid semver extensions (e.g., dotted prereleases) downstream.
+func splitVersionMeta(version string) (core, meta string) {
+	idxPre := strings.IndexByte(version, '-')
+	idxBld := strings.IndexByte(version, '+')
+	cutoff := -1
+
+	if idxPre != -1 {
+		cutoff = idxPre
+	}
+	if idxBld != -1 && (cutoff == -1 || idxBld < cutoff) {
+		cutoff = idxBld
+	}
+
+	if cutoff == -1 {
+		return version, ""
+	}
+	return version[:cutoff], version[cutoff:]
+}
+
+// collapseExtraSegments collapses 4+ dotted segments into a prerelease, stripping leading
+// zeros from any purely numeric segment (semver forbids them in numeric IDs).
+//
+//	1.0.0.0       -> 1.0.0-0
+//	1.0.0.01      -> 1.0.0-1
+//	1.0.0.01.02   -> 1.0.0-1.2
+//	1.2.3.4.5     -> 1.2.3-4.5
+//	1.0.0.alpha.1 -> 1.0.0-alpha.1
+//	1.0.0.0beta   -> 1.0.0-0beta  (mixed; left alone)
+func collapseExtraSegments(core, meta string) (string, string) {
+	parts := strings.Split(core, ".")
+	if len(parts) <= 3 {
+		return core, meta
+	}
+
+	pre := make([]string, len(parts)-3)
+	for i, p := range parts[3:] {
+		pre[i] = stripLeadingZeros(p)
+	}
+	core = fmt.Sprintf("%s.%s.%s", parts[0], parts[1], parts[2])
+
+	// Prepend the collapsed segments to any existing metadata
+	if meta == "" || meta[0] == '+' {
+		meta = "-" + strings.Join(pre, ".") + meta
+	} else {
+		// Merge with existing prerelease by replacing the initial '-' with a '.'
+		meta = "-" + strings.Join(pre, ".") + "." + meta[1:]
+	}
+	return core, meta
 }
 
 func stripLeadingZeros(s string) string {
