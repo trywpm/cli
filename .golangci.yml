@@ -1,22 +1,126 @@
 version: '2'
-linters:
-  exclusions:
-    generated: lax
-    presets:
-      - comments
-      - common-false-positives
-      - legacy
-      - std-error-handling
-    paths:
-      - third_party$
-      - builtin$
-      - examples$
+
+run:
+  go: '1.26.3'
+  timeout: 5m
+
+issues:
+  max-same-issues: 0
+  max-issues-per-linter: 0
+
 formatters:
   enable:
+    - gci
     - gofmt
+    - gofumpt
+  settings:
+    gci:
+      sections:
+        - standard
+        - default
+        - prefix(go.wpm.so/cli)
+    gofmt:
+      simplify: true
+      rewrite-rules:
+        - pattern: 'interface{}'
+          replacement: 'any'
+    gofumpt:
+      extra-rules: true
   exclusions:
-    generated: lax
-    paths:
-      - third_party$
-      - builtin$
-      - examples$
+    generated: strict
+
+linters:
+  enable:
+    - asasalint # Detects "[]any" used as argument for variadic "func(...any)".
+    - bodyclose
+    - copyloopvar # Detects places where loop variables are copied.
+    - depguard
+    - dogsled # Detects assignments with too many blank identifiers.
+    - dupword # Detects duplicate words.
+    - durationcheck # Detect cases where two time.Duration values are being multiplied in possibly erroneous ways.
+    - errcheck
+    - errchkjson # Detects unsupported types passed to json encoding functions and reports if checks for the returned error can be omitted.
+    - exhaustive # Detects missing options in enum switch statements.
+    - exptostd # Detects functions from golang.org/x/exp/ that can be replaced by std functions.
+    - fatcontext # Detects nested contexts in loops and function literals.
+    - forbidigo
+    - gocheckcompilerdirectives # Detects invalid go compiler directive comments (//go:).
+    - gocritic # Metalinter; detects bugs, performance, and styling issues.
+    - gocyclo
+    - gosec # Detects security problems.
+    - govet
+    - iface # Detects incorrect use of interfaces. Currently only used for "identical" interfaces in the same package.
+    - importas # Enforces consistent import aliases.
+    - ineffassign
+    - makezero # Finds slice declarations with non-zero initial length.
+    - mirror # Detects wrong mirror patterns of bytes/strings usage.
+    - misspell # Detects commonly misspelled English words in comments.
+    - nakedret # Detects uses of naked returns.
+    - nilnesserr # Detects returning nil errors. It combines the features of nilness and nilerr,
+    - nosprintfhostport # Detects misuse of Sprintf to construct a host with port in a URL.
+    - nolintlint # Detects ill-formed or insufficient nolint directives.
+    - perfsprint # Detects fmt.Sprintf uses that can be replaced with a faster alternative.
+    - prealloc # Detects slice declarations that could potentially be pre-allocated.
+    - predeclared # Detects code that shadows one of Go's predeclared identifiers
+    - reassign # Detects reassigning a top-level variable in another package.
+    - revive # Metalinter; drop-in replacement for golint.
+    - spancheck # Detects mistakes with OpenTelemetry/Census spans.
+    - staticcheck
+    - thelper # Detects test helpers without t.Helper().
+    - tparallel # Detects inappropriate usage of t.Parallel().
+    - unconvert # Detects unnecessary type conversions.
+    - unparam
+    - unused
+    - usestdlibvars # Detects the possibility to use variables/constants from the Go standard library.
+    - usetesting # Reports uses of functions with replacement inside the testing package.
+    - wastedassign # Detects wasted assignment statements.
+  settings:
+    staticcheck:
+      checks:
+        - all
+    gocyclo:
+      min-complexity: 16
+    govet:
+      enable:
+        - shadow
+      settings:
+        shadow:
+          strict: true
+    nakedret:
+      settings:
+        max-func-lines: 0
+    depguard:
+      rules:
+        main:
+          deny:
+            - pkg: 'log'
+              desc: 'Use logrus for logging instead of the standard log package.'
+            - pkg: 'io/ioutil'
+              desc: "The io/ioutil package has been deprecated, use 'os' or 'io' directly."
+    revive:
+      rules:
+        - name: empty-block # https://github.com/mgechev/revive/blob/master/RULES_DESCRIPTIONS.md#empty-block
+        - name: empty-lines # https://github.com/mgechev/revive/blob/master/RULES_DESCRIPTIONS.md#empty-lines
+        - name: import-shadowing # https://github.com/mgechev/revive/blob/master/RULES_DESCRIPTIONS.md#import-shadowing
+        - name: line-length-limit # https://github.com/mgechev/revive/blob/master/RULES_DESCRIPTIONS.md#line-length-limit
+          arguments: [200]
+        - name: unused-receiver # https://github.com/mgechev/revive/blob/master/RULES_DESCRIPTIONS.md#unused-receiver
+        - name: use-any # https://github.com/mgechev/revive/blob/master/RULES_DESCRIPTIONS.md#use-any
+        - name: use-errors-new # https://github.com/mgechev/revive/blob/HEAD/RULES_DESCRIPTIONS.md#use-errors-new
+  exclusions:
+    generated: strict
+    warn-unused: true
+    rules:
+      - text: 'ST1000: at least one file in a package should have a package comment'
+        linters:
+          - staticcheck
+      - text: '^ST1003: '
+        linters:
+          - staticcheck
+      - path: _test\.go
+        linters:
+          - gosec
+          - errcheck
+      - text: '^shadow: declaration of "(err|ok)" shadows declaration'
+        linters:
+          - govet
