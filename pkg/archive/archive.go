@@ -744,7 +744,7 @@ func (b *extractionLimiter) Read(p []byte) (int, error) {
 		if cBytes == 0 {
 			cBytes = 1 // prevent division by zero
 		}
-		if b.decompressedBytes >= int64(maxCompressionRatio)*cBytes {
+		if b.decompressedBytes >= maxCompressionRatio*cBytes {
 			return n, errors.New("invalid archive: compression ratio exceeds 99.6%% (potential zip bomb)")
 		}
 	}
