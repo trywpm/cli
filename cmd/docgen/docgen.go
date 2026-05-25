@@ -25,10 +25,10 @@ package main
 import (
 	"errors"
 	"fmt"
-	"log"
 	"os"
 
 	clidocstool "github.com/docker/cli-docs-tool"
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/cobra/doc"
 	"github.com/spf13/pflag"
@@ -59,7 +59,7 @@ func main() {
 }
 
 func run() error {
-	log.SetFlags(0)
+	logrus.SetFormatter(&logrus.TextFormatter{DisableTimestamp: true})
 
 	opts, err := parseArgs(os.Args[1:])
 	if err != nil {
