@@ -103,7 +103,7 @@ func (r *Resolver) Resolve(ctx context.Context, progress ProgressReporter, w io.
 		queue = nil // Clear queue for next iteration
 
 		results := make(chan fetchResult, len(uniqueRequests))
-		g, ctx := errgroup.WithContext(ctx)
+		g, gtx := errgroup.WithContext(ctx)
 		g.SetLimit(16) // Limit concurrent fetches
 
 		count := 0
@@ -113,7 +113,7 @@ func (r *Resolver) Resolve(ctx context.Context, progress ProgressReporter, w io.
 			progress.Stream(w, fmt.Sprintf("  Resolving %s@%s [%d/%d]", req.name, req.version, count, len(uniqueRequests)))
 
 			g.Go(func() error {
-				manifest, err := r.fetchMetadata(ctx, req.name, req.version)
+				manifest, err := r.fetchMetadata(gtx, req.name, req.version)
 				results <- fetchResult{req: req, manifest: manifest, err: err}
 				return nil
 			})
