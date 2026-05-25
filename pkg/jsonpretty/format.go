@@ -62,7 +62,7 @@ func processToken(w io.Writer, dec *json.Decoder, t json.Token, c func(string) s
 	switch tt := t.(type) {
 	case json.Delim:
 		err = processDelim(w, dec, tt, c, indent, stack, idx)
-		return true, false, err
+		return tt == '{' || tt == '[', false, err
 	default:
 		isKey, err = processValue(w, tt, t, c, *stack, idx)
 		return false, isKey, err
