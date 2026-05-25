@@ -90,8 +90,7 @@ linters:
         shadow:
           strict: true
     nakedret:
-      settings:
-        max-func-lines: 0
+      max-func-lines: 0
     depguard:
       rules:
         main:
@@ -120,10 +119,6 @@ linters:
       - text: '^ST1003: '
         linters:
           - staticcheck
-      - path: _test\.go
-        linters:
-          - gosec
-          - errcheck
       - text: '^shadow: declaration of "(err|ok)" shadows declaration'
         linters:
           - govet
