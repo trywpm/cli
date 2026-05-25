@@ -416,6 +416,8 @@ func (t *Tarballer) Close() error {
 // Do performs the archiving operation in the background. The resulting archive
 // can be read from t.Reader(). Do should only be called once on each Tarballer
 // instance.
+//
+//nolint:gocyclo // this function is necessarily complex due to the file walking and pattern matching logic
 func (t *Tarballer) Do() {
 	ta := newTarAppender(t.compressWriter)
 
@@ -574,6 +576,8 @@ func (t *Tarballer) Do() {
 }
 
 // Unpack unpacks the decompressedArchive to dest with options.
+//
+//nolint:gocyclo // this function is necessarily complex due to the file walking and pattern matching logic
 func Unpack(decompressedArchive io.Reader, dest string, options *TarOptions) error {
 	tr := tar.NewReader(decompressedArchive)
 
