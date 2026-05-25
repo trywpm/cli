@@ -123,7 +123,7 @@ func load(configDir string) (*configfile.ConfigFile, error) {
 		// Any other error happening when failing to read the file must be returned.
 		return configFile, errors.Wrap(err, "loading config file")
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 	err = configFile.LoadFromReader(file)
 	if err != nil {
 		err = errors.Wrapf(err, "parsing config file (%s)", filename)

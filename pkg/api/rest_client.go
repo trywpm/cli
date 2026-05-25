@@ -64,7 +64,7 @@ func (c *RESTClient) DoWithContext(ctx context.Context, method, path string, bod
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return HandleHTTPError(resp)
@@ -111,7 +111,7 @@ func (c *RESTClient) RequestStream(ctx context.Context, method, path string, bod
 	}
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 		return nil, HandleHTTPError(resp)
 	}
 

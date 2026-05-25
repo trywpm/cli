@@ -392,7 +392,7 @@ func promptForConfig(ctx context.Context, wpmCli command.Cli, config *wpmjson.Co
 			}
 
 			if err := pf.Prompt.Validate(val); err != nil {
-				fmt.Fprintf(wpmCli.Err(), "%s\n", err)
+				_, _ = fmt.Fprintf(wpmCli.Err(), "%s\n", err)
 				continue
 			}
 			break

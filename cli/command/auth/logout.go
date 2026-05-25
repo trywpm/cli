@@ -35,7 +35,7 @@ func runLogout(wpmCli command.Cli) error {
 		return err
 	}
 
-	fmt.Fprintf(wpmCli.Out(), "user logged out successfully\n")
+	_, _ = fmt.Fprintf(wpmCli.Out(), "user logged out successfully\n")
 
 	return nil
 }

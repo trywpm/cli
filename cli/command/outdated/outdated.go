@@ -218,7 +218,7 @@ func printOutdatedList(out io.Writer, colorize bool, results []outdatedInfo) {
 			devStr = c(aec.Faint, "(dev)")
 		}
 
-		fmt.Fprintf(out, "%s %s %s\n", nameStr, typeStr, devStr)
+		_, _ = fmt.Fprintf(out, "%s %s %s\n", nameStr, typeStr, devStr)
 
 		var diffLabel string
 		var severityColor aec.ANSI
@@ -241,19 +241,19 @@ func printOutdatedList(out io.Writer, colorize bool, results []outdatedInfo) {
 		treeEnd := c(aec.LightBlackF, "└──")
 		treeBranch := c(aec.LightBlackF, "├──")
 
-		fmt.Fprintf(out, "%s current: %s\n",
+		_, _ = fmt.Fprintf(out, "%s current: %s\n",
 			treeBranch,
 			r.current,
 		)
 
-		fmt.Fprintf(out, "%s latest:  %s %s\n",
+		_, _ = fmt.Fprintf(out, "%s latest:  %s %s\n",
 			treeEnd,
 			c(severityColor, r.latest),  // Colorized Version
 			c(severityColor, diffLabel), // Colorized Label
 		)
 
 		if i < len(results)-1 {
-			fmt.Fprintln(out, "")
+			_, _ = fmt.Fprintln(out, "")
 		}
 	}
 }

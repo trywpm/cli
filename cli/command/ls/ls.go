@@ -165,7 +165,7 @@ func (p *treePrinter) printLevel(deps map[string]string, colorize bool, prefix s
 			isMissing = true
 		}
 
-		fmt.Fprintf(p.out, "%s%s%s\n", prefix, connector, info)
+		_, _ = fmt.Fprintf(p.out, "%s%s%s\n", prefix, connector, info)
 
 		// Recurse only if:
 		// 1. It's not a missing package

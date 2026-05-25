@@ -132,7 +132,7 @@ func Run(ctx context.Context, cwd string, wpmCli command.Cli, opts RunOptions) e
 	if err != nil {
 		return errors.Wrap(err, "failed to initialize installer")
 	}
-	defer inst.Close()
+	defer func() { _ = inst.Close() }()
 
 	if err := inst.InstallAll(ctx, plan, installerProgress(wpmCli.Output())); err != nil {
 		return errors.Wrap(err, "installation failed")

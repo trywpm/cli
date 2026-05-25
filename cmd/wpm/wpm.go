@@ -133,7 +133,7 @@ func newWpmCommand(wpmCli *command.WpmCli) *cli.TopLevelCommand {
 				return command.ShowHelp(wpmCli.Err())(cmd, args)
 			}
 
-			fmt.Fprintf(wpmCli.Err(), "wpm: unknown command: wpm %s\n", args[0])
+			_, _ = fmt.Fprintf(wpmCli.Err(), "wpm: unknown command: wpm %s\n", args[0])
 
 			var candidates []string
 			if args[0] == "help" {
@@ -146,9 +146,9 @@ func newWpmCommand(wpmCli *command.WpmCli) *cli.TopLevelCommand {
 			}
 
 			if len(candidates) > 0 {
-				fmt.Fprint(wpmCli.Err(), "\nDid you mean this?\n")
+				_, _ = fmt.Fprint(wpmCli.Err(), "\nDid you mean this?\n")
 				for _, c := range candidates {
-					fmt.Fprintf(wpmCli.Err(), "\t%s\n", c)
+					_, _ = fmt.Fprintf(wpmCli.Err(), "\t%s\n", c)
 				}
 			}
 

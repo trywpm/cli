@@ -92,7 +92,7 @@ func runUninstall(ctx context.Context, wpmCli command.Cli, packages []string) er
 
 	if !changed {
 		wpmCli.Out().WriteString("\n")
-		fmt.Fprintln(wpmCli.Out(), "No matching packages found to uninstall.")
+		_, _ = fmt.Fprintln(wpmCli.Out(), "No matching packages found to uninstall.")
 		return nil
 	}
 
