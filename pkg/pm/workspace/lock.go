@@ -2,12 +2,12 @@ package workspace
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"time"
 
 	"github.com/gofrs/flock"
-	"github.com/pkg/errors"
 )
 
 type ProjectLock struct {
@@ -21,7 +21,7 @@ type ProjectLock struct {
 func AcquireLock(ctx context.Context, baseDir string, printWaitMsg func()) (*ProjectLock, error) {
 	wpmDir := filepath.Join(baseDir, ".wpm")
 	if err := os.MkdirAll(wpmDir, 0o750); err != nil {
-		return nil, errors.Wrap(err, "failed to create workspace directory")
+		return nil, fmt.Errorf("failed to create workspace directory: %w", err)
 	}
 
 	_ = os.WriteFile(filepath.Join(wpmDir, ".gitignore"), []byte("*\n"), 0o600)
@@ -30,7 +30,7 @@ func AcquireLock(ctx context.Context, baseDir string, printWaitMsg func()) (*Pro
 
 	locked, err := fileLock.TryLock()
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to acquire workspace lock")
+		return nil, fmt.Errorf("failed to acquire workspace lock: %w", err)
 	}
 	if locked {
 		return &ProjectLock{fileLock: fileLock}, nil
@@ -42,10 +42,10 @@ func AcquireLock(ctx context.Context, baseDir string, printWaitMsg func()) (*Pro
 
 	locked, err = fileLock.TryLockContext(ctx, 200*time.Millisecond)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed while waiting for workspace lock")
+		return nil, fmt.Errorf("failed while waiting for workspace lock: %w", err)
 	}
 	if !locked {
-		return nil, errors.Wrap(ctx.Err(), "operation cancelled while waiting for workspace lock")
+		return nil, fmt.Errorf("operation cancelled while waiting for workspace lock: %w", ctx.Err())
 	}
 
 	return &ProjectLock{fileLock: fileLock}, nil

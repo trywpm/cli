@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -10,7 +11,6 @@ import (
 
 	"github.com/containerd/errdefs"
 	"github.com/morikuni/aec"
-	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
@@ -32,7 +32,7 @@ func (errCtxSignalTerminated) Error() string {
 
 func main() {
 	err := wpmMain(context.Background())
-	if errors.As(err, &errCtxSignalTerminated{}) {
+	if _, ok := errors.AsType[errCtxSignalTerminated](err); ok {
 		os.Exit(getExitCode(err))
 	}
 
@@ -91,8 +91,7 @@ func getExitCode(err error) int {
 		return 0
 	}
 
-	var userTerminatedErr errCtxSignalTerminated
-	if errors.As(err, &userTerminatedErr) {
+	if userTerminatedErr, ok := errors.AsType[errCtxSignalTerminated](err); ok {
 		s, ok := userTerminatedErr.signal.(syscall.Signal)
 		if !ok {
 			return 1
@@ -100,8 +99,7 @@ func getExitCode(err error) int {
 		return 128 + int(s)
 	}
 
-	var stErr cli.StatusError
-	if errors.As(err, &stErr) && stErr.StatusCode != 0 {
+	if stErr, ok := errors.AsType[cli.StatusError](err); ok && stErr.StatusCode != 0 {
 		return stErr.StatusCode
 	}
 

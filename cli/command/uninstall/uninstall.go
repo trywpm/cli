@@ -2,12 +2,12 @@ package uninstall
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 
 	"github.com/morikuni/aec"
-	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 
 	"go.wpm.so/cli/cli"
@@ -59,7 +59,7 @@ func runUninstall(ctx context.Context, wpmCli command.Cli, packages []string) er
 		})
 	})
 	if err != nil {
-		return errors.Wrap(err, "failed to acquire workspace lock")
+		return fmt.Errorf("failed to acquire workspace lock: %w", err)
 	}
 	defer func() {
 		_ = lock.Release()

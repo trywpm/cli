@@ -6,10 +6,9 @@ import (
 	"crypto/x509"
 	"encoding/asn1"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"math/big"
-
-	"github.com/pkg/errors"
 )
 
 const signingAlgorithm = "ECDSA_SHA_256"
@@ -48,7 +47,7 @@ func Verify(keys KeysJson, keyId, signatureBase64 string, originalMessage []byte
 
 	keyBytes, err := base64.StdEncoding.DecodeString(rawPublicKeyBase64)
 	if err != nil {
-		return errors.Wrap(err, "failed to decode base64 public key")
+		return fmt.Errorf("failed to decode base64 public key: %w", err)
 	}
 
 	genericPublicKey, err := x509.ParsePKIXPublicKey(keyBytes)

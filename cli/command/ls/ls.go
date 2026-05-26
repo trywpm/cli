@@ -1,6 +1,7 @@
 package ls
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"maps"
@@ -9,7 +10,6 @@ import (
 	"sort"
 
 	"github.com/morikuni/aec"
-	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 
 	"go.wpm.so/cli/cli"
@@ -42,7 +42,7 @@ func NewLsCommand(wpmCli command.Cli) *cobra.Command {
 func runLs(wpmCli command.Cli, opts lsOptions) error {
 	cwd, err := os.Getwd()
 	if err != nil {
-		return errors.Wrap(err, "failed to get current working directory")
+		return fmt.Errorf("failed to get current working directory: %w", err)
 	}
 
 	config, err := wpmjson.Read(cwd)
@@ -55,7 +55,7 @@ func runLs(wpmCli command.Cli, opts lsOptions) error {
 
 	lock, err := wpmlock.Read(cwd)
 	if err != nil {
-		return errors.Wrap(err, "failed to read lockfile")
+		return fmt.Errorf("failed to read lockfile: %w", err)
 	}
 	if lock == nil {
 		return errors.New("no wpm.lock found, you need to run `wpm install` first")

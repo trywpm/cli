@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -16,7 +17,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/pkg/errors"
 	"golang.org/x/sync/errgroup"
 
 	"go.wpm.so/cli/pkg/archive"
@@ -57,20 +57,20 @@ func New(
 
 	//nolint:gosec // Dir perms are intentionally permissive here.
 	if err := os.MkdirAll(contentDir, 0o755); err != nil {
-		return nil, errors.Wrap(err, "failed to create content directory")
+		return nil, fmt.Errorf("failed to create content directory: %w", err)
 	}
 
 	tmpDir := filepath.Join(contentDir, ".tmp")
 	//nolint:gosec // Dir perms are intentionally permissive here.
 	if err := os.MkdirAll(tmpDir, 0o755); err != nil {
-		return nil, errors.Wrap(err, "failed to create tmp directory")
+		return nil, fmt.Errorf("failed to create tmp directory: %w", err)
 	}
 
 	sweepStaleRunDirs(tmpDir)
 
 	runDir, err := os.MkdirTemp(tmpDir, "run-")
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to create staging directory")
+		return nil, fmt.Errorf("failed to create staging directory: %w", err)
 	}
 
 	return &Installer{
@@ -108,7 +108,7 @@ func sweepStaleRunDirs(tmpDir string) {
 func (i *Installer) InstallAll(ctx context.Context, plan []Action, progressFn func(Action)) error {
 	keys, err := i.client.GetKeysJson(ctx)
 	if err != nil {
-		return errors.Wrap(err, "failed to fetch public keys for signature verification")
+		return fmt.Errorf("failed to fetch public keys for signature verification: %w", err)
 	}
 	i.keysJson = keys
 
@@ -140,7 +140,7 @@ func (i *Installer) install(ctx context.Context, action Action) error {
 	switch action.Type {
 	case ActionRemove:
 		if err := i.removeAll(ctx, targetDir); err != nil {
-			return errors.Wrapf(err, "failed to delete %s", targetDir)
+			return fmt.Errorf("failed to delete %s: %w", targetDir, err)
 		}
 		return nil
 	case ActionInstall, ActionUpdate:
@@ -153,12 +153,12 @@ func (i *Installer) install(ctx context.Context, action Action) error {
 func (i *Installer) installOrUpdate(ctx context.Context, action Action, targetDir string) error {
 	manifest, err := i.client.GetPackageManifest(ctx, action.Name, action.Version, false)
 	if err != nil {
-		return errors.Wrapf(err, "failed to fetch manifest for %s@%s", action.Name, action.Version)
+		return fmt.Errorf("failed to fetch manifest for %s@%s: %w", action.Name, action.Version, err)
 	}
 
 	sigs := manifest.Dist.Signatures
 	if len(sigs) == 0 {
-		return errors.Errorf("no signatures found for package %s@%s", action.Name, action.Version)
+		return fmt.Errorf("no signatures found for package %s@%s", action.Name, action.Version)
 	}
 
 	err = signatures.Verify(
@@ -168,12 +168,12 @@ func (i *Installer) installOrUpdate(ctx context.Context, action Action, targetDi
 		fmt.Appendf(nil, "%s:%s:%s", action.Name, action.Version, action.Digest),
 	)
 	if err != nil {
-		return errors.Wrapf(err, "signature verification failed for package %s@%s", action.Name, action.Version)
+		return fmt.Errorf("signature verification failed for package %s@%s: %w", action.Name, action.Version, err)
 	}
 
 	resp, err := i.client.DownloadTarball(ctx, action.Resolved)
 	if err != nil {
-		return errors.Wrapf(err, "failed to download %s", action.Resolved)
+		return fmt.Errorf("failed to download %s: %w", action.Resolved, err)
 	}
 	defer func() {
 		_ = resp.Close()
@@ -194,17 +194,17 @@ func (i *Installer) installOrUpdate(ctx context.Context, action Action, targetDi
 		_ = i.removeAll(context.Background(), tempContainer)
 	}()
 	if err != nil {
-		return errors.Wrap(err, "failed to unpack package")
+		return fmt.Errorf("failed to unpack package: %w", err)
 	}
 
 	if _, err := io.Copy(io.Discard, stream); err != nil {
-		return errors.Wrap(err, "failed to drain download stream")
+		return fmt.Errorf("failed to drain download stream: %w", err)
 	}
 
 	cleanDigest := strings.TrimPrefix(action.Digest, "sha256:")
 	calculated := base64.StdEncoding.EncodeToString(hasher.Sum(nil))
 	if calculated != cleanDigest {
-		return errors.Errorf("digest mismatch: expected %s, got %s", cleanDigest, calculated)
+		return fmt.Errorf("digest mismatch: expected %s, got %s", cleanDigest, calculated)
 	}
 
 	return i.replaceDir(ctx, extractedPath, targetDir)
@@ -213,12 +213,12 @@ func (i *Installer) installOrUpdate(ctx context.Context, action Action, targetDi
 func (i *Installer) unpackToStaging(r io.Reader) (string, string, error) {
 	rootTemp, err := os.MkdirTemp(i.runDir, "pkg-*")
 	if err != nil {
-		return "", "", errors.Wrap(err, "failed to create staging directory")
+		return "", "", fmt.Errorf("failed to create staging directory: %w", err)
 	}
 
 	opts := &archive.TarOptions{Logger: i.logger}
 	if err := archive.Untar(r, rootTemp, opts); err != nil {
-		return "", rootTemp, errors.Wrap(err, "failed to extract tarball")
+		return "", rootTemp, fmt.Errorf("failed to extract tarball: %w", err)
 	}
 
 	entries, err := os.ReadDir(rootTemp)
@@ -236,7 +236,7 @@ func (i *Installer) unpackToStaging(r io.Reader) (string, string, error) {
 func (i *Installer) replaceDir(ctx context.Context, sourceDir, targetDir string) error {
 	//nolint:gosec // Dir perms are intentionally permissive here.
 	if err := os.MkdirAll(filepath.Dir(targetDir), 0o755); err != nil {
-		return errors.Wrap(err, "failed to create parent directory")
+		return fmt.Errorf("failed to create parent directory: %w", err)
 	}
 
 	if _, err := os.Lstat(targetDir); errors.Is(err, fs.ErrNotExist) {
@@ -245,23 +245,22 @@ func (i *Installer) replaceDir(ctx context.Context, sourceDir, targetDir string)
 
 	var nonce [8]byte
 	if _, err := rand.Read(nonce[:]); err != nil {
-		return errors.Wrap(err, "failed to generate backup nonce")
+		return fmt.Errorf("failed to generate backup nonce: %w", err)
 	}
 	backupDir := filepath.Join(i.runDir, filepath.Base(targetDir)+".bak-"+hex.EncodeToString(nonce[:]))
 
 	if err := i.rename(ctx, targetDir, backupDir); err != nil {
-		return errors.Wrap(err, "failed to move existing package to backup")
+		return fmt.Errorf("failed to move existing package to backup: %w", err)
 	}
 
 	if err := i.rename(ctx, sourceDir, targetDir); err != nil {
 		if rbErr := i.rename(context.Background(), backupDir, targetDir); rbErr != nil {
-			return errors.Wrapf(
-				err,
-				"failed to install new version AND failed to roll back: previous version preserved at %q (rollback error: %v)",
-				backupDir, rbErr,
+			return fmt.Errorf(
+				"failed to install new version AND failed to roll back: previous version preserved at %q (rollback error: %v): %w",
+				backupDir, rbErr, err,
 			)
 		}
-		return errors.Wrap(err, "failed to install new version, rolled back")
+		return fmt.Errorf("failed to install new version, rolled back: %w", err)
 	}
 
 	_ = i.removeAll(ctx, backupDir)
@@ -272,7 +271,7 @@ func (i *Installer) rename(ctx context.Context, src, dst string) error {
 	return retryFS(ctx, func() error {
 		err := os.Rename(src, dst)
 		if err != nil && isCrossDeviceError(err) {
-			return errors.Errorf(
+			return fmt.Errorf(
 				"cannot move %q to %q: source and destination are on different filesystems. "+
 					"wpm requires the staging area (%s) and the install target (%s) to live on the same volume. "+
 					"This typically affects Docker setups where individual plugin/theme directories are bind-mounted",
@@ -330,10 +329,8 @@ func isRetriableError(err error) bool {
 		return false
 	}
 
-	var linkErr *os.LinkError
-	if errors.As(err, &linkErr) {
-		var errno syscall.Errno
-		if errors.As(linkErr.Err, &errno) {
+	if linkErr, ok := errors.AsType[*os.LinkError](err); ok {
+		if errno, ok := errors.AsType[syscall.Errno](linkErr.Err); ok {
 			return isRetriableErrno(errno)
 		}
 	}
@@ -342,10 +339,8 @@ func isRetriableError(err error) bool {
 		return true
 	}
 
-	var pathErr *os.PathError
-	if errors.As(err, &pathErr) {
-		var errno syscall.Errno
-		if errors.As(pathErr.Err, &errno) {
+	if pathErr, ok := errors.AsType[*os.PathError](err); ok {
+		if errno, ok := errors.AsType[syscall.Errno](pathErr.Err); ok {
 			return isRetriableErrno(errno)
 		}
 	}
@@ -358,10 +353,8 @@ func isRetriableErrno(errno syscall.Errno) bool {
 }
 
 func isCrossDeviceError(err error) bool {
-	var linkErr *os.LinkError
-	if errors.As(err, &linkErr) {
-		var errno syscall.Errno
-		if errors.As(linkErr.Err, &errno) {
+	if linkErr, ok := errors.AsType[*os.LinkError](err); ok {
+		if errno, ok := errors.AsType[syscall.Errno](linkErr.Err); ok {
 			return errno == syscall.EXDEV || errno == errorNotSameDevice
 		}
 	}
@@ -370,7 +363,7 @@ func isCrossDeviceError(err error) bool {
 
 func (i *Installer) getTargetDir(pkgType types.PackageType, name string) (string, error) {
 	if err := validator.IsValidPackageName(name); err != nil {
-		return "", errors.Wrapf(err, "refusing to operate on package with invalid name %q", name)
+		return "", fmt.Errorf("refusing to operate on package with invalid name %q: %w", name, err)
 	}
 
 	var subDir string
@@ -382,7 +375,7 @@ func (i *Installer) getTargetDir(pkgType types.PackageType, name string) (string
 	case types.TypePlugin:
 		subDir = "plugins"
 	default:
-		return "", errors.Errorf("unknown package type %q for package %q", pkgType, name)
+		return "", fmt.Errorf("unknown package type %q for package %q", pkgType, name)
 	}
 
 	target := filepath.Join(i.contentDir, subDir, name)
@@ -391,7 +384,7 @@ func (i *Installer) getTargetDir(pkgType types.PackageType, name string) (string
 	// path stays inside contentDir in case of symlinks or other weird filesystem setups.
 	rel, err := filepath.Rel(i.contentDir, target)
 	if err != nil || !filepath.IsLocal(rel) {
-		return "", errors.Errorf("package %q resolves outside content directory", name)
+		return "", fmt.Errorf("package %q resolves outside content directory", name)
 	}
 
 	return target, nil

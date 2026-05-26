@@ -7,7 +7,7 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-func chtimes(name string, atime time.Time, mtime time.Time) error {
+func chtimes(name string, atime, mtime time.Time) error {
 	if err := os.Chtimes(name, atime, mtime); err != nil {
 		return err
 	}

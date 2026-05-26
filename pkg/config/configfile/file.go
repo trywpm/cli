@@ -3,11 +3,12 @@ package configfile
 import (
 	"encoding/base64"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 
-	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 )
 
@@ -135,7 +136,7 @@ func (configFile *ConfigFile) SaveToWriter(writer io.Writer) error {
 // Save encodes and writes out all the authorization information
 func (configFile *ConfigFile) Save() (retErr error) {
 	if configFile.Filename == "" {
-		return errors.Errorf("Can't save config with empty filename")
+		return errors.New("can't save config with empty filename")
 	}
 
 	dir := filepath.Dir(configFile.Filename)
@@ -161,7 +162,7 @@ func (configFile *ConfigFile) Save() (retErr error) {
 	}
 
 	if err := temp.Close(); err != nil {
-		return errors.Wrap(err, "error closing temp file")
+		return fmt.Errorf("error closing temp file: %w", err)
 	}
 
 	// Handle situation where the configfile is a symlink

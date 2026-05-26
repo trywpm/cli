@@ -2,10 +2,10 @@ package wpmlock
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
-
-	"github.com/pkg/errors"
 
 	"go.wpm.so/cli/pkg/pm"
 	"go.wpm.so/cli/pkg/pm/wpmjson/types"
@@ -52,12 +52,12 @@ func Read(cwd string) (*Lockfile, error) {
 
 	data, err := os.ReadFile(path) //nolint:gosec // path is cwd + LockfileName constant
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to read lockfile")
+		return nil, fmt.Errorf("failed to read lockfile: %w", err)
 	}
 
 	var lockfile Lockfile
 	if err := json.Unmarshal(data, &lockfile); err != nil {
-		return nil, errors.Wrap(err, "failed to parse lockfile")
+		return nil, fmt.Errorf("failed to parse lockfile: %w", err)
 	}
 
 	if lockfile.LockfileVersion > CurrentVersion {
@@ -70,7 +70,7 @@ func Read(cwd string) (*Lockfile, error) {
 
 	for name := range lockfile.Packages {
 		if err := validator.IsValidPackageName(name); err != nil {
-			return nil, errors.Wrapf(err, "invalid package name %q in lockfile", name)
+			return nil, fmt.Errorf("invalid package name %q in lockfile: %w", name, err)
 		}
 	}
 
@@ -92,12 +92,12 @@ func (l *Lockfile) Write(cwd string) error {
 
 	data, err := json.MarshalIndent(l, "", l.Indentation)
 	if err != nil {
-		return errors.Wrap(err, "failed to marshal lockfile")
+		return fmt.Errorf("failed to marshal lockfile: %w", err)
 	}
 
 	// Write with 0644 permissions (rw-r--r--)
 	if err := os.WriteFile(path, data, 0o644); err != nil {
-		return errors.Wrap(err, "failed to write lockfile to disk")
+		return fmt.Errorf("failed to write lockfile to disk: %w", err)
 	}
 
 	return nil
