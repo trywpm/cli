@@ -1,6 +1,9 @@
 package atomicwriter
 
 import (
+	"crypto/rand"
+	"encoding/hex"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -13,11 +16,10 @@ import (
 func WriteFile(path string, data []byte, perm os.FileMode) (retErr error) {
 	dir := filepath.Dir(path)
 
-	tmp, err := os.CreateTemp(dir, "."+filepath.Base(path)+".tmp-*")
+	tmp, tmpName, err := createTemp(dir, filepath.Base(path), perm)
 	if err != nil {
 		return fmt.Errorf("failed to create temp file: %w", err)
 	}
-	tmpName := tmp.Name()
 	defer func() {
 		if retErr != nil {
 			_ = os.Remove(tmpName)
@@ -35,9 +37,6 @@ func WriteFile(path string, data []byte, perm os.FileMode) (retErr error) {
 	if err := tmp.Close(); err != nil {
 		return err
 	}
-	if err := os.Chmod(tmpName, perm); err != nil {
-		return err
-	}
 
 	if err := os.Rename(tmpName, path); err != nil {
 		return err
@@ -53,4 +52,36 @@ func WriteFile(path string, data []byte, perm os.FileMode) (retErr error) {
 	}
 
 	return nil
+}
+
+// createTemp opens a new, uniquely-named file in dir with O_CREATE|O_EXCL so it
+// never follows a pre-existing symlink or clobbers an existing file. perm is
+// passed straight to the open syscall so the kernel masks it by the process
+// umask, exactly as os.WriteFile does.
+func createTemp(dir, base string, perm os.FileMode) (*os.File, string, error) {
+	for range 10000 {
+		suffix, err := randomSuffix()
+		if err != nil {
+			return nil, "", err
+		}
+
+		name := filepath.Join(dir, "."+base+".tmp-"+suffix)
+		f, err := os.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_EXCL, perm) //nolint:gosec // name is confined to dir; O_EXCL blocks clobbering and symlink-following
+		if err == nil {
+			return f, name, nil
+		}
+		if errors.Is(err, os.ErrExist) {
+			continue
+		}
+		return nil, "", err
+	}
+	return nil, "", errors.New("exhausted attempts to create a unique temp file")
+}
+
+func randomSuffix() (string, error) {
+	var b [8]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(b[:]), nil
 }
