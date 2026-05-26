@@ -65,7 +65,7 @@ func NewPublishCommand(wpmCli command.Cli) *cobra.Command {
 	return cmd
 }
 
-func pack(path string, opts publishOptions, out *output.Output) (*archive.Tarballer, error) {
+func pack(ctx context.Context, path string, opts publishOptions, out *output.Output) (*archive.Tarballer, error) {
 	ignorePatterns, err := wpmignore.ReadWpmIgnore(path)
 	if err != nil {
 		return nil, err
@@ -78,7 +78,7 @@ func pack(path string, opts publishOptions, out *output.Output) (*archive.Tarbal
 		},
 	}
 
-	tar, err := archive.Tar(path, tarOptions, func(fileInfo os.FileInfo) {
+	tar, err := archive.Tar(ctx, path, tarOptions, func(fileInfo os.FileInfo) {
 		if opts.verbose {
 			sizeString := units.HumanSize(float64(fileInfo.Size()))
 			sizeString = fmt.Sprintf("%-7s", sizeString) // pad to 7 spaces since size string is capped to 4 numbers
@@ -174,7 +174,7 @@ func runPublish(ctx context.Context, wpmCli command.Cli, opts publishOptions) er
 		_ = os.Remove(tempFile.Name())
 	}()
 
-	tarballer, err := pack(cwd, opts, wpmCli.Output())
+	tarballer, err := pack(ctx, cwd, opts, wpmCli.Output())
 	if err != nil {
 		return fmt.Errorf("failed to pack the package into a tarball: %w", err)
 	}

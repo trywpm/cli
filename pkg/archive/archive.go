@@ -5,6 +5,7 @@ import (
 	"archive/tar"
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -152,16 +153,19 @@ func DecompressStream(archive io.Reader) (io.ReadCloser, error) {
 	buf := newBufferedReader(archive)
 	bs, err := buf.Peek(10)
 	if err != nil && err != io.EOF {
+		_ = buf.Close()
 		return nil, err
 	}
 
 	// check if the stream is compressed with zstd
 	if !isZstd(bs) {
+		_ = buf.Close()
 		return nil, errors.New("unsupported archive format: expected zstd compressed archive")
 	}
 
 	zstdReader, err := zstd.NewReader(buf, zstd.WithDecoderMaxWindow(zstdMaxWindowSize))
 	if err != nil {
+		_ = buf.Close()
 		return nil, err
 	}
 
@@ -340,8 +344,8 @@ func createTarFile(path string, hdr *tar.Header, reader io.Reader, options *TarO
 
 // Tar creates an archive from the directory at `path`, only including files whose relative
 // paths are included in `options.IncludeFiles` (if non-nil) or not in `options.ExcludePatterns`.
-func Tar(srcPath string, options *TarOptions, reporterFn func(fs.FileInfo)) (*Tarballer, error) {
-	tb, err := NewTarballer(srcPath, options, reporterFn)
+func Tar(ctx context.Context, srcPath string, options *TarOptions, reporterFn func(fs.FileInfo)) (*Tarballer, error) {
+	tb, err := NewTarballer(ctx, srcPath, options, reporterFn)
 	if err != nil {
 		return nil, err
 	}
@@ -352,6 +356,7 @@ func Tar(srcPath string, options *TarOptions, reporterFn func(fs.FileInfo)) (*Ta
 // Tarballer is a lower-level interface to TarWithOptions which gives the caller
 // control over which goroutine the archiving operation executes on.
 type Tarballer struct {
+	ctx              context.Context
 	srcPath          string
 	options          *TarOptions
 	pm               *patternmatcher.PatternMatcher
@@ -365,7 +370,7 @@ type Tarballer struct {
 
 // NewTarballer constructs a new tarballer. The arguments are the same as for
 // TarWithOptions.
-func NewTarballer(srcPath string, options *TarOptions, reporterFn func(fs.FileInfo)) (*Tarballer, error) {
+func NewTarballer(ctx context.Context, srcPath string, options *TarOptions, reporterFn func(fs.FileInfo)) (*Tarballer, error) {
 	pm, err := patternmatcher.New(options.ExcludePatterns)
 	if err != nil {
 		return nil, err
@@ -381,6 +386,7 @@ func NewTarballer(srcPath string, options *TarOptions, reporterFn func(fs.FileIn
 	}
 
 	return &Tarballer{
+		ctx: ctx,
 		// Fix the source path to work with long path names. This is a no-op
 		// on platforms other than Windows.
 		srcPath:          addLongPathPrefix(srcPath),
@@ -465,6 +471,9 @@ func (t *Tarballer) Do() {
 
 		walkRoot := filepath.Join(t.srcPath, include)
 		doErr = filepath.WalkDir(walkRoot, func(filePath string, f os.DirEntry, err error) error {
+			if ctxErr := t.ctx.Err(); ctxErr != nil {
+				return ctxErr
+			}
 			if err != nil {
 				return fmt.Errorf("unable to stat file %q: %w", t.srcPath, err)
 			}
@@ -578,7 +587,7 @@ func (t *Tarballer) Do() {
 // Unpack unpacks the decompressedArchive to dest with options.
 //
 //nolint:gocyclo // this function is necessarily complex due to the file walking and pattern matching logic
-func Unpack(decompressedArchive io.Reader, dest string, options *TarOptions) error {
+func Unpack(ctx context.Context, decompressedArchive io.Reader, dest string, options *TarOptions) error {
 	tr := tar.NewReader(decompressedArchive)
 
 	var dirs []*tar.Header
@@ -587,6 +596,10 @@ func Unpack(decompressedArchive io.Reader, dest string, options *TarOptions) err
 	// Iterate through the files in the archive.
 loop:
 	for {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+
 		hdr, err := tr.Next()
 		if errors.Is(err, io.EOF) {
 			// end of archive
@@ -719,6 +732,22 @@ func (t *readTracker) Read(p []byte) (int, error) {
 	return n, err
 }
 
+// ctxReader wraps an io.Reader to honor ctx cancellation. The downstream
+// tar / zstd readers call Read in a tight loop; checking ctx at each Read
+// boundary is fine-grained enough to abort a multi-gigabyte extract within
+// a single read buffer (typically 32 KiB).
+type ctxReader struct {
+	ctx context.Context
+	r   io.Reader
+}
+
+func (cr *ctxReader) Read(p []byte) (int, error) {
+	if err := cr.ctx.Err(); err != nil {
+		return 0, err
+	}
+	return cr.r.Read(p)
+}
+
 // extractionLimiter wraps the decompressed stream and enforces size and ratio limits.
 type extractionLimiter struct {
 	decompressedStream io.Reader
@@ -758,7 +787,7 @@ func (b *extractionLimiter) Read(p []byte) (int, error) {
 
 // Untar reads a stream of bytes from `archive`, parses it as a tar archive,
 // and unpacks it into the directory at `dest`.
-func Untar(tarArchive io.Reader, dest string, options *TarOptions) error {
+func Untar(ctx context.Context, tarArchive io.Reader, dest string, options *TarOptions) error {
 	if tarArchive == nil {
 		return errors.New("empty archive")
 	}
@@ -771,7 +800,7 @@ func Untar(tarArchive io.Reader, dest string, options *TarOptions) error {
 		options.ExcludePatterns = []string{}
 	}
 
-	compressedTracker := &readTracker{reader: tarArchive}
+	compressedTracker := &readTracker{reader: &ctxReader{ctx: ctx, r: tarArchive}}
 
 	decompressedArchive, err := DecompressStream(compressedTracker)
 	if err != nil {
@@ -784,5 +813,5 @@ func Untar(tarArchive io.Reader, dest string, options *TarOptions) error {
 		decompressedStream: decompressedArchive,
 	}
 
-	return Unpack(detector, dest, options)
+	return Unpack(ctx, detector, dest, options)
 }

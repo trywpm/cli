@@ -4,10 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"os/signal"
-	"syscall"
 	"time"
 
 	"github.com/morikuni/aec"
@@ -23,62 +21,44 @@ import (
 	platformsignals "go.wpm.so/cli/cmd/wpm/internal/signals"
 )
 
-type errCtxSignalTerminated struct {
-	signal os.Signal
-}
-
-func (errCtxSignalTerminated) Error() string {
-	return ""
-}
+// exitCodeInterrupted is the exit code used when the process is interrupted by a signal (e.g., Ctrl-C).
+const exitCodeInterrupted = 130
 
 func main() {
-	err := wpmMain(context.Background())
-	if _, ok := errors.AsType[errCtxSignalTerminated](err); ok {
-		os.Exit(getExitCode(err))
-	}
-
-	if err != nil && !errors.Is(err, context.Canceled) {
-		if err.Error() != "" {
-			_, _ = fmt.Fprintln(os.Stderr, err)
-		}
-		os.Exit(getExitCode(err))
-	}
+	os.Exit(run())
 }
 
-func notifyContext(ctx context.Context, signals ...os.Signal) (context.Context, context.CancelFunc) {
-	ch := make(chan os.Signal, 1)
-	signal.Notify(ch, signals...)
-
-	ctxCause, cancel := context.WithCancelCause(ctx)
+func run() int {
+	ctx, stop := signal.NotifyContext(context.Background(), platformsignals.TerminationSignals...)
+	defer stop()
 
 	go func() {
-		select {
-		case <-ctx.Done():
-			signal.Stop(ch)
-			return
-		case sig := <-ch:
-			cancel(errCtxSignalTerminated{
-				signal: sig,
-			})
-			signal.Stop(ch)
-			return
-		}
+		<-ctx.Done()
+		stop()
 	}()
 
-	return ctxCause, func() {
-		signal.Stop(ch)
-		cancel(nil)
+	err := wpmMain(ctx)
+	if err == nil {
+		return 0
 	}
+
+	if ctx.Err() != nil || errors.Is(err, context.Canceled) {
+		return exitCodeInterrupted
+	}
+
+	if err.Error() != "" {
+		_, _ = fmt.Fprintln(os.Stderr, err)
+	}
+
+	return getExitCode(err)
 }
 
 func wpmMain(ctx context.Context) error {
-	ctx, cancelNotify := notifyContext(ctx, platformsignals.TerminationSignals...)
-	defer cancelNotify()
-
 	wpmCli, err := command.NewWpmCli()
 	if err != nil {
 		return err
 	}
+
 	log.Logger = zerolog.New(zerolog.ConsoleWriter{
 		Out:        wpmCli.Err(),
 		NoColor:    !wpmCli.Err().IsColorEnabled(),
@@ -94,14 +74,6 @@ func wpmMain(ctx context.Context) error {
 func getExitCode(err error) int {
 	if err == nil {
 		return 0
-	}
-
-	if userTerminatedErr, ok := errors.AsType[errCtxSignalTerminated](err); ok {
-		s, ok := userTerminatedErr.signal.(syscall.Signal)
-		if !ok {
-			return 1
-		}
-		return 128 + int(s)
 	}
 
 	if stErr, ok := errors.AsType[cli.StatusError](err); ok && stErr.StatusCode != 0 {
@@ -189,25 +161,6 @@ func newWpmCommand(wpmCli *command.WpmCli) *cli.TopLevelCommand {
 	return cli.NewTopLevelCommand(cmd, wpmCli, opts, cmd.Flags())
 }
 
-// forceExitAfter3TerminationSignals waits for the first termination signal
-// to be caught and the context to be marked as done, then registers a new
-// signal handler for subsequent signals. It forces the process to exit
-// after 3 SIGTERM/SIGINT signals.
-func forceExitAfter3TerminationSignals(ctx context.Context, w io.Writer) {
-	// wait for the first signal to be caught and the context to be marked as done
-	<-ctx.Done()
-	// register a new signal handler for subsequent signals
-	sig := make(chan os.Signal, 2)
-	signal.Notify(sig, platformsignals.TerminationSignals...)
-
-	// once we have received a total of 3 signals we force exit the cli
-	for i := 0; i < 2; i++ {
-		<-sig
-	}
-	_, _ = fmt.Fprint(w, "\ngot 3 SIGTERM/SIGINTs, forcefully exiting\n")
-	os.Exit(1)
-}
-
 func setupHelpCommand(helpCmd *cobra.Command) {
 	origRun := helpCmd.Run
 	origRunE := helpCmd.RunE
@@ -234,14 +187,8 @@ func runWpm(ctx context.Context, wpmCli *command.WpmCli) error {
 		return err
 	}
 
-	// This is a fallback for the case where the command does not exit
-	// based on context cancellation.
-	go forceExitAfter3TerminationSignals(ctx, wpmCli.Err())
-
 	// We've parsed global args already, so reset args to those
 	// which remain.
 	cmd.SetArgs(args)
-	err = cmd.ExecuteContext(ctx)
-
-	return err
+	return cmd.ExecuteContext(ctx)
 }

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
@@ -142,7 +143,7 @@ func (t *Transport) executeRequest(req *http.Request, finalPath string, force bo
 	}
 
 	if resp.StatusCode == http.StatusOK {
-		resp.Body = t.write(resp.Body, finalPath, resp.Header)
+		resp.Body = t.write(req.Context(), resp.Body, finalPath, resp.Header)
 	}
 
 	return resp, nil
@@ -227,7 +228,7 @@ func readCacheEnvelope(f *os.File) (http.Header, int64, int64, error) {
 	return m.Headers, bodyStart, stat.Size() - 4, nil
 }
 
-func (t *Transport) write(src io.ReadCloser, finalPath string, h http.Header) io.ReadCloser {
+func (t *Transport) write(ctx context.Context, src io.ReadCloser, finalPath string, h http.Header) io.ReadCloser {
 	tmpDir := filepath.Join(t.cacheDir, "tmp")
 	if err := os.MkdirAll(tmpDir, 0o750); err != nil {
 		return src
@@ -247,6 +248,7 @@ func (t *Transport) write(src io.ReadCloser, finalPath string, h http.Header) io
 	}
 
 	return &writer{
+		ctx:   ctx,
 		src:   src,
 		dst:   f,
 		tmp:   f.Name(),
@@ -286,6 +288,7 @@ func (*Transport) writeMeta(w io.Writer, h http.Header) error {
 }
 
 type writer struct {
+	ctx         context.Context
 	src         io.ReadCloser
 	dst         *os.File
 	tmp         string
@@ -328,22 +331,27 @@ func (w *writer) Close() error {
 		return srcErr
 	}
 
-	if err := renameFile(w.tmp, w.final); err != nil {
+	if err := renameFile(w.ctx, w.tmp, w.final); err != nil {
 		_ = os.Remove(w.tmp)
 	}
 	return srcErr
 }
 
 // renameFile retries on transient Windows errors (file locked by reader,
-// AV scanner). Exponential backoff up to ~3.5s.
-func renameFile(src, dst string) error {
+// AV scanner). Exponential backoff up to ~3.5s, abandoned early on ctx
+// cancel so SIGINT mid-retry is honored.
+func renameFile(ctx context.Context, src, dst string) error {
 	const maxAttempts = 8
 	backoff := 25 * time.Millisecond
 
 	var err error
 	for i := range maxAttempts {
 		if i > 0 {
-			time.Sleep(backoff)
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(backoff):
+			}
 			if backoff < time.Second {
 				backoff *= 2
 			}

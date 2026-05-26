@@ -56,7 +56,6 @@ type ProgressReporter interface {
 type fetchResult struct {
 	req      dependencyRequest
 	manifest *manifest.Package
-	err      error
 }
 
 func (r *Resolver) Resolve(ctx context.Context, progress ProgressReporter, w io.Writer) (map[string]Node, error) {
@@ -70,6 +69,10 @@ func (r *Resolver) Resolve(ctx context.Context, progress ProgressReporter, w io.
 	}()
 
 	for len(queue) > 0 {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+
 		uniqueRequests := dedupeRequests(queue, resolved)
 		queue = nil // clear queue for next iteration
 
@@ -131,7 +134,10 @@ func (r *Resolver) fetchAll(ctx context.Context, requests map[string]dependencyR
 
 		g.Go(func() error {
 			manifest, err := r.fetchMetadata(gtx, req.name, req.version)
-			results <- fetchResult{req: req, manifest: manifest, err: err}
+			if err != nil {
+				return fmt.Errorf("failed to fetch metadata for %s@%s required by %s: %w", req.name, req.version, req.requestor, err)
+			}
+			results <- fetchResult{req: req, manifest: manifest}
 			return nil
 		})
 	}
@@ -151,10 +157,6 @@ func (r *Resolver) fetchAll(ctx context.Context, requests map[string]dependencyR
 // applyResult validates and registers a single fetch result into `resolved`,
 // returning any newly discovered child dependencies to enqueue.
 func (r *Resolver) applyResult(res fetchResult, resolved map[string]Node) ([]dependencyRequest, error) {
-	if res.err != nil {
-		return nil, fmt.Errorf("failed to fetch metadata for %s@%s required by %s: %w", res.req.name, res.req.version, res.req.requestor, res.err)
-	}
-
 	if existing, ok := resolved[res.req.name]; ok {
 		if existing.Version == res.req.version {
 			return nil, nil
