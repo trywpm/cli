@@ -11,8 +11,7 @@ import (
 
 	"github.com/henvic/httpretty"
 	"github.com/klauspost/compress/zstd"
-	"github.com/sirupsen/logrus"
-	"github.com/thlib/go-timezone-local/tzlocal"
+	"github.com/rs/zerolog"
 	"golang.org/x/text/transform"
 
 	"go.wpm.so/cli/pkg/asciisanitizer"
@@ -35,7 +34,6 @@ const (
 	HeaderAccept          = "Accept"
 	HeaderAuthorization   = "Authorization"
 	HeaderUserAgent       = "User-Agent"
-	HeaderTimeZone        = "Time-Zone"
 
 	// header values
 	CacheHit  = "HIT"
@@ -89,7 +87,7 @@ func NewHTTPClient(opts ClientOptions) (*http.Client, error) {
 	rt = newDecompressingRoundTripper(rt)
 	rt = newSanitizerRoundTripper(rt)
 
-	if opts.Log != nil && logrus.GetLevel() == logrus.DebugLevel {
+	if opts.Log != nil && zerolog.GlobalLevel() == zerolog.DebugLevel {
 		opts.LogVerboseHTTP = true
 		logger := &httpretty.Logger{
 			Time:            true,
@@ -134,11 +132,6 @@ func resolveHeaders(headers map[string]string) {
 	}
 	if _, ok := headers[HeaderUserAgent]; !ok {
 		headers[HeaderUserAgent] = "wpm-cli"
-	}
-	if _, ok := headers[HeaderTimeZone]; !ok {
-		if tz, err := tzlocal.RuntimeTZ(); err == nil && tz != "" {
-			headers[HeaderTimeZone] = tz
-		}
 	}
 	if _, ok := headers[HeaderAccept]; !ok {
 		headers[HeaderAccept] = "application/json"

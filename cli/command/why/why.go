@@ -1,6 +1,7 @@
 package why
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -9,7 +10,6 @@ import (
 	"strings"
 
 	"github.com/morikuni/aec"
-	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 
 	"go.wpm.so/cli/cli"
@@ -41,7 +41,7 @@ func NewWhyCommand(wpmCli command.Cli) *cobra.Command {
 func runWhy(wpmCli command.Cli, targetPkg string) error {
 	cwd, err := os.Getwd()
 	if err != nil {
-		return errors.Wrap(err, "failed to get current working directory")
+		return fmt.Errorf("failed to get current working directory: %w", err)
 	}
 
 	config, err := wpmjson.Read(cwd)
@@ -55,10 +55,10 @@ func runWhy(wpmCli command.Cli, targetPkg string) error {
 
 	lock, err := wpmlock.Read(cwd)
 	if err != nil {
-		return errors.Wrap(err, "failed to read lockfile")
+		return fmt.Errorf("failed to read lockfile: %w", err)
 	}
 	if lock == nil {
-		return errors.New("no wpm.lock found. Run 'wpm install' first to generate a lockfile.")
+		return errors.New("no wpm.lock found, run 'wpm install' first to generate a lockfile")
 	}
 
 	if _, exists := lock.Packages[targetPkg]; !exists {

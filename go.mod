@@ -5,10 +5,8 @@ go 1.26.3
 require (
 	github.com/Masterminds/semver/v3 v3.5.0
 	github.com/briandowns/spinner v1.23.2
-	github.com/containerd/errdefs v1.0.0
 	github.com/docker/cli-docs-tool v0.11.0
 	github.com/docker/go-units v0.5.0
-	github.com/fvbommel/sortorder v1.1.0
 	github.com/gofrs/flock v0.13.0
 	github.com/henvic/httpretty v0.1.4
 	github.com/klauspost/compress v1.18.6
@@ -16,11 +14,9 @@ require (
 	github.com/moby/sys/sequential v0.6.0
 	github.com/moby/term v0.5.2
 	github.com/morikuni/aec v1.1.0
-	github.com/pkg/errors v0.9.1
-	github.com/sirupsen/logrus v1.9.4
+	github.com/rs/zerolog v1.35.1
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.10
-	github.com/thlib/go-timezone-local v0.0.7
 	golang.org/x/sync v0.20.0
 	golang.org/x/sys v0.45.0
 	golang.org/x/text v0.37.0
@@ -32,8 +28,8 @@ require (
 	github.com/fatih/color v1.7.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/kr/text v0.2.0 // indirect
-	github.com/mattn/go-colorable v0.1.2 // indirect
-	github.com/mattn/go-isatty v0.0.8 // indirect
+	github.com/mattn/go-colorable v0.1.14 // indirect
+	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/rogpeppe/go-internal v1.14.1 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect

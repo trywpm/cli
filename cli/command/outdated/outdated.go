@@ -2,6 +2,7 @@ package outdated
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -10,7 +11,6 @@ import (
 
 	"github.com/Masterminds/semver/v3"
 	"github.com/morikuni/aec"
-	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"golang.org/x/sync/errgroup"
 
@@ -43,7 +43,7 @@ type depCheck struct {
 func runOutdated(ctx context.Context, wpmCli command.Cli) error {
 	cwd, err := os.Getwd()
 	if err != nil {
-		return errors.Wrap(err, "failed to get current working directory")
+		return fmt.Errorf("failed to get current working directory: %w", err)
 	}
 
 	config, err := wpmjson.Read(cwd)
@@ -57,10 +57,10 @@ func runOutdated(ctx context.Context, wpmCli command.Cli) error {
 
 	lock, err := wpmlock.Read(cwd)
 	if err != nil {
-		return errors.Wrap(err, "failed to read lockfile")
+		return fmt.Errorf("failed to read lockfile: %w", err)
 	}
 	if lock == nil {
-		return errors.New("no wpm.lock found. Run 'wpm install' first to generate a lockfile.")
+		return errors.New("no wpm.lock found, run 'wpm install' first to generate a lockfile")
 	}
 
 	wpmCli.Output().Prettyln(output.Text{
@@ -146,7 +146,7 @@ func findOutdatedPackages(ctx context.Context, wpmCli command.Cli, checks []depC
 		g.Go(func() error {
 			manifest, err := client.GetPackageManifest(ctx, check.name, "latest", true)
 			if err != nil {
-				return errors.Wrapf(err, "failed to fetch package %s@%s", check.name, "latest")
+				return fmt.Errorf("failed to fetch package %s@%s: %w", check.name, "latest", err)
 			}
 
 			currentVer, err1 := semver.NewVersion(check.version)

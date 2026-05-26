@@ -2,10 +2,10 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/morikuni/aec"
-	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 
 	"go.wpm.so/cli/cli"
@@ -53,7 +53,7 @@ func tokenStdinPrompt(ctx context.Context, wpmCli command.Cli, opts *loginOption
 	wpmCli.Err().WriteString("\n")
 
 	if token == "" {
-		return errors.Errorf("token cannot be empty")
+		return errors.New("token cannot be empty")
 	}
 
 	opts.token = token

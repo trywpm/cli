@@ -2,6 +2,7 @@ package install
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"maps"
 	"path/filepath"
@@ -9,7 +10,6 @@ import (
 	"strconv"
 
 	"github.com/morikuni/aec"
-	"github.com/pkg/errors"
 
 	"go.wpm.so/cli/cli/command"
 	"go.wpm.so/cli/pkg/output"
@@ -67,12 +67,12 @@ func Run(ctx context.Context, cwd string, wpmCli command.Cli, opts RunOptions) e
 		return errors.New("wpm.json config is required")
 	}
 	if err := wpmCfg.ValidateDependencyNames(); err != nil {
-		return errors.Wrap(err, "invalid dependency name in wpm.json")
+		return fmt.Errorf("invalid dependency name in wpm.json: %w", err)
 	}
 
 	lock, err := wpmlock.Read(cwd)
 	if err != nil {
-		return errors.Wrap(err, "failed to read lockfile")
+		return fmt.Errorf("failed to read lockfile: %w", err)
 	}
 	if lock == nil {
 		lock = wpmlock.New()
@@ -83,7 +83,7 @@ func Run(ctx context.Context, cwd string, wpmCli command.Cli, opts RunOptions) e
 
 	client, err := wpmCli.RegistryClient()
 	if err != nil {
-		return errors.Wrap(err, "failed to create registry client")
+		return fmt.Errorf("failed to create registry client: %w", err)
 	}
 
 	resolver := resolution.New(wpmCfg, lock, client)
@@ -102,7 +102,7 @@ func Run(ctx context.Context, cwd string, wpmCli command.Cli, opts RunOptions) e
 	if len(plan) == 0 {
 		if opts.SaveConfig {
 			if err := wpmCfg.Write(cwd); err != nil {
-				return errors.Wrap(err, "failed to save wpm.json")
+				return fmt.Errorf("failed to save wpm.json: %w", err)
 			}
 		}
 
@@ -120,12 +120,12 @@ func Run(ctx context.Context, cwd string, wpmCli command.Cli, opts RunOptions) e
 		wpmCli.Output().ErrorWrite(fmt.Sprintf(format+"\n", args...))
 	})
 	if err != nil {
-		return errors.Wrap(err, "failed to initialize installer")
+		return fmt.Errorf("failed to initialize installer: %w", err)
 	}
 	defer func() { _ = inst.Close() }()
 
 	if err := inst.InstallAll(ctx, plan, installerProgress(wpmCli.Output())); err != nil {
-		return errors.Wrap(err, "installation failed")
+		return fmt.Errorf("installation failed: %w", err)
 	}
 
 	// @todo: binary linking
@@ -134,14 +134,14 @@ func Run(ctx context.Context, cwd string, wpmCli command.Cli, opts RunOptions) e
 
 	updateLockPackages(lock, resolved)
 	if err := lock.Write(cwd); err != nil {
-		return errors.Wrap(err, "failed to save lockfile")
+		return fmt.Errorf("failed to save lockfile: %w", err)
 	}
 
 	// @todo: run root lifecycle scripts
 
 	if opts.SaveConfig {
 		if err := wpmCfg.Write(cwd); err != nil {
-			return errors.Wrap(err, "failed to save wpm.json")
+			return fmt.Errorf("failed to save wpm.json: %w", err)
 		}
 	}
 

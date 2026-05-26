@@ -2,6 +2,7 @@ package init
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -12,7 +13,6 @@ import (
 
 	"github.com/Masterminds/semver/v3"
 	"github.com/morikuni/aec"
-	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 
 	"go.wpm.so/cli/cli/command"
@@ -91,14 +91,14 @@ func NewInitCommand(wpmCli command.Cli) *cobra.Command {
 func runNewInit(ctx context.Context, wpmCli command.Cli, opts *initOptions) error {
 	cwd, err := os.Getwd()
 	if err != nil {
-		return errors.Wrap(err, "failed to get current working directory")
+		return fmt.Errorf("failed to get current working directory: %w", err)
 	}
 
 	wpmConfigFilePath := filepath.Join(cwd, wpmjson.ConfigFile)
 	if _, err := os.Stat(wpmConfigFilePath); err == nil {
-		return errors.Errorf("%s already exists in %s", wpmjson.ConfigFile, cwd)
+		return fmt.Errorf("%s already exists in %s", wpmjson.ConfigFile, cwd)
 	} else if !os.IsNotExist(err) {
-		return errors.Wrapf(err, "failed to check for existing %s", wpmjson.ConfigFile)
+		return fmt.Errorf("failed to check for existing %s: %w", wpmjson.ConfigFile, err)
 	}
 
 	wpmCfg := wpmjson.New()
@@ -125,7 +125,7 @@ func runNewInit(ctx context.Context, wpmCli command.Cli, opts *initOptions) erro
 	}
 
 	if err := wpmCfg.Write(cwd); err != nil {
-		return errors.Wrap(err, "failed to write wpm.json")
+		return fmt.Errorf("failed to write wpm.json: %w", err)
 	}
 
 	_, _ = fmt.Fprintf(wpmCli.Out(), "config created at %s\n", wpmConfigFilePath)
@@ -143,17 +143,17 @@ func extractPackageHeaders(wpmCli command.Cli, cwd string, opts *initOptions) (m
 		mainFilePath := filepath.Join(cwd, "style.css")
 		if _, err := os.Stat(mainFilePath); err != nil {
 			if os.IsNotExist(err) && opts.version == "" {
-				return nil, "", errors.Errorf("style.css not found in %s", cwd)
+				return nil, "", fmt.Errorf("style.css not found in %s", cwd)
 			}
 			if !os.IsNotExist(err) {
-				return nil, "", errors.Wrapf(err, "failed to stat style.css")
+				return nil, "", fmt.Errorf("failed to stat style.css: %w", err)
 			}
 			return nil, "", nil
 		}
 		headers, hErr := parser.GetThemeHeaders(mainFilePath)
 		if hErr != nil {
 			if opts.version == "" {
-				return nil, "", errors.Wrapf(hErr, "failed to parse theme headers from style.css")
+				return nil, "", fmt.Errorf("failed to parse theme headers from style.css: %w", hErr)
 			}
 			return nil, "", nil
 		}
@@ -162,13 +162,13 @@ func extractPackageHeaders(wpmCli command.Cli, cwd string, opts *initOptions) (m
 	case "plugin":
 		dirEntries, dErr := os.ReadDir(cwd)
 		if dErr != nil {
-			return nil, "", errors.Wrap(dErr, "failed to read current directory for plugin files")
+			return nil, "", fmt.Errorf("failed to read current directory for plugin files: %w", dErr)
 		}
 
 		foundPath, headers, fErr := findMainPluginFile(cwd, dirEntries)
 		if fErr != nil {
 			if opts.version == "" {
-				return nil, "", errors.Wrap(fErr, "failed to identify main plugin file")
+				return nil, "", fmt.Errorf("failed to identify main plugin file: %w", fErr)
 			}
 			return nil, "", nil
 		}
@@ -176,7 +176,7 @@ func extractPackageHeaders(wpmCli command.Cli, cwd string, opts *initOptions) (m
 		return headers, headers.Version, nil
 
 	default:
-		return nil, "", errors.Errorf("unsupported package type for existing project init: %s", opts.packageType)
+		return nil, "", fmt.Errorf("unsupported package type for existing project init: %s", opts.packageType)
 	}
 }
 
@@ -213,7 +213,7 @@ func resolveConfigVersion(wpmCli command.Cli, wpmCfg *wpmjson.Config, opts *init
 func runExistingInit(wpmCli command.Cli, opts *initOptions) error {
 	cwd, err := os.Getwd()
 	if err != nil {
-		return errors.Wrap(err, "failed to get current working directory")
+		return fmt.Errorf("failed to get current working directory: %w", err)
 	}
 
 	baseFiles, err := findExistingProjectFiles(cwd)
@@ -236,7 +236,7 @@ func runExistingInit(wpmCli command.Cli, opts *initOptions) error {
 	if baseFiles.readmeTxt != "" {
 		readmeTxtContent, err := os.ReadFile(baseFiles.readmeTxt)
 		if err != nil {
-			return errors.Wrap(err, "failed to read readme.txt")
+			return fmt.Errorf("failed to read readme.txt: %w", err)
 		}
 		readmeParser = parser.NewReadmeParser()
 		readmeParser.Parse(string(readmeTxtContent))
@@ -399,7 +399,7 @@ func promptForConfig(ctx context.Context, wpmCli command.Cli, config *wpmjson.Co
 		for {
 			val, err := command.PromptForInput(ctx, wpmCli.In(), wpmCli.Out(), fmt.Sprintf("%s (%s): ", pf.Prompt.Msg, pf.Prompt.Default))
 			if err != nil {
-				return errors.Wrap(err, "failed to get prompt input")
+				return fmt.Errorf("failed to get prompt input: %w", err)
 			}
 
 			if err := pf.Prompt.Validate(val); err != nil {
@@ -416,7 +416,7 @@ func findExistingProjectFiles(cwd string) (existingProjectFiles, error) {
 	var paths existingProjectFiles
 	files, err := os.ReadDir(cwd)
 	if err != nil {
-		return paths, errors.Wrap(err, "failed to read current directory")
+		return paths, fmt.Errorf("failed to read current directory: %w", err)
 	}
 
 	for _, file := range files {

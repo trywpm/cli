@@ -13,7 +13,7 @@ type ClientOptions struct {
 	AuthToken string
 
 	// Headers are the headers that will be sent with every API request.
-	// Default headers set are Accept, Content-Type, Time-Zone, and User-Agent.
+	// Default headers set are Accept, Content-Type, and User-Agent.
 	// Default headers will be overridden by keys specified in Headers.
 	Headers map[string]string
 
@@ -29,7 +29,7 @@ type ClientOptions struct {
 
 	// LogVerboseHTTP enables logging HTTP headers and bodies to Log.
 	// Default is only logging request URLs and response statuses.
-	// By default fallback to logrus log level.
+	// By default fallback to zerolog log level.
 	LogVerboseHTTP bool
 
 	// SkipDefaultHeaders disables setting of the default headers.

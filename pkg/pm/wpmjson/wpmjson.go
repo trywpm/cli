@@ -6,8 +6,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/pkg/errors"
-
 	"go.wpm.so/cli/pkg/pm"
 	"go.wpm.so/cli/pkg/pm/wpmjson/types"
 	"go.wpm.so/cli/pkg/pm/wpmjson/validator"
@@ -159,12 +157,12 @@ func Read(cwd string) (*Config, error) {
 
 	data, err := os.ReadFile(path) //nolint:gosec // path is cwd + ConfigFile constant
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to read wpm.json")
+		return nil, fmt.Errorf("failed to read wpm.json: %w", err)
 	}
 
 	var config Config
 	if err := json.Unmarshal(data, &config); err != nil {
-		return nil, errors.Wrap(err, "failed to parse wpm.json")
+		return nil, fmt.Errorf("failed to parse wpm.json: %w", err)
 	}
 
 	config.Indentation = pm.DetectIndentation(data)
@@ -179,12 +177,12 @@ func (c *Config) Write(cwd string) error {
 
 	data, err := json.MarshalIndent(c, "", c.GetIndentation())
 	if err != nil {
-		return errors.Wrap(err, "failed to marshal wpm.json")
+		return fmt.Errorf("failed to marshal wpm.json: %w", err)
 	}
 
 	// Write with 0644 permissions (rw-r--r--)
 	if err := os.WriteFile(path, data, 0o644); err != nil {
-		return errors.Wrap(err, "failed to write wpm.json to disk")
+		return fmt.Errorf("failed to write wpm.json to disk: %w", err)
 	}
 
 	return nil

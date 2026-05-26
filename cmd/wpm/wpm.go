@@ -2,16 +2,17 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
-	"github.com/containerd/errdefs"
 	"github.com/morikuni/aec"
-	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 
 	"go.wpm.so/cli/cli"
@@ -32,11 +33,11 @@ func (errCtxSignalTerminated) Error() string {
 
 func main() {
 	err := wpmMain(context.Background())
-	if errors.As(err, &errCtxSignalTerminated{}) {
+	if _, ok := errors.AsType[errCtxSignalTerminated](err); ok {
 		os.Exit(getExitCode(err))
 	}
 
-	if err != nil && !errdefs.IsCanceled(err) {
+	if err != nil && !errors.Is(err, context.Canceled) {
 		if err.Error() != "" {
 			_, _ = fmt.Fprintln(os.Stderr, err)
 		}
@@ -78,7 +79,11 @@ func wpmMain(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	logrus.SetOutput(wpmCli.Err())
+	log.Logger = zerolog.New(zerolog.ConsoleWriter{
+		Out:        wpmCli.Err(),
+		NoColor:    !wpmCli.Err().IsColorEnabled(),
+		TimeFormat: time.Kitchen,
+	}).With().Timestamp().Logger()
 
 	return runWpm(ctx, wpmCli)
 }
@@ -91,8 +96,7 @@ func getExitCode(err error) int {
 		return 0
 	}
 
-	var userTerminatedErr errCtxSignalTerminated
-	if errors.As(err, &userTerminatedErr) {
+	if userTerminatedErr, ok := errors.AsType[errCtxSignalTerminated](err); ok {
 		s, ok := userTerminatedErr.signal.(syscall.Signal)
 		if !ok {
 			return 1
@@ -100,8 +104,7 @@ func getExitCode(err error) int {
 		return 128 + int(s)
 	}
 
-	var stErr cli.StatusError
-	if errors.As(err, &stErr) && stErr.StatusCode != 0 {
+	if stErr, ok := errors.AsType[cli.StatusError](err); ok && stErr.StatusCode != 0 {
 		return stErr.StatusCode
 	}
 

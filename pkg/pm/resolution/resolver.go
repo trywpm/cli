@@ -2,12 +2,12 @@ package resolution
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
 
 	"github.com/Masterminds/semver/v3"
-	"github.com/pkg/errors"
 	"golang.org/x/sync/errgroup"
 
 	"go.wpm.so/cli/pkg/pm/registry"
@@ -315,12 +315,12 @@ func checkVersionCompatibility(name, required, runtime string) error {
 
 	constraint, err := semver.NewConstraint(required)
 	if err != nil {
-		return errors.Wrapf(err, "invalid %s requirement in package", name)
+		return fmt.Errorf("invalid %s requirement in package: %w", name, err)
 	}
 
 	version, err := semver.NewVersion(runtime)
 	if err != nil {
-		return errors.Wrapf(err, "invalid runtime %s version provided", name)
+		return fmt.Errorf("invalid runtime %s version provided: %w", name, err)
 	}
 
 	if !constraint.Check(version) {

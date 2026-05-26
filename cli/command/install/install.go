@@ -2,6 +2,7 @@ package install
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -9,7 +10,6 @@ import (
 	"sync"
 
 	"github.com/morikuni/aec"
-	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"golang.org/x/sync/errgroup"
 
@@ -31,7 +31,7 @@ type installOptions struct {
 	networkConcurrency int
 }
 
-var runHelp = errors.New("RUN_HELP")
+var errRunHelp = errors.New("RUN_HELP")
 
 func NewInstallCommand(wpmCli command.Cli) *cobra.Command {
 	var opts installOptions
@@ -48,7 +48,7 @@ func NewInstallCommand(wpmCli command.Cli) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			err := runInstall(cmd.Context(), wpmCli, opts, args)
 			if err != nil {
-				if errors.Is(err, runHelp) {
+				if errors.Is(err, errRunHelp) {
 					return cmd.Help()
 				}
 
@@ -81,7 +81,7 @@ func NewInstallCommand(wpmCli command.Cli) *cobra.Command {
 func runInstall(ctx context.Context, wpmCli command.Cli, opts installOptions, packages []string) error {
 	cwd, err := os.Getwd()
 	if err != nil {
-		return errors.Wrap(err, "failed to get current working directory")
+		return fmt.Errorf("failed to get current working directory: %w", err)
 	}
 
 	wpmCli.Output().Prettyln(output.Text{
@@ -101,7 +101,7 @@ func runInstall(ctx context.Context, wpmCli command.Cli, opts installOptions, pa
 		})
 	})
 	if err != nil {
-		return errors.Wrap(err, "failed to acquire workspace lock")
+		return fmt.Errorf("failed to acquire workspace lock: %w", err)
 	}
 	defer func() {
 		_ = lock.Release()
@@ -114,7 +114,7 @@ func runInstall(ctx context.Context, wpmCli command.Cli, opts installOptions, pa
 
 	if cfg == nil {
 		if len(packages) == 0 {
-			return runHelp
+			return errRunHelp
 		}
 
 		cfg = wpmjson.New()
@@ -201,7 +201,7 @@ func addPackages(ctx context.Context, config *wpmjson.Config, wpmCli command.Cli
 		g.Go(func() error {
 			manifest, err := client.GetPackageManifest(ctx, name, versionOrTag, true)
 			if err != nil {
-				return errors.Wrapf(err, "failed to fetch package %s@%s", name, versionOrTag)
+				return fmt.Errorf("failed to fetch package %s@%s: %w", name, versionOrTag, err)
 			}
 
 			mu.Lock()

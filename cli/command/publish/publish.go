@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"hash"
 	"io"
@@ -14,7 +15,6 @@ import (
 
 	"github.com/docker/go-units"
 	"github.com/morikuni/aec"
-	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 
 	"go.wpm.so/cli/cli"
@@ -147,7 +147,7 @@ func (c *tarballSizeCounter) Write(p []byte) (n int, err error) {
 func runPublish(ctx context.Context, wpmCli command.Cli, opts publishOptions) error {
 	cwd, err := os.Getwd()
 	if err != nil {
-		return errors.Wrap(err, "failed to get current working directory")
+		return fmt.Errorf("failed to get current working directory: %w", err)
 	}
 
 	visibility := types.PackageVisibility(opts.access)
@@ -167,7 +167,7 @@ func runPublish(ctx context.Context, wpmCli command.Cli, opts publishOptions) er
 
 	tempFile, err := os.CreateTemp("", "wpm-tarball-*.tar.zst")
 	if err != nil {
-		return errors.Wrap(err, "failed to create temporary tarball")
+		return fmt.Errorf("failed to create temporary tarball: %w", err)
 	}
 	defer func() {
 		_ = tempFile.Close()
@@ -176,7 +176,7 @@ func runPublish(ctx context.Context, wpmCli command.Cli, opts publishOptions) er
 
 	tarballer, err := pack(cwd, opts, wpmCli.Output())
 	if err != nil {
-		return errors.Wrap(err, "failed to pack the package into a tarball")
+		return fmt.Errorf("failed to pack the package into a tarball: %w", err)
 	}
 	defer func() { _ = tarballer.Close() }()
 
@@ -210,7 +210,7 @@ func runPublish(ctx context.Context, wpmCli command.Cli, opts publishOptions) er
 
 	readme, err := getReadme(cwd)
 	if err != nil {
-		return errors.Wrap(err, "failed to read readme file")
+		return fmt.Errorf("failed to read readme file: %w", err)
 	}
 
 	pkgManifest := buildManifest(wpmJson, opts, visibility, digest, counter.total, tarballer, readme)
@@ -241,7 +241,7 @@ func packIntoTarball(wpmCli command.Cli, opts publishOptions, tarballer *archive
 
 	packFn := func() error {
 		if _, err := io.Copy(multiWriter, tarballer.Reader()); err != nil {
-			return errors.Wrap(err, "failed to process tarball")
+			return fmt.Errorf("failed to process tarball: %w", err)
 		}
 		return nil
 	}
@@ -318,7 +318,7 @@ func uploadPackage(ctx context.Context, wpmCli command.Cli, registryClient regis
 		"publishing package",
 		func() error {
 			if _, err := tempFile.Seek(0, io.SeekStart); err != nil {
-				return errors.Wrap(err, "failed to seek to beginning of tarball")
+				return fmt.Errorf("failed to seek to beginning of tarball: %w", err)
 			}
 			return registryClient.PutPackage(ctx, pkgManifest, tempFile)
 		},

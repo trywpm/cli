@@ -6,16 +6,15 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/fvbommel/sortorder"
 	"github.com/moby/term"
 	"github.com/morikuni/aec"
-	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
 	"go.wpm.so/cli/cli/command"
 	"go.wpm.so/cli/cli/command/completion"
 	cliflags "go.wpm.so/cli/cli/flags"
+	"go.wpm.so/cli/pkg/sortorder"
 )
 
 // setupCommonRootCommand contains the setup common to
@@ -101,7 +100,7 @@ var helpCommand = &cobra.Command{
 	RunE: func(c *cobra.Command, args []string) error {
 		cmd, args, e := c.Root().Find(args)
 		if cmd == nil || e != nil || len(args) > 0 {
-			return errors.Errorf("unknown help topic: %v", strings.Join(args, " "))
+			return fmt.Errorf("unknown help topic: %v", strings.Join(args, " "))
 		}
 		helpFunc := cmd.HelpFunc()
 		helpFunc(cmd, args)

@@ -1,9 +1,9 @@
 package auth
 
 import (
+	"errors"
 	"fmt"
 
-	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 
 	"go.wpm.so/cli/cli"
@@ -25,7 +25,7 @@ func runLogout(wpmCli command.Cli) error {
 	cfg := wpmCli.ConfigFile()
 
 	if cfg.AuthToken == "" {
-		return errors.Errorf("user must be logged in to perform this action")
+		return errors.New("user must be logged in to perform this action")
 	}
 
 	cfg.AuthToken = ""

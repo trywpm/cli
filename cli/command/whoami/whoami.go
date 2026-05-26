@@ -2,8 +2,8 @@ package whoami
 
 import (
 	"context"
+	"errors"
 
-	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 
 	"go.wpm.so/cli/cli"

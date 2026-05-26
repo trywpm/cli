@@ -28,7 +28,8 @@ import (
 	"os"
 
 	clidocstool "github.com/docker/cli-docs-tool"
-	"github.com/sirupsen/logrus"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 	"github.com/spf13/cobra/doc"
 	"github.com/spf13/pflag"
@@ -59,7 +60,10 @@ func main() {
 }
 
 func run() error {
-	logrus.SetFormatter(&logrus.TextFormatter{DisableTimestamp: true})
+	log.Logger = zerolog.New(zerolog.ConsoleWriter{
+		Out:          os.Stderr,
+		PartsExclude: []string{zerolog.TimestampFieldName},
+	})
 
 	opts, err := parseArgs(os.Args[1:])
 	if err != nil {

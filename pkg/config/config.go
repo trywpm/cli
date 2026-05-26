@@ -10,8 +10,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/pkg/errors"
-
 	"go.wpm.so/cli/pkg/config/configfile"
 )
 
@@ -77,7 +75,7 @@ func SetDir(dir string) {
 func Path(p ...string) (string, error) {
 	path := filepath.Join(append([]string{Dir()}, p...)...)
 	if !strings.HasPrefix(path, Dir()+string(filepath.Separator)) {
-		return "", errors.Errorf("path %q is outside of root config directory %q", path, Dir())
+		return "", fmt.Errorf("path %q is outside of root config directory %q", path, Dir())
 	}
 	return path, nil
 }
@@ -121,12 +119,12 @@ func load(configDir string) (*configfile.ConfigFile, error) {
 			return configFile, nil
 		}
 		// Any other error happening when failing to read the file must be returned.
-		return configFile, errors.Wrap(err, "loading config file")
+		return configFile, fmt.Errorf("loading config file: %w", err)
 	}
 	defer func() { _ = file.Close() }()
 	err = configFile.LoadFromReader(file)
 	if err != nil {
-		err = errors.Wrapf(err, "parsing config file (%s)", filename)
+		err = fmt.Errorf("parsing config file (%s): %w", filename, err)
 	}
 	return configFile, err
 }
