@@ -5,7 +5,7 @@ import (
 	"os"
 
 	"github.com/moby/term"
-	"github.com/sirupsen/logrus"
+	"github.com/rs/zerolog/log"
 
 	"go.wpm.so/cli/pkg/unsafeconv"
 )
@@ -86,7 +86,7 @@ func (o *Out) GetTtySize() (height, width uint) {
 	}
 	ws, err := term.GetWinsize(o.fd)
 	if err != nil {
-		logrus.WithError(err).Debug("Error getting TTY size")
+		log.Debug().Err(err).Msg("Error getting TTY size")
 		if ws == nil {
 			return 0, 0
 		}

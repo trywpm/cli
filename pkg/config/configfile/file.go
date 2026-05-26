@@ -9,7 +9,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/sirupsen/logrus"
+	"github.com/rs/zerolog/log"
 )
 
 type UsersAuthConfig struct {
@@ -151,7 +151,7 @@ func (configFile *ConfigFile) Save() (retErr error) {
 		_ = temp.Close()
 		if retErr != nil {
 			if err := os.Remove(temp.Name()); err != nil {
-				logrus.WithError(err).WithField("file", temp.Name()).Debug("Error cleaning up temp file")
+				log.Debug().Err(err).Str("file", temp.Name()).Msg("Error cleaning up temp file")
 			}
 		}
 	}()

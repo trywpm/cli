@@ -96,7 +96,7 @@ linters:
         main:
           deny:
             - pkg: 'log'
-              desc: 'Use logrus for logging instead of the standard log package.'
+              desc: 'Use github.com/rs/zerolog for logging instead of the standard log package.'
             - pkg: 'io/ioutil'
               desc: "The io/ioutil package has been deprecated, use 'os' or 'io' directly."
     revive:

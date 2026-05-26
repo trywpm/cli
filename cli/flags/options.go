@@ -3,8 +3,9 @@ package flags
 import (
 	"fmt"
 	"os"
+	"strings"
 
-	"github.com/sirupsen/logrus"
+	"github.com/rs/zerolog"
 	"github.com/spf13/pflag"
 
 	"go.wpm.so/cli/pkg/config"
@@ -38,16 +39,16 @@ func (o *ClientOptions) InstallFlags(flags *pflag.FlagSet) {
 // complete
 func (*ClientOptions) SetDefaultOptions(_ *pflag.FlagSet) {}
 
-// SetLogLevel sets the logrus logging level
+// SetLogLevel sets the global zerolog logging level.
 func SetLogLevel(logLevel string) {
 	if logLevel != "" {
-		lvl, err := logrus.ParseLevel(logLevel)
+		lvl, err := zerolog.ParseLevel(strings.ToLower(logLevel))
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Unable to parse logging level: %s\n", logLevel)
 			os.Exit(1)
 		}
-		logrus.SetLevel(lvl)
+		zerolog.SetGlobalLevel(lvl)
 	} else {
-		logrus.SetLevel(logrus.InfoLevel)
+		zerolog.SetGlobalLevel(zerolog.InfoLevel)
 	}
 }

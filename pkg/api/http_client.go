@@ -11,7 +11,7 @@ import (
 
 	"github.com/henvic/httpretty"
 	"github.com/klauspost/compress/zstd"
-	"github.com/sirupsen/logrus"
+	"github.com/rs/zerolog"
 	"github.com/thlib/go-timezone-local/tzlocal"
 	"golang.org/x/text/transform"
 
@@ -89,7 +89,7 @@ func NewHTTPClient(opts ClientOptions) (*http.Client, error) {
 	rt = newDecompressingRoundTripper(rt)
 	rt = newSanitizerRoundTripper(rt)
 
-	if opts.Log != nil && logrus.GetLevel() == logrus.DebugLevel {
+	if opts.Log != nil && zerolog.GlobalLevel() == zerolog.DebugLevel {
 		opts.LogVerboseHTTP = true
 		logger := &httpretty.Logger{
 			Time:            true,

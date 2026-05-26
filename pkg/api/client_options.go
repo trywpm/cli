@@ -29,7 +29,7 @@ type ClientOptions struct {
 
 	// LogVerboseHTTP enables logging HTTP headers and bodies to Log.
 	// Default is only logging request URLs and response statuses.
-	// By default fallback to logrus log level.
+	// By default fallback to zerolog log level.
 	LogVerboseHTTP bool
 
 	// SkipDefaultHeaders disables setting of the default headers.

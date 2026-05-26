@@ -8,9 +8,11 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/morikuni/aec"
-	"github.com/sirupsen/logrus"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 
 	"go.wpm.so/cli/cli"
@@ -77,7 +79,11 @@ func wpmMain(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	logrus.SetOutput(wpmCli.Err())
+	log.Logger = zerolog.New(zerolog.ConsoleWriter{
+		Out:        wpmCli.Err(),
+		NoColor:    !wpmCli.Err().IsColorEnabled(),
+		TimeFormat: time.Kitchen,
+	}).With().Timestamp().Logger()
 
 	return runWpm(ctx, wpmCli)
 }
