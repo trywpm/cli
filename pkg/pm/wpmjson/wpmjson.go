@@ -181,7 +181,7 @@ func (c *Config) Write(cwd string) error {
 	}
 
 	// Write with 0644 permissions (rw-r--r--)
-	if err := os.WriteFile(path, data, 0o644); err != nil {
+	if err := pm.WriteFileAtomic(path, data, 0o644); err != nil {
 		return fmt.Errorf("failed to write wpm.json to disk: %w", err)
 	}
 
