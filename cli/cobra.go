@@ -6,7 +6,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/fvbommel/sortorder"
 	"github.com/moby/term"
 	"github.com/morikuni/aec"
 	"github.com/spf13/cobra"
@@ -15,6 +14,7 @@ import (
 	"go.wpm.so/cli/cli/command"
 	"go.wpm.so/cli/cli/command/completion"
 	cliflags "go.wpm.so/cli/cli/flags"
+	"go.wpm.so/cli/pkg/sortorder"
 )
 
 // setupCommonRootCommand contains the setup common to
