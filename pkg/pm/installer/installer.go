@@ -189,12 +189,16 @@ func (i *Installer) installOrUpdate(ctx context.Context, action Action, targetDi
 	}
 	defer func() { <-i.extractSem }()
 
-	extractedPath, tempContainer, err := i.unpackToStaging(stream)
+	extractedPath, tempContainer, err := i.unpackToStaging(ctx, stream)
 	defer func() {
 		_ = i.removeAll(context.Background(), tempContainer)
 	}()
 	if err != nil {
 		return fmt.Errorf("failed to unpack package: %w", err)
+	}
+
+	if err := ctx.Err(); err != nil {
+		return err
 	}
 
 	if _, err := io.Copy(io.Discard, stream); err != nil {
@@ -210,14 +214,14 @@ func (i *Installer) installOrUpdate(ctx context.Context, action Action, targetDi
 	return i.replaceDir(ctx, extractedPath, targetDir)
 }
 
-func (i *Installer) unpackToStaging(r io.Reader) (string, string, error) {
+func (i *Installer) unpackToStaging(ctx context.Context, r io.Reader) (string, string, error) {
 	rootTemp, err := os.MkdirTemp(i.runDir, "pkg-*")
 	if err != nil {
 		return "", "", fmt.Errorf("failed to create staging directory: %w", err)
 	}
 
 	opts := &archive.TarOptions{Logger: i.logger}
-	if err := archive.Untar(r, rootTemp, opts); err != nil {
+	if err := archive.Untar(ctx, r, rootTemp, opts); err != nil {
 		return "", rootTemp, fmt.Errorf("failed to extract tarball: %w", err)
 	}
 
