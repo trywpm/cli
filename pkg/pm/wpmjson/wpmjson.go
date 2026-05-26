@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"go.wpm.so/cli/pkg/atomicwriter"
 	"go.wpm.so/cli/pkg/pm"
 	"go.wpm.so/cli/pkg/pm/wpmjson/types"
 	"go.wpm.so/cli/pkg/pm/wpmjson/validator"
@@ -181,7 +182,7 @@ func (c *Config) Write(cwd string) error {
 	}
 
 	// Write with 0644 permissions (rw-r--r--)
-	if err := pm.WriteFileAtomic(path, data, 0o644); err != nil {
+	if err := atomicwriter.WriteFile(path, data, 0o644); err != nil {
 		return fmt.Errorf("failed to write wpm.json to disk: %w", err)
 	}
 
