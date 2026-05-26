@@ -153,16 +153,19 @@ func DecompressStream(archive io.Reader) (io.ReadCloser, error) {
 	buf := newBufferedReader(archive)
 	bs, err := buf.Peek(10)
 	if err != nil && err != io.EOF {
+		_ = buf.Close()
 		return nil, err
 	}
 
 	// check if the stream is compressed with zstd
 	if !isZstd(bs) {
+		_ = buf.Close()
 		return nil, errors.New("unsupported archive format: expected zstd compressed archive")
 	}
 
 	zstdReader, err := zstd.NewReader(buf, zstd.WithDecoderMaxWindow(zstdMaxWindowSize))
 	if err != nil {
+		_ = buf.Close()
 		return nil, err
 	}
 
