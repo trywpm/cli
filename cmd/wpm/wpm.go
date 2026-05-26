@@ -9,7 +9,6 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/containerd/errdefs"
 	"github.com/morikuni/aec"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -36,7 +35,7 @@ func main() {
 		os.Exit(getExitCode(err))
 	}
 
-	if err != nil && !errdefs.IsCanceled(err) {
+	if err != nil && !errors.Is(err, context.Canceled) {
 		if err.Error() != "" {
 			_, _ = fmt.Fprintln(os.Stderr, err)
 		}
