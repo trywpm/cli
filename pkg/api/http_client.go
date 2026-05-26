@@ -12,7 +12,6 @@ import (
 	"github.com/henvic/httpretty"
 	"github.com/klauspost/compress/zstd"
 	"github.com/rs/zerolog"
-	"github.com/thlib/go-timezone-local/tzlocal"
 	"golang.org/x/text/transform"
 
 	"go.wpm.so/cli/pkg/asciisanitizer"
@@ -35,7 +34,6 @@ const (
 	HeaderAccept          = "Accept"
 	HeaderAuthorization   = "Authorization"
 	HeaderUserAgent       = "User-Agent"
-	HeaderTimeZone        = "Time-Zone"
 
 	// header values
 	CacheHit  = "HIT"
@@ -134,11 +132,6 @@ func resolveHeaders(headers map[string]string) {
 	}
 	if _, ok := headers[HeaderUserAgent]; !ok {
 		headers[HeaderUserAgent] = "wpm-cli"
-	}
-	if _, ok := headers[HeaderTimeZone]; !ok {
-		if tz, err := tzlocal.RuntimeTZ(); err == nil && tz != "" {
-			headers[HeaderTimeZone] = tz
-		}
 	}
 	if _, ok := headers[HeaderAccept]; !ok {
 		headers[HeaderAccept] = "application/json"

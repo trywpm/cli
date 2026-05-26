@@ -13,7 +13,7 @@ type ClientOptions struct {
 	AuthToken string
 
 	// Headers are the headers that will be sent with every API request.
-	// Default headers set are Accept, Content-Type, Time-Zone, and User-Agent.
+	// Default headers set are Accept, Content-Type, and User-Agent.
 	// Default headers will be overridden by keys specified in Headers.
 	Headers map[string]string
 
