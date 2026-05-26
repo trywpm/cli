@@ -62,7 +62,9 @@ func (c *client) PutPackage(ctx context.Context, data *manifest.Package, tarball
 		return err
 	}
 
-	return c.restClient.Put(
+	return c.restClient.DoWithContext(
+		ctx,
+		http.MethodPut,
 		"/",
 		tarball,
 		nil,
@@ -84,8 +86,11 @@ func (c *client) GetPackageManifest(ctx context.Context, packageName, versionOrT
 		header = api.HeaderCacheRevalidate
 	}
 
-	err := c.restClient.Get(
+	err := c.restClient.DoWithContext(
+		ctx,
+		http.MethodGet,
 		"/"+packageName+"/"+versionOrTag,
+		nil,
 		&pkg,
 		api.WithHeader(header, "true"), // Used by cache round tripper.
 		api.WithHeader(api.HeaderAccept, wpmContentTypeManifestV1),
@@ -118,7 +123,7 @@ func (c *client) Whoami(ctx context.Context, token string) (string, error) {
 		opts = append(opts, api.WithHeader(api.HeaderAuthorization, "Bearer "+token))
 	}
 
-	if err := c.restClient.Get("/-/whoami", &response, opts...); err != nil {
+	if err := c.restClient.DoWithContext(ctx, http.MethodGet, "/-/whoami", nil, &response, opts...); err != nil {
 		return "", err
 	}
 
@@ -129,8 +134,11 @@ func (c *client) Whoami(ctx context.Context, token string) (string, error) {
 func (c *client) GetKeysJson(ctx context.Context) (signatures.KeysJson, error) {
 	var keys signatures.KeysJson
 
-	err := c.restClient.Get(
+	err := c.restClient.DoWithContext(
+		ctx,
+		http.MethodGet,
 		"/keys.json",
+		nil,
 		&keys,
 	)
 	if err != nil {

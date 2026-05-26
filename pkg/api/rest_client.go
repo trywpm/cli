@@ -64,7 +64,10 @@ func (c *RESTClient) DoWithContext(ctx context.Context, method, path string, bod
 	if err != nil {
 		return err
 	}
-	defer func() { _ = resp.Body.Close() }()
+	defer func() {
+		drainBody(resp.Body)
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return HandleHTTPError(resp)
@@ -111,35 +114,23 @@ func (c *RESTClient) RequestStream(ctx context.Context, method, path string, bod
 	}
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		defer func() { _ = resp.Body.Close() }()
+		defer func() {
+			drainBody(resp.Body)
+			_ = resp.Body.Close()
+		}()
 		return nil, HandleHTTPError(resp)
 	}
 
 	return resp.Body, nil
 }
 
-func (c *RESTClient) Do(method, path string, body io.Reader, response any, opts ...RequestOption) error {
-	return c.DoWithContext(context.Background(), method, path, body, response, opts...)
-}
-
-func (c *RESTClient) Delete(path string, resp any, opts ...RequestOption) error {
-	return c.Do(http.MethodDelete, path, nil, resp, opts...)
-}
-
-func (c *RESTClient) Get(path string, resp any, opts ...RequestOption) error {
-	return c.Do(http.MethodGet, path, nil, resp, opts...)
-}
-
-func (c *RESTClient) Patch(path string, body io.Reader, resp any, opts ...RequestOption) error {
-	return c.Do(http.MethodPatch, path, body, resp, opts...)
-}
-
-func (c *RESTClient) Post(path string, body io.Reader, resp any, opts ...RequestOption) error {
-	return c.Do(http.MethodPost, path, body, resp, opts...)
-}
-
-func (c *RESTClient) Put(path string, body io.Reader, resp any, opts ...RequestOption) error {
-	return c.Do(http.MethodPut, path, body, resp, opts...)
+// drainBody discards any unread bytes from body so the underlying TCP
+// connection can be reused from the idle pool instead of being torn down.
+//
+// The drain is capped so a hostile or buggy server cannot keep us reading
+// indefinitely.
+func drainBody(body io.Reader) {
+	_, _ = io.Copy(io.Discard, io.LimitReader(body, 64<<10))
 }
 
 func restURL(hostname, pathOrURL string) string {

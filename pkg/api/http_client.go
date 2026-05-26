@@ -62,6 +62,14 @@ func NewHTTPClient(opts ClientOptions) (*http.Client, error) {
 		}
 	}
 
+	// Sweep stale cache tmp files left behind by aborted requests. Runs in
+	// the background so a slow filesystem doesn't delay the first request;
+	// it's idempotent across concurrent invocations and safe to outlive the
+	// process (the goroutine dies with the CLI either way).
+	if opts.CacheDir != "" {
+		go func() { _ = CleanupStale(opts.CacheDir) }()
+	}
+
 	transport := &Transport{
 		Base: &http.Transport{
 			MaxIdleConns:        100,
@@ -210,7 +218,9 @@ func (d decompressingRoundTripper) RoundTrip(req *http.Request) (*http.Response,
 		decoder := zstdDecoderPool.Get().(*zstd.Decoder)
 		if err := decoder.Reset(resp.Body); err != nil {
 			_ = resp.Body.Close()
-			zstdDecoderPool.Put(decoder)
+			// Reset left the decoder in an unknown state hence we discard it instead of putting it back in the pool.
+			// The next request needing a decoder will allocate a new one to replace it, so we don't leak resources by doing this.
+			decoder.Close()
 			return nil, fmt.Errorf("failed to reset zstd reader: %w", err)
 		}
 

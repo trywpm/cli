@@ -42,7 +42,7 @@ func run() int {
 		return 0
 	}
 
-	if errors.Is(err, context.Canceled) {
+	if ctx.Err() != nil || errors.Is(err, context.Canceled) {
 		return exitCodeInterrupted
 	}
 
