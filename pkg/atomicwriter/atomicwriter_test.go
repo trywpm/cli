@@ -26,8 +26,14 @@ func TestWriteFileCreatesFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Stat: %v", err)
 	}
-	if perm := fi.Mode().Perm(); perm != 0o644 {
-		t.Fatalf("perm = %o, want 0644", perm)
+	if !fi.Mode().IsRegular() {
+		t.Fatalf("mode = %v, want a regular file", fi.Mode())
+	}
+	// Exact permission bits are umask-dependent (see the unix-only
+	// TestWriteFileRespectsUmask); here we only assert the owner can still
+	// read+write, which survives any standard umask.
+	if perm := fi.Mode().Perm(); perm&0o600 != 0o600 {
+		t.Fatalf("perm = %o, want at least owner rw (0600)", perm)
 	}
 }
 
