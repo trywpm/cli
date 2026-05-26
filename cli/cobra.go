@@ -50,7 +50,7 @@ func setupCommonRootCommand(rootCmd *cobra.Command) (*cliflags.ClientOptions, *c
 	rootCmd.PersistentFlags().Lookup("help").Hidden = true
 
 	rootCmd.Annotations = map[string]string{
-		"additionalHelp": "For more help on how to use wpm, see https://docs.wpm.so",
+		"additionalHelp": "For more help on how to use wpm, see https://wpm.so/docs",
 	}
 
 	return opts, helpCommand
