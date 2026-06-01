@@ -146,6 +146,9 @@ func restURL(hostname, pathOrURL string) string {
 	if !strings.HasPrefix(pathOrURL, "/") {
 		pathOrURL = "/" + pathOrURL
 	}
+	if strings.HasPrefix(hostname, "https://") || strings.HasPrefix(hostname, "http://") {
+		return strings.TrimRight(hostname, "/") + pathOrURL
+	}
 	return restPrefix(hostname) + pathOrURL
 }
 
