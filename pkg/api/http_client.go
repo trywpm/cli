@@ -34,6 +34,7 @@ const (
 	HeaderAccept          = "Accept"
 	HeaderAuthorization   = "Authorization"
 	HeaderUserAgent       = "User-Agent"
+	HeaderExpect          = "Expect"
 
 	// header values
 	CacheHit  = "HIT"
