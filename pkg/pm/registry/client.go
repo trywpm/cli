@@ -78,6 +78,8 @@ func (c *client) PutPackage(ctx context.Context, data *manifest.Package, tarball
 		tarball,
 	)
 
+	totalContentLength := int64(4+manifestLen) + data.Dist.PackedSize
+
 	return c.restClient.DoWithContext(
 		ctx,
 		http.MethodPut,
@@ -85,6 +87,7 @@ func (c *client) PutPackage(ctx context.Context, data *manifest.Package, tarball
 		bodyReader,
 		nil,
 		api.WithHeader(api.HeaderContentType, contentTypeOctetStream),
+		api.WithContentLength(totalContentLength),
 	)
 }
 
