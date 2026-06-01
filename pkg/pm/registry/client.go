@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	maxManifestSize          = 512 * 1024 // 512KB
+	maxManifestSize          = 256 * 1024 // 256KB
 	contentTypeOctetStream   = "application/octet-stream"
 	wpmContentTypeManifestV1 = "application/vnd.wpm.install-v1+json"
 )
