@@ -49,6 +49,12 @@ func WithHeader(key, value string) RequestOption {
 	}
 }
 
+func WithContentLength(length int64) RequestOption {
+	return func(req *http.Request) {
+		req.ContentLength = length
+	}
+}
+
 func (c *RESTClient) DoWithContext(ctx context.Context, method, path string, body io.Reader, response any, opts ...RequestOption) error {
 	url := restURL(c.host, path)
 	req, err := http.NewRequestWithContext(ctx, method, url, body)
