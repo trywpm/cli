@@ -15,6 +15,7 @@ import (
 )
 
 const (
+	continue100              = "100-continue"
 	maxManifestSize          = 256 * 1024 // 256KB
 	contentTypeOctetStream   = "application/octet-stream"
 	wpmContentTypeManifestV1 = "application/vnd.wpm.install-v1+json"
@@ -86,6 +87,7 @@ func (c *client) PutPackage(ctx context.Context, data *manifest.Package, tarball
 		"/"+data.Name+"/"+data.Version,
 		bodyReader,
 		nil,
+		api.WithHeader(api.HeaderExpect, continue100),
 		api.WithHeader(api.HeaderContentType, contentTypeOctetStream),
 		api.WithContentLength(totalContentLength),
 	)
