@@ -24,7 +24,7 @@ func (err *HTTPError) Error() string {
 	if err.Message == "" {
 		return "wpm registry error: " + strings.ToLower(http.StatusText(err.StatusCode))
 	}
-	return "wpm registry error: " + strings.ToLower(err.Message)
+	return "wpm registry error: " + err.Message
 }
 
 // HandleHTTPError parses a http.Response into a HTTPError. The response body
