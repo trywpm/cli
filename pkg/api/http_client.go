@@ -229,7 +229,8 @@ func newHeaderRoundTripper(host string, allowToken bool, authToken string, heade
 }
 
 func (hrt headerRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	reqCopy := req.Clone(req.Context())
+	reqCopy := *req
+	reqCopy.Header = req.Header.Clone()
 	reqCopy.Header.Set(HeaderAcceptEncoding, encodingZstd)
 
 	for k, v := range hrt.headers {
@@ -255,7 +256,7 @@ func (hrt headerRoundTripper) RoundTrip(req *http.Request) (*http.Response, erro
 		reqCopy.Header.Del(HeaderAuthorization)
 	}
 
-	return hrt.rt.RoundTrip(reqCopy)
+	return hrt.rt.RoundTrip(&reqCopy)
 }
 
 type sanitizerRoundTripper struct {
