@@ -1,7 +1,6 @@
 package api
 
 import (
-	"errors"
 	"io"
 	"time"
 )
@@ -41,24 +40,4 @@ type ClientOptions struct {
 
 	// CacheDir specifies a directory to use for caching GET requests.
 	CacheDir string
-}
-
-func optionsNeedResolution(opts ClientOptions) bool {
-	if opts.Host == "" {
-		return true
-	}
-
-	if opts.AuthToken == "" {
-		return true
-	}
-
-	return false
-}
-
-func resolveOptions(opts ClientOptions) (ClientOptions, error) {
-	if opts.Host == "" {
-		return ClientOptions{}, errors.New("host not found")
-	}
-
-	return opts, nil
 }
