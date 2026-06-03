@@ -1,9 +1,11 @@
 package registry
 
 import (
+	"bytes"
 	"context"
-	"encoding/base64"
+	"encoding/binary"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 
@@ -13,7 +15,8 @@ import (
 )
 
 const (
-	wpmManifestHeader        = "X-WPM-Manifest"
+	continue100              = "100-continue"
+	maxManifestSize          = 256 * 1024 // 256KB
 	contentTypeOctetStream   = "application/octet-stream"
 	wpmContentTypeManifestV1 = "application/vnd.wpm.install-v1+json"
 )
@@ -62,14 +65,31 @@ func (c *client) PutPackage(ctx context.Context, data *manifest.Package, tarball
 		return err
 	}
 
+	manifestLen := len(manifestBytes)
+	if manifestLen > maxManifestSize {
+		return fmt.Errorf("manifest size exceeds %d bytes, refusing to continue", maxManifestSize)
+	}
+
+	lengthBytes := make([]byte, 4)
+	binary.BigEndian.PutUint32(lengthBytes, uint32(manifestLen))
+
+	bodyReader := io.MultiReader(
+		bytes.NewReader(lengthBytes),
+		bytes.NewReader(manifestBytes),
+		tarball,
+	)
+
+	totalContentLength := int64(4+manifestLen) + data.Dist.PackedSize
+
 	return c.restClient.DoWithContext(
 		ctx,
 		http.MethodPut,
-		"/",
-		tarball,
+		"/"+data.Name+"/"+data.Version,
+		bodyReader,
 		nil,
+		api.WithHeader(api.HeaderExpect, continue100),
 		api.WithHeader(api.HeaderContentType, contentTypeOctetStream),
-		api.WithHeader(wpmManifestHeader, base64.StdEncoding.EncodeToString(manifestBytes)),
+		api.WithContentLength(totalContentLength),
 	)
 }
 

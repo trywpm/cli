@@ -31,7 +31,7 @@ import (
 )
 
 const (
-	maxReadmeSize       = 50 * 1024         // 50KB
+	maxReadmeSize       = 100 * 1024        // 100KB
 	maxPackedSize int64 = 128 * 1024 * 1024 // 128MB
 )
 
@@ -118,7 +118,7 @@ func getReadme(dirPath string) (string, error) {
 				_ = f.Close()
 			}()
 
-			// Limit readme size to maxReadmeSize i.e. 50KB
+			// Limit readme size to maxReadmeSize.
 			data, err := io.ReadAll(io.LimitReader(f, maxReadmeSize))
 			if err != nil {
 				return "", err

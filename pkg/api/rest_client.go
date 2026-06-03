@@ -3,29 +3,24 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
-
-	"go.wpm.so/cli/pkg/unsafeconv"
 )
 
-type RESTClient struct {
-	client *http.Client
-	host   string
-}
+const maxResponseBodySize = 4 << 20 // 4 MiB
 
-func DefaultRESTClient() (*RESTClient, error) {
-	return NewRESTClient(ClientOptions{})
+type RESTClient struct {
+	client  *http.Client
+	baseURL *url.URL
 }
 
 func NewRESTClient(opts ClientOptions) (*RESTClient, error) {
-	if optionsNeedResolution(opts) {
-		var err error
-		opts, err = resolveOptions(opts)
-		if err != nil {
-			return nil, err
-		}
+	base, err := normalizeBaseURL(opts.Host)
+	if err != nil {
+		return nil, err
 	}
 
 	client, err := NewHTTPClient(opts)
@@ -33,11 +28,9 @@ func NewRESTClient(opts ClientOptions) (*RESTClient, error) {
 		return nil, err
 	}
 
-	host := strings.TrimRight(opts.Host, "/")
-
 	return &RESTClient{
-		client: client,
-		host:   host,
+		baseURL: base,
+		client:  client,
 	}, nil
 }
 
@@ -49,15 +42,16 @@ func WithHeader(key, value string) RequestOption {
 	}
 }
 
+func WithContentLength(length int64) RequestOption {
+	return func(req *http.Request) {
+		req.ContentLength = length
+	}
+}
+
 func (c *RESTClient) DoWithContext(ctx context.Context, method, path string, body io.Reader, response any, opts ...RequestOption) error {
-	url := restURL(c.host, path)
-	req, err := http.NewRequestWithContext(ctx, method, url, body)
+	req, err := c.newRequest(ctx, method, path, body, opts...)
 	if err != nil {
 		return err
-	}
-
-	for _, opt := range opts {
-		opt(req)
 	}
 
 	resp, err := c.client.Do(req)
@@ -79,33 +73,28 @@ func (c *RESTClient) DoWithContext(ctx context.Context, method, path string, bod
 
 	switch v := response.(type) {
 	case *string:
-		var b []byte
-		b, err = io.ReadAll(resp.Body)
-		if err == nil {
-			*v = unsafeconv.UnsafeBytesToString(b)
+		b, rErr := readAtMost(resp.Body, maxResponseBodySize)
+		if rErr != nil {
+			return rErr
 		}
-		return err
+		*v = string(b)
+		return nil
 	case *[]byte:
-		var b []byte
-		b, err = io.ReadAll(resp.Body)
-		if err == nil {
-			*v = b
+		b, rErr := readAtMost(resp.Body, maxResponseBodySize)
+		if rErr != nil {
+			return rErr
 		}
-		return err
+		*v = b
+		return nil
 	default:
-		return json.NewDecoder(resp.Body).Decode(v)
+		return json.NewDecoder(io.LimitReader(resp.Body, maxResponseBodySize)).Decode(v)
 	}
 }
 
 func (c *RESTClient) RequestStream(ctx context.Context, method, path string, body io.Reader, opts ...RequestOption) (io.ReadCloser, error) {
-	url := restURL(c.host, path)
-	req, err := http.NewRequestWithContext(ctx, method, url, body)
+	req, err := c.newRequest(ctx, method, path, body, opts...)
 	if err != nil {
 		return nil, err
-	}
-
-	for _, opt := range opts {
-		opt(req)
 	}
 
 	resp, err := c.client.Do(req)
@@ -133,16 +122,32 @@ func drainBody(body io.Reader) {
 	_, _ = io.Copy(io.Discard, io.LimitReader(body, 64<<10))
 }
 
-func restURL(hostname, pathOrURL string) string {
-	if strings.HasPrefix(pathOrURL, "https://") || strings.HasPrefix(pathOrURL, "http://") {
-		return pathOrURL
+// readAtMost reads limited bytes and returns an error if the limit
+// is exceeded, to prevent OOM from hostile or buggy servers.
+func readAtMost(r io.Reader, limit int64) ([]byte, error) {
+	b, err := io.ReadAll(io.LimitReader(r, limit+1))
+	if err != nil {
+		return nil, err
 	}
-	if !strings.HasPrefix(pathOrURL, "/") {
-		pathOrURL = "/" + pathOrURL
+	if int64(len(b)) > limit {
+		return nil, fmt.Errorf("response body exceeds %d byte limit", limit)
 	}
-	return restPrefix(hostname) + pathOrURL
+	return b, nil
 }
 
-func restPrefix(hostname string) string {
-	return "https://" + hostname
+func (c *RESTClient) newRequest(ctx context.Context, method, path string, body io.Reader, opts ...RequestOption) (*http.Request, error) {
+	if strings.Contains(path, "://") {
+		return nil, fmt.Errorf("path %q must be relative, not an absolute URL", path)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, method, c.baseURL.JoinPath(path).String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, opt := range opts {
+		opt(req)
+	}
+
+	return req, nil
 }
