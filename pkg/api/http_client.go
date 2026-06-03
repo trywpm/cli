@@ -109,11 +109,8 @@ func NewHTTPClient(opts ClientOptions) (*http.Client, error) {
 	}
 
 	var rt http.RoundTripper = transport
-
-	rt = newHeaderRoundTripper(host, allowToken, opts.AuthToken, opts.Headers, rt)
 	rt = newDecompressingRoundTripper(rt)
 	rt = newSanitizerRoundTripper(rt)
-
 	if opts.Log != nil && zerolog.GlobalLevel() == zerolog.DebugLevel {
 		opts.LogVerboseHTTP = true
 		logger := &httpretty.Logger{
@@ -133,6 +130,7 @@ func NewHTTPClient(opts ClientOptions) (*http.Client, error) {
 		})
 		rt = logger.RoundTripper(rt)
 	}
+	rt = newHeaderRoundTripper(host, allowToken, opts.AuthToken, opts.Headers, rt)
 
 	return &http.Client{
 		Transport: rt,
