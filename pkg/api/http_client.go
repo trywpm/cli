@@ -1,9 +1,12 @@
 package api
 
 import (
+	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strings"
 	"sync"
@@ -29,9 +32,11 @@ const (
 	HeaderIfModifiedSince = "If-Modified-Since"
 	HeaderCacheRevalidate = "X-Cache-Revalidate"
 	HeaderContentEncoding = "Content-Encoding"
+	HeaderContentLength   = "Content-Length"
 	HeaderContentType     = "Content-Type"
 	HeaderCacheControl    = "Cache-Control"
 	HeaderAccept          = "Accept"
+	HeaderAcceptEncoding  = "Accept-Encoding"
 	HeaderAuthorization   = "Authorization"
 	HeaderUserAgent       = "User-Agent"
 	HeaderExpect          = "Expect"
@@ -39,6 +44,8 @@ const (
 	// header values
 	CacheHit  = "HIT"
 	CacheMiss = "MISS"
+
+	encodingZstd = "zstd"
 )
 
 var (
@@ -55,12 +62,15 @@ var (
 )
 
 func NewHTTPClient(opts ClientOptions) (*http.Client, error) {
-	if optionsNeedResolution(opts) {
-		var err error
-		opts, err = resolveOptions(opts)
-		if err != nil {
-			return nil, err
-		}
+	base, err := normalizeBaseURL(opts.Host)
+	if err != nil {
+		return nil, err
+	}
+	host := base.Hostname()
+
+	allowToken := base.Scheme == "https" || isLoopbackHost(host)
+	if opts.AuthToken != "" && !allowToken {
+		return nil, fmt.Errorf("refusing to send auth token over http to %q: use https", base.Host)
 	}
 
 	// Sweep stale cache tmp files left behind by aborted requests. Runs in
@@ -73,11 +83,19 @@ func NewHTTPClient(opts ClientOptions) (*http.Client, error) {
 
 	transport := &Transport{
 		Base: &http.Transport{
-			MaxIdleConns:        100,
-			MaxIdleConnsPerHost: 100,
-			IdleConnTimeout:     90 * time.Second,
-			ForceAttemptHTTP2:   true,
-			DisableCompression:  true,
+			Proxy: http.ProxyFromEnvironment,
+			DialContext: (&net.Dialer{
+				Timeout:   30 * time.Second,
+				KeepAlive: 30 * time.Second,
+			}).DialContext,
+			MaxIdleConns:          100,
+			MaxIdleConnsPerHost:   100,
+			IdleConnTimeout:       90 * time.Second,
+			TLSHandshakeTimeout:   10 * time.Second,
+			ResponseHeaderTimeout: 30 * time.Second,
+			ExpectContinueTimeout: 1 * time.Second,
+			ForceAttemptHTTP2:     true,
+			DisableCompression:    true,
 		},
 		cacheDir: opts.CacheDir,
 	}
@@ -92,7 +110,7 @@ func NewHTTPClient(opts ClientOptions) (*http.Client, error) {
 
 	var rt http.RoundTripper = transport
 
-	rt = newHeaderRoundTripper(opts.Host, opts.AuthToken, opts.Headers, rt)
+	rt = newHeaderRoundTripper(host, allowToken, opts.AuthToken, opts.Headers, rt)
 	rt = newDecompressingRoundTripper(rt)
 	rt = newSanitizerRoundTripper(rt)
 
@@ -116,11 +134,63 @@ func NewHTTPClient(opts ClientOptions) (*http.Client, error) {
 		rt = logger.RoundTripper(rt)
 	}
 
-	return &http.Client{Transport: rt, Timeout: opts.Timeout}, nil
+	return &http.Client{
+		Transport: rt,
+		Timeout:   opts.Timeout,
+		CheckRedirect: func(req *http.Request, _ []*http.Request) error {
+			if !isSameDomain(req.URL.Hostname(), host) {
+				return fmt.Errorf("refusing redirect to %q outside registry host %q", req.URL.Host, host)
+			}
+			return nil
+		},
+	}, nil
 }
 
 func inspectableMIMEType(t string) bool {
 	return jsonTypeRE.MatchString(t)
+}
+
+// normalizeBaseURL canonicalizes a configured registry host into a base URL
+// with an explicit scheme. A bare host (no scheme) defaults to https so we
+// never silently fall back to cleartext.
+func normalizeBaseURL(host string) (*url.URL, error) {
+	host = strings.TrimSpace(host)
+	if host == "" {
+		return nil, errors.New("registry host not configured")
+	}
+
+	lc := strings.ToLower(host)
+	if !strings.HasPrefix(lc, "http://") && !strings.HasPrefix(lc, "https://") {
+		host = "https://" + host
+	}
+
+	u, err := url.Parse(host)
+	if err != nil {
+		return nil, fmt.Errorf("invalid registry host %q: %w", host, err)
+	}
+	if u.Hostname() == "" {
+		return nil, fmt.Errorf("invalid registry host %q: missing hostname", host)
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return nil, fmt.Errorf("unsupported registry scheme %q, only http and https are supported", u.Scheme)
+	}
+
+	u.Fragment = ""
+	u.RawQuery = ""
+	u.Path = strings.TrimRight(u.Path, "/")
+	return u, nil
+}
+
+// isLoopbackHost reports whether host refers to the local machine, where
+// cleartext traffic never touches the network.
+func isLoopbackHost(host string) bool {
+	if strings.EqualFold(host, "localhost") {
+		return true
+	}
+	if ip := net.ParseIP(host); ip != nil {
+		return ip.IsLoopback()
+	}
+	return false
 }
 
 func isSameDomain(requestHost, domain string) bool {
@@ -130,9 +200,10 @@ func isSameDomain(requestHost, domain string) bool {
 }
 
 type headerRoundTripper struct {
-	headers map[string]string
-	host    string
-	rt      http.RoundTripper
+	headers    map[string]string
+	host       string
+	allowToken bool
+	rt         http.RoundTripper
 }
 
 func resolveHeaders(headers map[string]string) {
@@ -147,27 +218,41 @@ func resolveHeaders(headers map[string]string) {
 	}
 }
 
-func newHeaderRoundTripper(host, authToken string, headers map[string]string, rt http.RoundTripper) http.RoundTripper {
+func newHeaderRoundTripper(host string, allowToken bool, authToken string, headers map[string]string, rt http.RoundTripper) http.RoundTripper {
 	if _, ok := headers[HeaderAuthorization]; !ok && authToken != "" {
 		headers[HeaderAuthorization] = "Bearer " + authToken
 	}
 	if len(headers) == 0 {
-		return headerRoundTripper{host: host, headers: nil, rt: rt}
+		headers = nil
 	}
-	return headerRoundTripper{host: host, headers: headers, rt: rt}
+	return headerRoundTripper{host: host, allowToken: allowToken, headers: headers, rt: rt}
 }
 
 func (hrt headerRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	reqCopy := req.Clone(req.Context())
-	reqCopy.Header.Set("Accept-Encoding", "zstd")
+	reqCopy.Header.Set(HeaderAcceptEncoding, encodingZstd)
 
 	for k, v := range hrt.headers {
-		if k == HeaderAuthorization && !isSameDomain(reqCopy.URL.Hostname(), hrt.host) {
-			continue
+		if k == HeaderAuthorization {
+			continue // handled separately below
 		}
 		if reqCopy.Header.Get(k) == "" {
 			reqCopy.Header.Set(k, v)
 		}
+	}
+
+	// The auth token only travels to the configured registry host over an
+	// allowed transport. On anything else (cross-host redirect, plaintext to a
+	// remote host) strip it, including any token a caller set per-request, so
+	// the credential cannot leak.
+	if hrt.allowToken && isSameDomain(reqCopy.URL.Hostname(), hrt.host) {
+		if reqCopy.Header.Get(HeaderAuthorization) == "" {
+			if token := hrt.headers[HeaderAuthorization]; token != "" {
+				reqCopy.Header.Set(HeaderAuthorization, token)
+			}
+		}
+	} else {
+		reqCopy.Header.Del(HeaderAuthorization)
 	}
 
 	return hrt.rt.RoundTrip(reqCopy)
@@ -215,7 +300,7 @@ func (d decompressingRoundTripper) RoundTrip(req *http.Request) (*http.Response,
 		return nil, err
 	}
 
-	if resp.Header.Get("Content-Encoding") == "zstd" {
+	if resp.Header.Get(HeaderContentEncoding) == encodingZstd {
 		decoder := zstdDecoderPool.Get().(*zstd.Decoder)
 		if err := decoder.Reset(resp.Body); err != nil {
 			_ = resp.Body.Close()
@@ -229,8 +314,8 @@ func (d decompressingRoundTripper) RoundTrip(req *http.Request) (*http.Response,
 			Decoder:      decoder,
 			OriginalBody: resp.Body,
 		}
-		resp.Header.Del("Content-Encoding")
-		resp.Header.Del("Content-Length")
+		resp.Header.Del(HeaderContentLength)
+		resp.Header.Del(HeaderContentEncoding)
 		resp.ContentLength = -1
 	}
 
