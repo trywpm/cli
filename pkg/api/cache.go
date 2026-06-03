@@ -69,9 +69,7 @@ func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 		return t.base().RoundTrip(req)
 	}
 
-	reqCopy := *req
-	reqCopy.Header = req.Header.Clone()
-	outReq := &reqCopy
+	outReq := req.Clone(req.Context())
 
 	cache := outReq.Header.Get(HeaderSaveCache) == "true"
 	force := outReq.Header.Get(HeaderCacheRevalidate) == "true"
