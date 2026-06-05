@@ -236,7 +236,8 @@ func ValidateDependencyIntegrity(name string, deps, devDeps map[string]string) e
 
 	if _, ok := deps[name]; ok {
 		errs.AddMsg("dependencies", "package cannot depend on itself")
-	} else if _, ok := devDeps[name]; ok {
+	}
+	if _, ok := devDeps[name]; ok {
 		errs.AddMsg("devDependencies", "package cannot depend on itself")
 	}
 
