@@ -69,7 +69,6 @@ func PackageTypes() cobra.CompletionFunc {
 	return FromList(
 		string(types.TypePlugin),
 		string(types.TypeTheme),
-		string(types.TypeMuPlugin),
 	)
 }
 

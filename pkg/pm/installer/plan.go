@@ -90,8 +90,6 @@ func subDirForType(t types.PackageType) (string, bool) {
 	switch t {
 	case types.TypeTheme:
 		return "themes", true
-	case types.TypeMuPlugin:
-		return "mu-plugins", true
 	case types.TypePlugin:
 		return "plugins", true
 	default:

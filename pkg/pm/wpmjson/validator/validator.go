@@ -56,7 +56,7 @@ func IsValidDistTag(tag string) error {
 // IsValidPackageType checks if the package type is valid.
 func IsValidPackageType(t types.PackageType) error {
 	if !t.Valid() {
-		return errors.New("must be one of: theme, plugin, or mu-plugin")
+		return errors.New("must be one of: theme or plugin")
 	}
 	return nil
 }
