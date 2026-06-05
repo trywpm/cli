@@ -21,12 +21,12 @@ Package Manager for WordPress ecosystem
 
 ### Options
 
-| Name                | Type     | Default           | Description                                                       |
-|:--------------------|:---------|:------------------|:------------------------------------------------------------------|
-| `--config`          | `string` | `~/.wpm`          | Location of client config files                                   |
-| `-D`, `--debug`     | `bool`   |                   | Enable debug mode                                                 |
-| `-l`, `--log-level` | `string` | `info`            | Set the logging level ("debug", "info", "warn", "error", "fatal") |
-| `--registry`        | `string` | `registry.wpm.so` | Set specific registry to use                                      |
+| Name                | Type     | Default                  | Description                                                       |
+|:--------------------|:---------|:-------------------------|:------------------------------------------------------------------|
+| `--config`          | `string` | `~/.wpm`                 | Location of client config files                                   |
+| `-D`, `--debug`     | `bool`   |                          | Enable debug mode                                                 |
+| `-l`, `--log-level` | `string` | `info`                   | Set the logging level ("debug", "info", "warn", "error", "fatal") |
+| `--registry`        | `string` | `registry.wpm.so`        | Set specific registry to use                                      |
 
 
 <!---MARKER_GEN_END-->
@@ -40,9 +40,9 @@ Package Manager for WordPress ecosystem
 > breaking changes to CLI flags and to the `wpm.lock` format until 1.0.
 > Significant changes are called out in release notes.
 
-`wpm` is a package manager for the WordPress ecosystem. It treats plugins,
-themes, and must-use plugins as versioned packages you can install, publish, and
-depend on. If you've used npm or Composer, the model will feel familiar.
+`wpm` is a package manager for the WordPress ecosystem. It treats plugins and
+themes as versioned packages you can install, publish, and depend on. If you've
+used npm or Composer, the model will feel familiar.
 
 A wpm project is any directory that contains a `wpm.json` manifest. Most
 commands run against the current directory and produce or consume two files at
@@ -55,7 +55,7 @@ Installed packages land under `wp-content/` by default.
 | :------------------- | :-------------------------------------------------------------------------------------------- |
 | `wpm.json`           | Your package's manifest. Declares name, version, type, dependencies, and runtime constraints. |
 | `wpm.lock`           | A frozen snapshot of the resolved dependency tree. Commit this to version control.            |
-| `wp-content/`        | Where wpm extracts plugins, themes, and mu-plugins. Configurable via `config.content-dir`.    |
+| `wp-content/`        | Where wpm extracts plugins and themes. Configurable via `config.content-dir`.                 |
 | `.wpmignore`         | Optional gitignore-style file that excludes paths from `wpm publish`.                         |
 | `~/.wpm/config.json` | Your client config, including the auth token after `wpm auth login`.                          |
 

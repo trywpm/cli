@@ -34,9 +34,8 @@ akismet [plugin]
 └── latest:  5.4.0 (minor update)
 ```
 
-- The first line shows the package name, its `[type]` (`plugin`, `theme`,
-  `mu-plugin`), and a faint `(dev)` marker when the package lives in
-  `devDependencies`.
+- The first line shows the package name, its `[type]` (`plugin` or `theme`), and
+  a faint `(dev)` marker when the package lives in `devDependencies`.
 - `current` is the version recorded in `wpm.lock`.
 - `latest` is what the registry returns for the `latest` tag.
 
