@@ -18,6 +18,7 @@
 !Dockerfile
 !AGENTS.md
 !CLAUDE.md
+!schema.json
 !.oxfmtrc.json
 !.git-blame-ignore-revs
 
