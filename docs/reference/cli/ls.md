@@ -4,6 +4,10 @@
 <!---MARKER_GEN_START-->
 List installed dependencies
 
+### Aliases
+
+`wpm ls`, `wpm list`, `wpm tree`
+
 ### Options
 
 | Name            | Type  | Default | Description                              |
@@ -36,15 +40,22 @@ Both `wpm.json` and `wpm.lock` must exist. If you have never installed, run
 ### Reading the output
 
 The first line is the package name from `wpm.json` (or the directory name if
-`name` is unset). Each child line is one resolved package, drawn with standard
-tree connectors:
+`name` is unset). Direct dependencies are grouped by their package type
+(`plugin` or `theme`), and each resolved package is drawn beneath its type with
+standard tree connectors:
 
 ```
 my-plugin
-├── akismet@5.3.1
-│   └── jetpack@13.0.0
-└── query-monitor@3.20.2
+├── plugin
+│   ├── akismet@5.3.1
+│   │   └── jetpack@13.0.0
+│   └── query-monitor@3.20.2
+└── theme
+    └── twentytwentyfour@1.0.0
 ```
+
+Dependencies missing from the lockfile have no known type and appear under an
+`unknown` group.
 
 The annotations on the right of each line tell you about the package's state:
 
@@ -61,8 +72,15 @@ The `(invalid: ...)` marker is skipped when `wpm.json` pins the package to `*`
 ### Limiting depth
 
 By default `wpm ls` expands the tree as deep as the lockfile goes. Pass
-`-d`/`--depth` to cap the depth. Depth `0` shows only direct dependencies; `1`
-adds their immediate children; and so on. The default, `-1`, means unlimited.
+`-d`/`--depth` to cap the depth. Depth `0` shows only direct dependencies (still
+grouped by type); `1` adds their immediate children; and so on. The default,
+`-1`, means unlimited. The type headings are always shown.
+
+### Filtering by type
+
+Pass `theme` or `plugin` as a positional argument to restrict the output to a
+single type. Grouping and depth behave the same; only the matching type is
+shown.
 
 ### Comparison with related commands
 
@@ -88,10 +106,23 @@ adds their immediate children; and so on. The default, `-1`, means unlimited.
 ```console
 $ wpm ls
 my-plugin
-├── akismet@5.3.1
-│   └── jetpack@13.0.0
-├── hello-dolly@1.7.2
-└── query-monitor@3.20.2
+├── plugin
+│   ├── akismet@5.3.1
+│   │   └── jetpack@13.0.0
+│   ├── hello-dolly@1.7.2
+│   └── query-monitor@3.20.2
+└── theme
+    └── twentytwentyfour@1.0.0
+```
+
+### List only one type
+
+```console
+$ wpm ls plugin
+my-plugin
+└── plugin
+    ├── akismet@5.3.1
+    └── query-monitor@3.20.2
 ```
 
 ### Limit the tree to direct dependencies
@@ -99,9 +130,12 @@ my-plugin
 ```console
 $ wpm ls --depth 0
 my-plugin
-├── akismet@5.3.1
-├── hello-dolly@1.7.2
-└── query-monitor@3.20.2
+├── plugin
+│   ├── akismet@5.3.1
+│   ├── hello-dolly@1.7.2
+│   └── query-monitor@3.20.2
+└── theme
+    └── twentytwentyfour@1.0.0
 ```
 
 ### Show one level of transitive dependencies
@@ -109,19 +143,25 @@ my-plugin
 ```console
 $ wpm ls -d 1
 my-plugin
-├── akismet@5.3.1
-│   └── jetpack@13.0.0
-├── hello-dolly@1.7.2
-└── query-monitor@3.20.2
+└── plugin
+    ├── akismet@5.3.1
+    │   └── jetpack@13.0.0
+    ├── hello-dolly@1.7.2
+    └── query-monitor@3.20.2
 ```
 
 ### Spot an unmet dependency
 
+A package listed in `wpm.json` but missing from the lockfile has no known type,
+so it appears under `unknown`.
+
 ```console
 $ wpm ls
 my-plugin
-├── akismet@5.3.1
-└── hello-dolly@1.7.2 UNMET DEPENDENCY
+├── plugin
+│   └── akismet@5.3.1
+└── unknown
+    └── hello-dolly@1.7.2 UNMET DEPENDENCY
 ```
 
 ### Spot a version drift
@@ -132,7 +172,8 @@ The lockfile resolved `1.7.2`, but `wpm.json` now requests `1.7.3`. Run
 ```console
 $ wpm ls
 my-plugin
-└── hello-dolly@1.7.2 (invalid: "1.7.3")
+└── plugin
+    └── hello-dolly@1.7.2 (invalid: "1.7.3")
 ```
 
 ### Spot a cycle
@@ -142,7 +183,8 @@ A cycle is annotated and not expanded again under itself.
 ```console
 $ wpm ls
 my-plugin
-└── package-a@1.0.0
-    └── package-b@1.0.0
-        └── package-a@1.0.0 (cycle)
+└── plugin
+    └── package-a@1.0.0
+        └── package-b@1.0.0
+            └── package-a@1.0.0 (cycle)
 ```

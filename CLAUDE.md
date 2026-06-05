@@ -47,9 +47,9 @@ Three-layer separation — do not collapse layers for convenience:
   `errors.Is` / `errors.As` — never string-match error messages.
 - **Concurrency:** use `golang.org/x/sync/errgroup`. Always honor
   `context.Context` cancellation.
-- **Logging:** use `github.com/rs/zerolog` (via the package-level `log`
-  global), not stdlib `log` (depguard enforces). Stdlib
-  `io/ioutil` is denied — use `os` / `io`.
+- **Logging:** use `github.com/rs/zerolog` (via the package-level `log` global),
+  not stdlib `log` (depguard enforces). Stdlib `io/ioutil` is denied — use `os`
+  / `io`.
 - **CLI reference docs** (`docs/cli/*.md`) have an auto-generated marker block
   (`<!---MARKER_GEN_START-->` / `<!---MARKER_GEN_END-->`). **Never edit inside
   the markers.** Only `## Description` and `## Examples` are read by the
