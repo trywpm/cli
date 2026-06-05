@@ -1,0 +1,140 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Schema for wpm configuration file",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+      "maxLength": 164,
+      "minLength": 3,
+      "description": "The name of the package."
+    },
+    "version": {
+      "type": "string",
+      "description": "A Semver-compliant version string."
+    },
+    "type": {
+      "type": "string",
+      "enum": ["theme", "plugin", "mu-plugin"],
+      "description": "The type of package in the wp-content directory."
+    },
+    "description": {
+      "type": "string",
+      "description": "A brief summary of what the package is about."
+    },
+    "private": {
+      "type": "boolean",
+      "default": false,
+      "description": "If set to true, wpm will refuse to publish the package."
+    },
+    "bin": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "The binaries associated with the package."
+    },
+    "requires": {
+      "type": "object",
+      "properties": {
+        "wp": {
+          "type": "string",
+          "description": "The WordPress versions range supported by the package."
+        },
+        "php": {
+          "type": "string",
+          "description": "The PHP versions range supported by the package."
+        }
+      },
+      "additionalProperties": false,
+      "description": "The PHP and WordPress version constraints for the package."
+    },
+    "license": {
+      "type": "string",
+      "description": "The license under which the package is released. WordPress is licensed under GPLv2 or later."
+    },
+    "homepage": {
+      "type": "string",
+      "format": "uri",
+      "description": "The URL of the package's homepage."
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 5,
+      "description": "Tags that help categorize the package."
+    },
+    "author": {
+      "type": "string",
+      "minLength": 2,
+      "maxLength": 164,
+      "description": "The author of the package."
+    },
+    "dependencies": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "The dependencies required by the package."
+    },
+    "devDependencies": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "The development dependencies required by the package."
+    },
+    "config": {
+      "type": "object",
+      "properties": {
+        "bin-dir": {
+          "type": "string",
+          "default": "wp-bin",
+          "description": "The path to the directory where the package's binaries are installed."
+        },
+        "content-dir": {
+          "type": "string",
+          "default": "wp-content",
+          "description": "The path to the WordPress content directory."
+        },
+        "runtime": {
+          "type": "object",
+          "properties": {
+            "wp": {
+              "type": "string",
+              "description": "The WordPress runtime version where this project is expected to run."
+            },
+            "php": {
+              "type": "string",
+              "description": "The PHP runtime version where this project is expected to run."
+            }
+          },
+          "additionalProperties": false,
+          "description": "The actual runtime requirements where this project is expected to run."
+        }
+      }
+    },
+    "scripts": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Scripts to run during the package lifecycle or development."
+    }
+  },
+  "required": ["name"],
+  "if": {
+    "properties": {
+      "private": {
+        "const": true
+      }
+    },
+    "required": ["private"]
+  },
+  "else": {
+    "required": ["type", "version"]
+  }
+}

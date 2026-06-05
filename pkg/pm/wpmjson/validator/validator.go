@@ -16,6 +16,11 @@ import (
 
 var packageNameRegex = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
 
+const unsafeStringMsg = "contains invalid control characters or invisible formatting"
+
+// MaxDependencies is the limit on entries in dependencies or devDependencies.
+const MaxDependencies = 16
+
 // IsValidPackageName checks if the package name adheres to naming conventions.
 func IsValidPackageName(name string) error {
 	if len(name) < 3 {
@@ -30,13 +35,22 @@ func IsValidPackageName(name string) error {
 	return nil
 }
 
-// IsValidDistTag checks if the dist tag is valid.
+// IsValidDistTag checks a dist tag follows package-name formatting and does not
+// resemble a semantic version or range, so it can never collide with one.
 func IsValidDistTag(tag string) error {
+	if len(tag) < 3 {
+		return errors.New("must be at least 3 characters")
+	}
 	if len(tag) > 64 {
 		return errors.New("must be at most 64 characters")
 	}
-
-	return IsValidPackageName(tag)
+	if !packageNameRegex.MatchString(tag) {
+		return errors.New("must consist of lowercase alphanumeric characters separated by hyphens")
+	}
+	if _, err := semver.NewConstraint(tag); err == nil {
+		return errors.New("cannot resemble a valid semantic version or range")
+	}
+	return nil
 }
 
 // IsValidPackageType checks if the package type is valid.
@@ -57,6 +71,9 @@ func IsValidVersion(v string) error {
 	}
 	if len(v) > 64 {
 		return errors.New("must be at most 64 characters")
+	}
+	if v != strings.TrimSpace(v) {
+		return errors.New("cannot contain leading or trailing whitespace")
 	}
 	if strings.HasPrefix(v, "v") {
 		return errors.New("cannot start with 'v'")
@@ -107,6 +124,12 @@ func IsValidConstraint(v string) error {
 	if v == "" {
 		return errors.New("constraint cannot be empty")
 	}
+	if len(v) > 64 {
+		return errors.New("constraint must be at most 64 characters")
+	}
+	if v != strings.TrimSpace(v) {
+		return errors.New("constraint cannot contain leading or trailing whitespace")
+	}
 	if v == "*" {
 		return nil
 	}
@@ -119,17 +142,22 @@ func IsValidConstraint(v string) error {
 	return nil
 }
 
-// IsSafeString checks for disallowed control and special unicode characters.
+// IsSafeString rejects any character in the Unicode "Other" category (Cc, Cf,
+// Co, Cs) outside the allowlist, plus separators and replacement characters
+// that are not in that category but still break rendering or eval.
 func IsSafeString(s string) error {
 	for _, r := range s {
-		if r == '\u2028' || r == '\u2029' || r == '\uFFFD' || r == '\uFFFC' || r == '\u3164' {
-			return errors.New("contains invalid unicode characters")
+		switch r {
+		case '\t', '\n', '\r', '\u200C', '\u200D': // whitespace and zero-width joiners
+			continue
+		case '\u2028', '\u2029', '\uFFFD', '\uFFFC', '\u3164':
+			return errors.New(unsafeStringMsg)
 		}
-		if unicode.IsControl(r) {
-			if r == '\t' || r == '\n' || r == '\r' || r == '\u200D' || (r >= 0xE0020 && r <= 0xE007F) {
-				continue
-			}
-			return errors.New("contains invalid control characters")
+		if r >= 0xE0020 && r <= 0xE007F { // emoji tag characters
+			continue
+		}
+		if unicode.In(r, unicode.C) {
+			return errors.New(unsafeStringMsg)
 		}
 	}
 	return nil
@@ -162,31 +190,15 @@ func ValidateTags(tags []string) error {
 	return errs.Err()
 }
 
-// ValidateTeam checks limits, formatting, and uniqueness for team members.
-func ValidateTeam(team []string) error {
-	var errs ErrorList
-	if len(team) > 100 {
-		errs.AddMsg("team", "cannot have more than 100 members")
+// IsValidAuthor checks the author name length and character safety.
+func IsValidAuthor(author string) error {
+	if len(author) < 2 {
+		return errors.New("must be at least 2 characters")
 	}
-
-	seen := make(map[string]bool)
-	for i, member := range team {
-		field := fmt.Sprintf("team[%d]", i)
-
-		if len(member) < 2 || len(member) > 100 {
-			errs.AddMsg(field, "must be between 2 and 100 characters")
-		}
-
-		if err := IsSafeString(member); err != nil {
-			errs.Add(field, err)
-		}
-
-		if seen[member] {
-			errs.AddMsg("team", fmt.Sprintf("duplicate member '%s'", member))
-		}
-		seen[member] = true
+	if len(author) > 164 {
+		return errors.New("must be at most 164 characters")
 	}
-	return errs.Err()
+	return IsSafeString(author)
 }
 
 // ValidateDependencies checks the validity of dependency names and constraints.
@@ -196,8 +208,8 @@ func ValidateDependencies(deps map[string]string, fieldName string) error {
 	}
 	var errs ErrorList
 
-	if len(deps) > 16 {
-		errs.AddMsg(fieldName, "cannot have more than 16 dependencies")
+	if len(deps) > MaxDependencies {
+		errs.AddMsg(fieldName, fmt.Sprintf("cannot have more than %d dependencies", MaxDependencies))
 	}
 
 	for name, version := range deps {
@@ -212,6 +224,29 @@ func ValidateDependencies(deps map[string]string, fieldName string) error {
 		// Dependencies version should be strict semver
 		if err := IsValidVersion(version); err != nil {
 			errs.Add(fmt.Sprintf("%s[%s]", fieldName, name), err)
+		}
+	}
+	return errs.Err()
+}
+
+// ValidateDependencyIntegrity checks that a package does not depend on itself
+// and that no dependency is listed in both dependencies and devDependencies.
+func ValidateDependencyIntegrity(name string, deps, devDeps map[string]string) error {
+	var errs ErrorList
+
+	if _, ok := deps[name]; ok {
+		errs.AddMsg("dependencies", "package cannot depend on itself")
+	}
+	if _, ok := devDeps[name]; ok {
+		errs.AddMsg("devDependencies", "package cannot depend on itself")
+	}
+
+	for dep := range deps {
+		if _, ok := devDeps[dep]; ok {
+			errs.AddMsg(
+				fmt.Sprintf("devDependencies[%s]", dep),
+				fmt.Sprintf("'%s' cannot be listed in both dependencies and devDependencies", dep),
+			)
 		}
 	}
 	return errs.Err()

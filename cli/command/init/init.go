@@ -255,6 +255,8 @@ func runExistingInit(wpmCli command.Cli, opts *initOptions) error {
 		wpmCfg.Name = filepath.Base(cwd)
 	}
 
+	removeSelfDependency(wpmCfg)
+
 	if err := resolveConfigVersion(wpmCli, wpmCfg, opts, extractedVersion); err != nil {
 		return err
 	}
@@ -539,7 +541,6 @@ func buildWpmConfig(opts initOptions, pkgType string, mainFileHeaders any, readm
 	}
 
 	dependencies := &types.Dependencies{}
-	cfg.Team = getMetaStringSlice(readmeMeta, "contributors")
 	wpRequires := getMetaString(readmeMeta, "requires", "")
 	phpRequires := getMetaString(readmeMeta, "requires_php", "")
 	testedUpTo := getMetaString(readmeMeta, "tested", "")
@@ -552,20 +553,11 @@ func buildWpmConfig(opts initOptions, pkgType string, mainFileHeaders any, readm
 	}
 
 	cfg.Tags = sanitizeStringList(cfg.Tags, 5, 2, 64)
-	cfg.Team = sanitizeStringList(cfg.Team, 100, 2, 100)
-
-	// Trim description to max 512 characters
 	if len(cfg.Description) > 512 {
 		cfg.Description = trimMeaningfully(cfg.Description, 512)
 	}
 
-	// Validate license length, and set to empty if invalid
-	if len(cfg.License) < 3 || len(cfg.License) > 100 {
-		cfg.License = ""
-	}
-
 	requires := buildRequires(wpRequires, phpRequires, testedUpTo)
-
 	if len(*dependencies) > 0 {
 		cfg.Dependencies = dependencies
 	}
@@ -573,7 +565,48 @@ func buildWpmConfig(opts initOptions, pkgType string, mainFileHeaders any, readm
 		cfg.Requires = requires
 	}
 
+	dropInvalidMetadata(cfg)
 	return cfg
+}
+
+// removeSelfDependency drops a dependency whose name matches the package itself.
+func removeSelfDependency(cfg *wpmjson.Config) {
+	if cfg.Dependencies == nil {
+		return
+	}
+	delete(*cfg.Dependencies, cfg.Name)
+	if len(*cfg.Dependencies) == 0 {
+		cfg.Dependencies = nil
+	}
+}
+
+// dropInvalidMetadata clears optional fields that fail their own validator,
+// keeping init's best-effort extraction from emitting an invalid wpm.json.
+func dropInvalidMetadata(cfg *wpmjson.Config) {
+	cfg.Tags = slices.DeleteFunc(cfg.Tags, func(tag string) bool {
+		return validator.IsSafeString(tag) != nil
+	})
+	if cfg.Description != "" && validator.IsValidDescription(cfg.Description) != nil {
+		cfg.Description = ""
+	}
+	if cfg.License != "" && validator.IsValidLicense(cfg.License) != nil {
+		cfg.License = ""
+	}
+	if cfg.Author != "" && validator.IsValidAuthor(cfg.Author) != nil {
+		cfg.Author = ""
+	}
+	if cfg.Requires == nil {
+		return
+	}
+	if cfg.Requires.WP != "" && validator.IsValidConstraint(cfg.Requires.WP) != nil {
+		cfg.Requires.WP = ""
+	}
+	if cfg.Requires.PHP != "" && validator.IsValidConstraint(cfg.Requires.PHP) != nil {
+		cfg.Requires.PHP = ""
+	}
+	if cfg.Requires.WP == "" && cfg.Requires.PHP == "" {
+		cfg.Requires = nil
+	}
 }
 
 // applyThemeHeaders fills config fields from a theme's style.css headers,
@@ -586,8 +619,8 @@ func applyThemeHeaders(cfg *wpmjson.Config, h parser.ThemeFileHeaders, tags []st
 	if cfg.Description == "" || !isMeaningfulText(cfg.Description) {
 		cfg.Description = h.Description
 	}
-	if len(cfg.Team) == 0 && h.Author != "" {
-		cfg.Team = []string{h.Author}
+	if h.Author != "" {
+		cfg.Author = h.Author
 	}
 	if len(tags) == 0 && len(h.Tags) > 0 {
 		cfg.Tags = h.Tags
@@ -614,8 +647,8 @@ func applyPluginHeaders(cfg *wpmjson.Config, h parser.PluginFileHeaders, tags []
 	if cfg.Description == "" || !isMeaningfulText(cfg.Description) {
 		cfg.Description = h.Description
 	}
-	if len(cfg.Team) == 0 && h.Author != "" {
-		cfg.Team = []string{h.Author}
+	if h.Author != "" {
+		cfg.Author = h.Author
 	}
 	if len(tags) == 0 && len(h.Tags) > 0 {
 		cfg.Tags = h.Tags
@@ -632,6 +665,9 @@ func applyPluginHeaders(cfg *wpmjson.Config, h parser.PluginFileHeaders, tags []
 		*phpRequires = h.RequiresPHP
 	}
 	for _, reqPlugin := range h.RequiresPlugins {
+		if len(*dependencies) >= validator.MaxDependencies {
+			break
+		}
 		if err := validator.IsValidPackageName(reqPlugin); err != nil {
 			continue
 		}

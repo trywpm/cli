@@ -27,9 +27,9 @@ type Package struct {
 	Bin             *types.Bin              `json:"bin,omitempty"`
 	Requires        *types.Requires         `json:"requires,omitempty"`
 	License         string                  `json:"license,omitempty"`
+	Author          string                  `json:"author,omitempty"`
 	Homepage        string                  `json:"homepage,omitempty"`
 	Tags            []string                `json:"tags,omitempty"`
-	Team            []string                `json:"team,omitempty"`
 	Dependencies    *types.Dependencies     `json:"dependencies,omitempty"`
 	DevDependencies *types.Dependencies     `json:"devDependencies,omitempty"`
 	Tag             string                  `json:"tag"`
