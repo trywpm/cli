@@ -198,7 +198,7 @@ execution is not yet wired up.
   versions are rejected at validation time.
 - **Force a clean reinstall** when the tree is in a confusing state:
   ```sh
-  rm -rf wpm.lock wp-content/plugins wp-content/themes wp-content/mu-plugins
+  rm -rf wpm.lock wp-content/plugins wp-content/themes
   wpm install
   ```
   Review the new `wpm.lock` before committing.

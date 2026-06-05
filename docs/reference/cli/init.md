@@ -6,14 +6,14 @@ Initialize a new WordPress package or init wpm in existing project
 
 ### Options
 
-| Name          | Type     | Default | Description                             |
-|:--------------|:---------|:--------|:----------------------------------------|
-| `--existing`  | `bool`   |         | Init wpm.json for an existing project   |
-| `--license`   | `string` |         | Package license                         |
-| `--name`      | `string` |         | Package name                            |
-| `--type`      | `string` |         | Package type (plugin, theme, mu-plugin) |
-| `--version`   | `string` |         | Semver-compliant version                |
-| `-y`, `--yes` | `bool`   |         | Skip prompts and use default values     |
+| Name          | Type     | Default | Description                           |
+|:--------------|:---------|:--------|:--------------------------------------|
+| `--existing`  | `bool`   |         | Init wpm.json for an existing project |
+| `--license`   | `string` |         | Package license                       |
+| `--name`      | `string` |         | Package name                          |
+| `--type`      | `string` |         | Package type (plugin, theme)          |
+| `--version`   | `string` |         | Semver-compliant version              |
+| `-y`, `--yes` | `bool`   |         | Skip prompts and use default values   |
 
 
 <!---MARKER_GEN_END-->
@@ -69,7 +69,7 @@ automatically so the command can run without interaction.
 > When you run `wpm init -y` without `--type`, the `type` field is left
 > unset. Validation is skipped for that field in the `-y` path, so the command
 > succeeds, but you will need to set `type` manually before publishing. Prefer
-> `wpm init -y --type plugin` (or `theme`, `mu-plugin`) when scripting.
+> `wpm init -y --type plugin` (or `theme`) when scripting.
 
 ### Existing project mode (`--existing`)
 
@@ -89,19 +89,19 @@ Detection rules:
 
 Fields populated from the project sources:
 
-| wpm.json field | Source                                                     |
-| :------------- | :--------------------------------------------------------- |
-| `name`         | current directory name (override with `--name`)            |
-| `type`         | auto-detected (override with `--type`)                     |
-| `version`      | plugin header `Version` or theme header `Version`          |
-| `description`  | header `Description`, falling back to `readme.txt`         |
-| `license`      | header `License`, falling back to `readme.txt` `License`   |
-| `homepage`     | header `Plugin URI` or `Theme URI` (must be http/https)    |
-| `author`       | plugin or theme header `Author`                            |
-| `tags`         | `readme.txt` Tags, falling back to header `Tags`           |
-| `requires.wp`  | header `Requires at least` and `readme.txt` Requires       |
-| `requires.php` | header `Requires PHP` and `readme.txt` Requires PHP        |
-| `dependencies` | header `Requires Plugins` (each pinned to `*`)             |
+| wpm.json field | Source                                                   |
+| :------------- | :------------------------------------------------------- |
+| `name`         | current directory name (override with `--name`)          |
+| `type`         | auto-detected (override with `--type`)                   |
+| `version`      | plugin header `Version` or theme header `Version`        |
+| `description`  | header `Description`, falling back to `readme.txt`       |
+| `license`      | header `License`, falling back to `readme.txt` `License` |
+| `homepage`     | header `Plugin URI` or `Theme URI` (must be http/https)  |
+| `author`       | plugin or theme header `Author`                          |
+| `tags`         | `readme.txt` Tags, falling back to header `Tags`         |
+| `requires.wp`  | header `Requires at least` and `readme.txt` Requires     |
+| `requires.php` | header `Requires PHP` and `readme.txt` Requires PHP      |
+| `dependencies` | header `Requires Plugins` (each pinned to `*`)           |
 
 If a `readme.txt` exists but no `readme.md`, wpm also converts the
 WordPress.org-flavored `readme.txt` into a Markdown `readme.md` next to it.
@@ -114,8 +114,8 @@ Constraints applied automatically:
 - `description` is trimmed to at most 512 characters, preferring to cut at a
   sentence boundary.
 - `license` is cleared if it falls outside 3 to 100 characters.
-- `dependencies` from `Requires Plugins` are capped at 16, and any self-reference
-  is dropped.
+- `dependencies` from `Requires Plugins` are capped at 16, and any
+  self-reference is dropped.
 - `requires.wp` becomes `>=X` (and `<=Y` when `Tested up to` is also present and
   different from `Requires`).
 - `requires.php` becomes `>=X`.

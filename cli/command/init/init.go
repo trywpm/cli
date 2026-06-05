@@ -80,7 +80,7 @@ func NewInitCommand(wpmCli command.Cli) *cobra.Command {
 	flags.StringVar(&opts.name, "name", "", "Package name")
 	flags.StringVar(&opts.version, "version", "", "Semver-compliant version")
 	flags.StringVar(&opts.license, "license", "", "Package license")
-	flags.StringVar(&opts.packageType, "type", "", "Package type (plugin, theme, mu-plugin)")
+	flags.StringVar(&opts.packageType, "type", "", "Package type (plugin, theme)")
 
 	_ = cmd.RegisterFlagCompletionFunc("type", completion.PackageTypes())
 	_ = cmd.RegisterFlagCompletionFunc("license", completion.PackageLicenses())

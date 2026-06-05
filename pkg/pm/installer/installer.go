@@ -374,8 +374,6 @@ func (i *Installer) getTargetDir(pkgType types.PackageType, name string) (string
 	switch pkgType {
 	case types.TypeTheme:
 		subDir = "themes"
-	case types.TypeMuPlugin:
-		subDir = "mu-plugins"
 	case types.TypePlugin:
 		subDir = "plugins"
 	default:

@@ -16,7 +16,7 @@
     },
     "type": {
       "type": "string",
-      "enum": ["theme", "plugin", "mu-plugin"],
+      "enum": ["theme", "plugin"],
       "description": "The type of package in the wp-content directory."
     },
     "description": {

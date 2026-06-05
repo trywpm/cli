@@ -9,7 +9,7 @@ func (pt PackageType) String() string {
 
 func (pt PackageType) Valid() bool {
 	switch pt {
-	case TypeTheme, TypePlugin, TypeMuPlugin:
+	case TypeTheme, TypePlugin:
 		return true
 	default:
 		return false
@@ -33,9 +33,8 @@ func (pv PackageVisibility) Valid() bool {
 }
 
 const (
-	TypeTheme    PackageType = "theme"
-	TypePlugin   PackageType = "plugin"
-	TypeMuPlugin PackageType = "mu-plugin"
+	TypeTheme  PackageType = "theme"
+	TypePlugin PackageType = "plugin"
 
 	VisibilityPublic  PackageVisibility = "public"
 	VisibilityPrivate PackageVisibility = "private"
