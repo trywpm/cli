@@ -1,6 +1,7 @@
 package ls
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
 	"io"
@@ -14,23 +15,50 @@ import (
 
 	"go.wpm.so/cli/cli"
 	"go.wpm.so/cli/cli/command"
+	"go.wpm.so/cli/cli/command/completion"
 	"go.wpm.so/cli/pkg/pm/wpmjson"
+	"go.wpm.so/cli/pkg/pm/wpmjson/types"
 	"go.wpm.so/cli/pkg/pm/wpmlock"
 )
 
+const (
+	unknownType = "unknown"
+
+	connectorMid = "├── "
+	connectorEnd = "└── "
+	indentMid    = "│   "
+	indentEnd    = "    "
+)
+
+// typeOrder is the display order for known package types; others follow sorted.
+var typeOrder = []string{types.TypePlugin.String(), types.TypeTheme.String()}
+
 type lsOptions struct {
-	depth int
+	depth      int
+	filterType string
 }
 
 func NewLsCommand(wpmCli command.Cli) *cobra.Command {
 	var opts lsOptions
 
 	cmd := &cobra.Command{
-		Use:   "ls",
-		Short: "List installed dependencies",
-		Args:  cli.NoArgs,
+		Use:               "ls [OPTIONS] [plugin|theme]",
+		Short:             "List installed dependencies",
+		Args:              cli.RequiresMaxArgs(1),
+		ValidArgsFunction: completion.PackageTypes(),
+		Aliases:           []string{"list", "tree"},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runLs(wpmCli, opts)
+			if len(args) == 1 {
+				opts.filterType = args[0]
+				if !types.PackageType(opts.filterType).Valid() {
+					return fmt.Errorf("invalid type %q: must be theme or plugin", opts.filterType)
+				}
+			}
+			cwd, err := os.Getwd()
+			if err != nil {
+				return fmt.Errorf("failed to get current working directory: %w", err)
+			}
+			return runLs(wpmCli, cwd, opts)
 		},
 	}
 
@@ -39,12 +67,7 @@ func NewLsCommand(wpmCli command.Cli) *cobra.Command {
 	return cmd
 }
 
-func runLs(wpmCli command.Cli, opts lsOptions) error {
-	cwd, err := os.Getwd()
-	if err != nil {
-		return fmt.Errorf("failed to get current working directory: %w", err)
-	}
-
+func runLs(wpmCli command.Cli, cwd string, opts lsOptions) (err error) {
 	config, err := wpmjson.Read(cwd)
 	if err != nil {
 		return err
@@ -55,7 +78,7 @@ func runLs(wpmCli command.Cli, opts lsOptions) error {
 
 	lock, err := wpmlock.Read(cwd)
 	if err != nil {
-		return fmt.Errorf("failed to read lockfile: %w", err)
+		return err
 	}
 	if lock == nil {
 		return errors.New("no wpm.lock found, you need to run `wpm install` first")
@@ -66,7 +89,12 @@ func runLs(wpmCli command.Cli, opts lsOptions) error {
 		root = filepath.Base(cwd)
 	}
 
-	rootDeps := make(map[string]string)
+	capHint := depLen(config.Dependencies) + depLen(config.DevDependencies)
+	if capHint == 0 {
+		return errors.New("no dependencies found in wpm.json")
+	}
+
+	rootDeps := make(map[string]string, capHint)
 	if config.Dependencies != nil {
 		maps.Copy(rootDeps, *config.Dependencies)
 	}
@@ -74,33 +102,111 @@ func runLs(wpmCli command.Cli, opts lsOptions) error {
 		maps.Copy(rootDeps, *config.DevDependencies)
 	}
 
-	if len(rootDeps) == 0 {
-		return errors.New("no dependencies found in wpm.json")
+	groups := groupByType(rootDeps, lock, opts.filterType)
+	if len(groups) == 0 {
+		return fmt.Errorf("no %s dependencies found", opts.filterType)
 	}
 
-	wpmCli.Out().WriteString(root + "\n")
+	out := bufio.NewWriter(wpmCli.Out())
+	defer func() {
+		if flushErr := out.Flush(); flushErr != nil && err == nil {
+			err = flushErr
+		}
+	}()
 
 	printer := &treePrinter{
-		out:      wpmCli.Out(),
+		out:      out,
 		lock:     lock,
 		maxDepth: opts.depth,
+		colorize: wpmCli.Out().IsColorEnabled(),
 	}
 
+	_, _ = fmt.Fprintln(out, root)
+
 	visited := make(map[string]bool)
-	printer.printLevel(rootDeps, wpmCli.Out().IsColorEnabled(), "", 0, visited)
+	var prefix []byte
+	for i, g := range groups {
+		connector, indent := connectorMid, indentMid
+		if i == len(groups)-1 {
+			connector, indent = connectorEnd, indentEnd
+		}
+
+		label := g.label
+		if printer.colorize {
+			label = aec.Bold.Apply(label)
+		}
+		_, _ = fmt.Fprintf(out, "%s%s\n", connector, label)
+
+		prefix = append(prefix[:0], indent...)
+		printer.printLevel(g.deps, prefix, 0, visited)
+	}
 
 	return nil
+}
+
+func depLen(d *types.Dependencies) int {
+	if d == nil {
+		return 0
+	}
+	return len(*d)
+}
+
+// depGroup is a set of direct dependencies that share a package type.
+type depGroup struct {
+	label string
+	deps  map[string]string
+}
+
+// groupByType partitions direct dependencies by their locked package type,
+// known types first then any others sorted.
+func groupByType(deps map[string]string, lock *wpmlock.Lockfile, filter string) []depGroup {
+	buckets := make(map[string]map[string]string)
+	for name, version := range deps {
+		label := unknownType
+		if pkg, ok := lock.Packages[name]; ok && pkg.Type != "" {
+			label = pkg.Type.String()
+		}
+		if filter != "" && label != filter {
+			continue
+		}
+		bucket := buckets[label]
+		if bucket == nil {
+			bucket = make(map[string]string)
+			buckets[label] = bucket
+		}
+		bucket[name] = version
+	}
+
+	groups := make([]depGroup, 0, len(buckets))
+	for _, label := range typeOrder {
+		if bucket := buckets[label]; len(bucket) > 0 {
+			groups = append(groups, depGroup{label, bucket})
+			delete(buckets, label)
+		}
+	}
+
+	rest := make([]string, 0, len(buckets))
+	for label := range buckets {
+		rest = append(rest, label)
+	}
+	sort.Strings(rest)
+	for _, label := range rest {
+		groups = append(groups, depGroup{label, buckets[label]})
+	}
+
+	return groups
 }
 
 type treePrinter struct {
 	out      io.Writer
 	lock     *wpmlock.Lockfile
 	maxDepth int
+	colorize bool
 }
 
-// printLevel recursively prints dependencies.
-func (p *treePrinter) printLevel(deps map[string]string, colorize bool, prefix string, currentDepth int, visited map[string]bool) {
-	if p.maxDepth >= 0 && currentDepth > p.maxDepth {
+// printLevel renders one level of the tree.
+func (p *treePrinter) printLevel(deps map[string]string, prefix []byte, depth int, visited map[string]bool) {
+	if p.maxDepth >= 0 && depth > p.maxDepth {
 		return
 	}
 
@@ -112,69 +218,65 @@ func (p *treePrinter) printLevel(deps map[string]string, colorize bool, prefix s
 
 	for i, name := range keys {
 		isLast := i == len(keys)-1
-		connector := "├── "
+		connector := connectorMid
 		if isLast {
-			connector = "└── "
+			connector = connectorEnd
 		}
 
 		isCycle := visited[name]
-		info, subDeps, isMissing := p.formatNode(name, deps[name], colorize, isCycle)
+		info, subDeps, isMissing := p.formatNode(name, deps[name], isCycle)
 		_, _ = fmt.Fprintf(p.out, "%s%s%s\n", prefix, connector, info)
 
-		// Recurse only if:
-		// 1. It's not a missing package
-		// 2. It has dependencies
-		// 3. We haven't seen this package in the current stack (Cycle detection)
-		if !isMissing && len(subDeps) > 0 && !isCycle {
-			childPrefix := prefix
-			if isLast {
-				childPrefix += "    "
-			} else {
-				childPrefix += "│   "
-			}
-
-			// Add current to stack, recurse, then remove (backtracking)
-			visited[name] = true
-			p.printLevel(subDeps, colorize, childPrefix, currentDepth+1, visited)
-			delete(visited, name)
+		if isMissing || isCycle || len(subDeps) == 0 {
+			continue
 		}
+
+		indent := indentMid
+		if isLast {
+			indent = indentEnd
+		}
+
+		mark := len(prefix)
+		prefix = append(prefix, indent...)
+		visited[name] = true
+		p.printLevel(subDeps, prefix, depth+1, visited)
+		delete(visited, name)
+		prefix = prefix[:mark]
 	}
 }
 
-// formatNode renders the display string for a single tree node and returns its
-// sub-dependencies along with whether the node is missing from the lockfile.
-func (p *treePrinter) formatNode(name, requestedVersion string, colorize, isCycle bool) (info string, subDeps map[string]string, isMissing bool) {
+// formatNode renders a single node and returns its sub-dependencies and whether
+// the package is missing from the lockfile.
+func (p *treePrinter) formatNode(name, requestedVersion string, isCycle bool) (info string, subDeps map[string]string, isMissing bool) {
 	pkg, ok := p.lock.Packages[name]
 	if !ok {
-		if colorize {
-			info = fmt.Sprintf("%s@%s %s", name, requestedVersion, aec.RedF.Apply("UNMET DEPENDENCY"))
-		} else {
-			info = fmt.Sprintf("%s@%s UNMET DEPENDENCY", name, requestedVersion)
+		unmet := "UNMET DEPENDENCY"
+		if p.colorize {
+			unmet = aec.RedF.Apply(unmet)
 		}
-		return info, nil, true
+		return name + "@" + requestedVersion + " " + unmet, nil, true
 	}
 
-	info = fmt.Sprintf("%s@%s", name, pkg.Version)
-	if colorize {
-		info = fmt.Sprintf("%s%s%s", name, aec.LightBlackF.Apply("@"), aec.LightBlackF.Apply(pkg.Version))
+	if p.colorize {
+		info = name + aec.LightBlackF.Apply("@"+pkg.Version)
+	} else {
+		info = name + "@" + pkg.Version
 	}
 
 	if pkg.Version != requestedVersion && requestedVersion != "*" {
-		invalidMsg := fmt.Sprintf("(invalid: \"%s\")", requestedVersion)
-		if colorize {
-			info += " " + aec.RedF.Apply(invalidMsg)
-		} else {
-			info += " " + invalidMsg
+		invalid := "(invalid: \"" + requestedVersion + "\")"
+		if p.colorize {
+			invalid = aec.RedF.Apply(invalid)
 		}
+		info += " " + invalid
 	}
 
 	if isCycle {
-		cycleMsg := "(cycle)"
-		if colorize {
-			info += " " + aec.MagentaF.Apply(cycleMsg)
-		} else {
-			info += " " + cycleMsg
+		cycle := "(cycle)"
+		if p.colorize {
+			cycle = aec.MagentaF.Apply(cycle)
 		}
+		info += " " + cycle
 	}
 
 	if pkg.Dependencies != nil {
