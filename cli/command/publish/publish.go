@@ -297,7 +297,7 @@ func buildManifest(wpmJson *wpmjson.Config, opts publishOptions, visibility type
 		License:         wpmJson.License,
 		Homepage:        wpmJson.Homepage,
 		Tags:            wpmJson.Tags,
-		Team:            wpmJson.Team,
+		Author:          wpmJson.Author,
 		Dependencies:    wpmJson.Dependencies,
 		DevDependencies: wpmJson.DevDependencies,
 		Tag:             opts.tag,

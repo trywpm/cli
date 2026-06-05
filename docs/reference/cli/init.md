@@ -97,7 +97,7 @@ Fields populated from the project sources:
 | `description`  | header `Description`, falling back to `readme.txt`         |
 | `license`      | header `License`, falling back to `readme.txt` `License`   |
 | `homepage`     | header `Plugin URI` or `Theme URI` (must be http/https)    |
-| `team`         | header `Author`, falling back to `readme.txt` Contributors |
+| `author`       | plugin or theme header `Author`                            |
 | `tags`         | `readme.txt` Tags, falling back to header `Tags`           |
 | `requires.wp`  | header `Requires at least` and `readme.txt` Requires       |
 | `requires.php` | header `Requires PHP` and `readme.txt` Requires PHP        |
@@ -110,14 +110,18 @@ Constraints applied automatically:
 
 - `tags` are trimmed to a maximum of 5, each 2 to 64 characters, deduplicated,
   and sorted.
-- `team` is trimmed to a maximum of 100 entries, each 2 to 100 characters,
-  deduplicated, and sorted.
+- `author` is cleared if it falls outside 2 to 164 characters.
 - `description` is trimmed to at most 512 characters, preferring to cut at a
   sentence boundary.
 - `license` is cleared if it falls outside 3 to 100 characters.
+- `dependencies` from `Requires Plugins` are capped at 16, and any self-reference
+  is dropped.
 - `requires.wp` becomes `>=X` (and `<=Y` when `Tested up to` is also present and
   different from `Requires`).
 - `requires.php` becomes `>=X`.
+
+Any extracted field that still fails validation (invalid characters or malformed
+values) is dropped so the generated `wpm.json` is always valid.
 
 If no version can be extracted and `--version` is not provided, the command
 errors. Pass `--version` to recover.

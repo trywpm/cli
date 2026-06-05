@@ -24,9 +24,9 @@ type Config struct {
 	Bin             *types.Bin           `json:"bin,omitempty"`
 	Requires        *types.Requires      `json:"requires,omitempty"`
 	License         string               `json:"license,omitempty"`
+	Author          string               `json:"author,omitempty"`
 	Homepage        string               `json:"homepage,omitempty"`
 	Tags            []string             `json:"tags,omitempty"`
-	Team            []string             `json:"team,omitempty"`
 	Dependencies    *types.Dependencies  `json:"dependencies,omitempty"`
 	DevDependencies *types.Dependencies  `json:"devDependencies,omitempty"`
 	Config          *types.PackageConfig `json:"config,omitempty"`
@@ -89,26 +89,31 @@ func (c *Config) Validate() error {
 	if c.License != "" {
 		errs.Add("license", validator.IsValidLicense(c.License))
 	}
+	if c.Author != "" {
+		errs.Add("author", validator.IsValidAuthor(c.Author))
+	}
 	if c.Homepage != "" {
 		errs.Add("homepage", validator.IsValidHomepage(c.Homepage))
 	}
 	if len(c.Tags) > 0 {
 		errs.MustMerge(validator.ValidateTags(c.Tags))
 	}
-	if len(c.Team) > 0 {
-		errs.MustMerge(validator.ValidateTeam(c.Team))
-	}
 
 	// Core fields
 	if c.Requires != nil {
 		errs.MustMerge(validator.ValidateRequires(c.Requires.WP, c.Requires.PHP))
 	}
+
+	var deps, devDeps map[string]string
 	if c.Dependencies != nil {
-		errs.MustMerge(validator.ValidateDependencies(*c.Dependencies, "dependencies"))
+		deps = *c.Dependencies
+		errs.MustMerge(validator.ValidateDependencies(deps, "dependencies"))
 	}
 	if c.DevDependencies != nil {
-		errs.MustMerge(validator.ValidateDependencies(*c.DevDependencies, "devDependencies"))
+		devDeps = *c.DevDependencies
+		errs.MustMerge(validator.ValidateDependencies(devDeps, "devDependencies"))
 	}
+	errs.MustMerge(validator.ValidateDependencyIntegrity(c.Name, deps, devDeps))
 
 	// Config field validations
 	if c.Config != nil {
