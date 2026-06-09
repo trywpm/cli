@@ -108,12 +108,16 @@ func (r *Resolver) seedQueue() []dependencyRequest {
 	return queue
 }
 
-// dedupeRequests drops requests already satisfied at the same version
+func satisfies(spec, version string) bool {
+	return spec == "*" || spec == version
+}
+
+// dedupeRequests drops requests already satisfied by a resolved package
 // and folds identical name@version pairs in this iteration into one entry.
 func dedupeRequests(queue []dependencyRequest, resolved map[string]Node) map[string]dependencyRequest {
 	uniqueRequests := make(map[string]dependencyRequest)
 	for _, req := range queue {
-		if exists, ok := resolved[req.name]; ok && exists.Version == req.version {
+		if exists, ok := resolved[req.name]; ok && satisfies(req.version, exists.Version) {
 			continue
 		}
 		uniqueRequests[req.name+"@"+req.version] = req
@@ -158,7 +162,7 @@ func (r *Resolver) fetchAll(ctx context.Context, requests map[string]dependencyR
 // returning any newly discovered child dependencies to enqueue.
 func (r *Resolver) applyResult(res fetchResult, resolved map[string]Node) ([]dependencyRequest, error) {
 	if existing, ok := resolved[res.req.name]; ok {
-		if existing.Version == res.req.version {
+		if satisfies(res.req.version, existing.Version) {
 			return nil, nil
 		}
 		if err := r.resolveConflict(res.req, existing); err != nil {
@@ -336,7 +340,7 @@ func (r *Resolver) fetchMetadata(ctx context.Context, name, version string) (*ma
 	// Try to resolve the manifest from lockfile first
 	if r.lockfile != nil && r.lockfile.Packages != nil {
 		if lockPkg, ok := r.lockfile.Packages[name]; ok {
-			if lockPkg.Version == version {
+			if satisfies(version, lockPkg.Version) {
 				return &manifest.Package{
 					Name:         name,
 					Version:      lockPkg.Version,
