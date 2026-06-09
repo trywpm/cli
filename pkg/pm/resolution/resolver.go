@@ -21,7 +21,7 @@ type Node struct {
 	Name         string
 	Version      string
 	Type         types.PackageType
-	Resolved     string              // Tarball URL
+	Signatures   []manifest.Signature
 	Digest       string              // Sha256 digest of the tarball
 	Bin          *types.Bin          `json:"bin,omitempty"`
 	Dependencies *types.Dependencies `json:"dependencies,omitempty"`
@@ -179,7 +179,7 @@ func (r *Resolver) applyResult(res fetchResult, resolved map[string]Node) ([]dep
 		Name:         res.manifest.Name,
 		Version:      res.manifest.Version,
 		Type:         res.manifest.Type,
-		Resolved:     "/" + res.manifest.Name + "/" + res.manifest.Version + ".tar.zst",
+		Signatures:   res.manifest.Dist.Signatures,
 		Digest:       res.manifest.Dist.Digest,
 		Bin:          res.manifest.Bin,
 		Dependencies: res.manifest.Dependencies,
@@ -344,7 +344,8 @@ func (r *Resolver) fetchMetadata(ctx context.Context, name, version string) (*ma
 					Bin:          lockPkg.Bin,
 					Dependencies: lockPkg.Dependencies,
 					Dist: manifest.Dist{
-						Digest: lockPkg.Digest,
+						Digest:     lockPkg.Digest,
+						Signatures: lockPkg.Signatures,
 					},
 				}, nil
 			}

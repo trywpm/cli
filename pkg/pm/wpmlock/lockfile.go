@@ -9,6 +9,7 @@ import (
 
 	"go.wpm.so/cli/pkg/atomicwriter"
 	"go.wpm.so/cli/pkg/pm"
+	"go.wpm.so/cli/pkg/pm/wpmjson/manifest"
 	"go.wpm.so/cli/pkg/pm/wpmjson/types"
 	"go.wpm.so/cli/pkg/pm/wpmjson/validator"
 )
@@ -20,12 +21,12 @@ const (
 
 // LockPackage represents a specific version of a package locked in the lockfile.
 type LockPackage struct {
-	Version      string              `json:"version"`
-	Resolved     string              `json:"resolved"`
-	Digest       string              `json:"digest"`
-	Type         types.PackageType   `json:"type"`
-	Bin          *types.Bin          `json:"bin,omitempty"`
-	Dependencies *types.Dependencies `json:"dependencies,omitempty"`
+	Version      string               `json:"version"`
+	Signatures   []manifest.Signature `json:"signatures"`
+	Digest       string               `json:"digest"`
+	Type         types.PackageType    `json:"type"`
+	Bin          *types.Bin           `json:"bin,omitempty"`
+	Dependencies *types.Dependencies  `json:"dependencies,omitempty"`
 }
 
 // Lockfile represents the state of the dependency tree.

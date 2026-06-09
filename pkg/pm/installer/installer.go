@@ -151,17 +151,12 @@ func (i *Installer) install(ctx context.Context, action Action) error {
 }
 
 func (i *Installer) installOrUpdate(ctx context.Context, action Action, targetDir string) error {
-	manifest, err := i.client.GetPackageManifest(ctx, action.Name, action.Version, false)
-	if err != nil {
-		return fmt.Errorf("failed to fetch manifest for %s@%s: %w", action.Name, action.Version, err)
-	}
-
-	sigs := manifest.Dist.Signatures
+	sigs := action.Signatures
 	if len(sigs) == 0 {
 		return fmt.Errorf("no signatures found for package %s@%s", action.Name, action.Version)
 	}
 
-	err = signatures.Verify(
+	err := signatures.Verify(
 		i.keysJson,
 		sigs[0].KeyID,
 		sigs[0].Sig,
@@ -171,9 +166,10 @@ func (i *Installer) installOrUpdate(ctx context.Context, action Action, targetDi
 		return fmt.Errorf("signature verification failed for package %s@%s: %w", action.Name, action.Version, err)
 	}
 
-	resp, err := i.client.DownloadTarball(ctx, action.Resolved)
+	path := tarballPath(action.Name, action.Version)
+	resp, err := i.client.DownloadTarball(ctx, path)
 	if err != nil {
-		return fmt.Errorf("failed to download %s: %w", action.Resolved, err)
+		return fmt.Errorf("failed to download %s: %w", path, err)
 	}
 	defer func() {
 		_ = resp.Close()
@@ -363,6 +359,16 @@ func isCrossDeviceError(err error) bool {
 		}
 	}
 	return false
+}
+
+func tarballPath(name, version string) string {
+	var b strings.Builder
+	b.WriteByte('/')
+	b.WriteString(name)
+	b.WriteByte('/')
+	b.WriteString(version)
+	b.WriteString(".tar.zst")
+	return b.String()
 }
 
 func (i *Installer) getTargetDir(pkgType types.PackageType, name string) (string, error) {
