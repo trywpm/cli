@@ -166,10 +166,10 @@ func (i *Installer) installOrUpdate(ctx context.Context, action Action, targetDi
 		return fmt.Errorf("signature verification failed for package %s@%s: %w", action.Name, action.Version, err)
 	}
 
-	resolved := "/" + action.Name + "/" + action.Version + ".tar.zst"
-	resp, err := i.client.DownloadTarball(ctx, resolved)
+	path := tarballPath(action.Name, action.Version)
+	resp, err := i.client.DownloadTarball(ctx, path)
 	if err != nil {
-		return fmt.Errorf("failed to download %s: %w", resolved, err)
+		return fmt.Errorf("failed to download %s: %w", path, err)
 	}
 	defer func() {
 		_ = resp.Close()
@@ -359,6 +359,16 @@ func isCrossDeviceError(err error) bool {
 		}
 	}
 	return false
+}
+
+func tarballPath(name, version string) string {
+	var b strings.Builder
+	b.WriteByte('/')
+	b.WriteString(name)
+	b.WriteByte('/')
+	b.WriteString(version)
+	b.WriteString(".tar.zst")
+	return b.String()
 }
 
 func (i *Installer) getTargetDir(pkgType types.PackageType, name string) (string, error) {
