@@ -6,6 +6,7 @@ import (
 
 	"go.wpm.so/cli/pkg/pm/resolution"
 	"go.wpm.so/cli/pkg/pm/wpmjson"
+	"go.wpm.so/cli/pkg/pm/wpmjson/manifest"
 	"go.wpm.so/cli/pkg/pm/wpmjson/types"
 	"go.wpm.so/cli/pkg/pm/wpmlock"
 )
@@ -20,12 +21,12 @@ const (
 
 // Action represents a single operation to be performed on the filesystem
 type Action struct {
-	Type     ActionType
-	Name     string
-	Version  string
-	Resolved string // Tarball URL
-	Digest   string // Sha256 digest
-	PkgType  types.PackageType
+	Type       ActionType
+	Name       string
+	Version    string
+	Signatures []manifest.Signature
+	Digest     string // Sha256 digest
+	PkgType    types.PackageType
 }
 
 // CalculatePlan determines filesystem operations based on lockfile, resolved tree, and flags.
@@ -108,34 +109,34 @@ func resolveAction(name string, node resolution.Node, lock *wpmlock.Lockfile, ex
 	oldPkg, inLock := lock.Packages[name]
 	if !inLock {
 		return Action{
-			Type:     ActionInstall,
-			Name:     name,
-			Version:  node.Version,
-			Resolved: node.Resolved,
-			Digest:   node.Digest,
-			PkgType:  node.Type,
+			Type:       ActionInstall,
+			Name:       name,
+			Version:    node.Version,
+			Signatures: node.Signatures,
+			Digest:     node.Digest,
+			PkgType:    node.Type,
 		}, true
 	}
 
 	if oldPkg.Version != node.Version || oldPkg.Digest != node.Digest {
 		return Action{
-			Type:     ActionUpdate,
-			Name:     name,
-			Version:  node.Version,
-			Resolved: node.Resolved,
-			Digest:   node.Digest,
-			PkgType:  node.Type,
+			Type:       ActionUpdate,
+			Name:       name,
+			Version:    node.Version,
+			Signatures: node.Signatures,
+			Digest:     node.Digest,
+			PkgType:    node.Type,
 		}, true
 	}
 
 	if !exists {
 		return Action{
-			Type:     ActionInstall,
-			Name:     name,
-			Version:  node.Version,
-			Resolved: node.Resolved,
-			Digest:   node.Digest,
-			PkgType:  node.Type,
+			Type:       ActionInstall,
+			Name:       name,
+			Version:    node.Version,
+			Signatures: node.Signatures,
+			Digest:     node.Digest,
+			PkgType:    node.Type,
 		}, true
 	}
 

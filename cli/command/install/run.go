@@ -166,7 +166,7 @@ func updateLockPackages(lock *wpmlock.Lockfile, resolved map[string]resolution.N
 		node := resolved[name]
 		lock.Packages[name] = wpmlock.LockPackage{
 			Version:      node.Version,
-			Resolved:     node.Resolved,
+			Signatures:   node.Signatures,
 			Digest:       node.Digest,
 			Type:         node.Type,
 			Bin:          node.Bin,
