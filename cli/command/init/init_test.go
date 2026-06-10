@@ -1,6 +1,7 @@
 package init
 
 import (
+	"context"
 	"fmt"
 	"testing"
 
@@ -12,6 +13,11 @@ import (
 
 func lineSeparator() string { return string(rune(0x2028)) }
 
+// resolveTo returns a latestVersionResolver that pins every package to version.
+func resolveTo(version string) latestVersionResolver {
+	return func(context.Context, string) (string, bool) { return version, true }
+}
+
 func TestBuildWpmConfigDropsInvalidMetadata(t *testing.T) {
 	bad := lineSeparator()
 	headers := parser.PluginFileHeaders{
@@ -21,7 +27,7 @@ func TestBuildWpmConfigDropsInvalidMetadata(t *testing.T) {
 		Tags:        []string{"good", "ba" + bad + "d"}, // one unsafe -> filtered
 	}
 
-	cfg := buildWpmConfig(initOptions{}, "plugin", headers, map[string]any{})
+	cfg := buildWpmConfig(context.Background(), initOptions{}, "plugin", headers, map[string]any{}, resolveTo("1.0.0"))
 	cfg.Name = "my-plugin"
 	cfg.Version = "1.0.0"
 
@@ -53,7 +59,7 @@ func TestBuildWpmConfigCapsAndSanitizesDependencies(t *testing.T) {
 	}
 
 	headers := parser.PluginFileHeaders{RequiresPlugins: required}
-	cfg := buildWpmConfig(initOptions{}, "plugin", headers, map[string]any{})
+	cfg := buildWpmConfig(context.Background(), initOptions{}, "plugin", headers, map[string]any{}, resolveTo("1.0.0"))
 	cfg.Name = "my-plugin"
 	cfg.Version = "1.0.0"
 	removeSelfDependency(cfg)
@@ -76,12 +82,62 @@ func TestBuildWpmConfigCapsAndSanitizesDependencies(t *testing.T) {
 func TestRemoveSelfDependencyClearsEmptyMap(t *testing.T) {
 	cfg := wpmjson.New()
 	cfg.Name = "solo"
-	deps := types.Dependencies{"solo": "*"}
+	deps := types.Dependencies{"solo": "1.0.0"}
 	cfg.Dependencies = &deps
 
 	removeSelfDependency(cfg)
 
 	if cfg.Dependencies != nil {
 		t.Errorf("expected dependencies to be nil after removing the only entry, got %v", *cfg.Dependencies)
+	}
+}
+
+func TestBuildWpmConfigResolvesDependencyVersions(t *testing.T) {
+	headers := parser.PluginFileHeaders{
+		RequiresPlugins: []string{"found-plugin", "missing-plugin"},
+	}
+	resolve := func(_ context.Context, name string) (string, bool) {
+		if name == "found-plugin" {
+			return "2.3.4", true
+		}
+		return "", false
+	}
+
+	cfg := buildWpmConfig(context.Background(), initOptions{}, "plugin", headers, map[string]any{}, resolve)
+	cfg.Name = "host-plugin"
+	cfg.Version = "1.0.0"
+
+	if cfg.Dependencies == nil {
+		t.Fatal("expected dependencies to be populated")
+	}
+	deps := *cfg.Dependencies
+	if got := deps["found-plugin"]; got != "2.3.4" {
+		t.Errorf("expected found-plugin pinned to resolved version 2.3.4, got %q", got)
+	}
+	if _, ok := deps["missing-plugin"]; ok {
+		t.Error("expected missing-plugin to be skipped when the registry has no latest version")
+	}
+
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("config with resolved dependencies should be valid, got: %v", err)
+	}
+}
+
+func TestResolveRequiredPluginsLowercasesSlugs(t *testing.T) {
+	resolve := func(_ context.Context, name string) (string, bool) {
+		if name == "woocommerce" {
+			return "8.5.0", true
+		}
+		return "", false
+	}
+
+	deps := types.Dependencies{}
+	resolveRequiredPlugins(context.Background(), []string{" WooCommerce "}, &deps, resolve)
+
+	if got, ok := deps["woocommerce"]; !ok || got != "8.5.0" {
+		t.Fatalf("expected lowercased woocommerce@8.5.0, got %q (present=%v)", got, ok)
+	}
+	if _, ok := deps["WooCommerce"]; ok {
+		t.Error("expected the original mixed-case key to be absent")
 	}
 }
