@@ -255,15 +255,11 @@ func runExistingInit(ctx context.Context, wpmCli command.Cli, opts *initOptions)
 		return err
 	}
 
-	wpmCfg := buildWpmConfig(ctx, *opts, opts.packageType, mainFileHeaders, readmeParser.GetMetadata(), resolveLatest)
-
-	if opts.name != "" {
-		wpmCfg.Name = opts.name
-	} else {
-		wpmCfg.Name = filepath.Base(cwd)
+	if opts.name == "" {
+		opts.name = filepath.Base(cwd)
 	}
 
-	removeSelfDependency(wpmCfg)
+	wpmCfg := buildWpmConfig(ctx, *opts, opts.packageType, mainFileHeaders, readmeParser.GetMetadata(), resolveLatest)
 
 	if err := resolveConfigVersion(wpmCli, wpmCfg, opts, extractedVersion); err != nil {
 		return err
@@ -539,6 +535,7 @@ func trimMeaningfully(s string, limit int) string {
 
 func buildWpmConfig(ctx context.Context, opts initOptions, pkgType string, mainFileHeaders any, readmeMeta map[string]any, resolve latestVersionResolver) *wpmjson.Config {
 	cfg := wpmjson.New()
+	cfg.Name = opts.name
 	cfg.Type = types.PackageType(pkgType)
 	cfg.License = getMetaString(readmeMeta, "license", opts.license)
 	cfg.Description = getMetaString(readmeMeta, "meta_description", "")
@@ -574,11 +571,13 @@ func buildWpmConfig(ctx context.Context, opts initOptions, pkgType string, mainF
 	}
 
 	dropInvalidMetadata(cfg)
+	removeCyclicDependency(cfg)
 	return cfg
 }
 
-// removeSelfDependency drops a dependency whose name matches the package itself.
-func removeSelfDependency(cfg *wpmjson.Config) {
+// removeCyclicDependency drops a dependency that points back to the package
+// itself.
+func removeCyclicDependency(cfg *wpmjson.Config) {
 	if cfg.Dependencies == nil {
 		return
 	}

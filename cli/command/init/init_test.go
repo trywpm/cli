@@ -27,8 +27,7 @@ func TestBuildWpmConfigDropsInvalidMetadata(t *testing.T) {
 		Tags:        []string{"good", "ba" + bad + "d"}, // one unsafe -> filtered
 	}
 
-	cfg := buildWpmConfig(context.Background(), initOptions{}, "plugin", headers, map[string]any{}, resolveTo("1.0.0"))
-	cfg.Name = "my-plugin"
+	cfg := buildWpmConfig(context.Background(), initOptions{name: "my-plugin"}, "plugin", headers, map[string]any{}, resolveTo("1.0.0"))
 	cfg.Version = "1.0.0"
 
 	if cfg.Author != "" {
@@ -53,16 +52,14 @@ func TestBuildWpmConfigDropsInvalidMetadata(t *testing.T) {
 
 func TestBuildWpmConfigCapsAndSanitizesDependencies(t *testing.T) {
 	required := make([]string, 0, 21)
-	required = append(required, "my-plugin") // self-reference, must be dropped
+	required = append(required, "my-plugin")
 	for i := range 20 {
 		required = append(required, fmt.Sprintf("dep-%02d", i))
 	}
 
 	headers := parser.PluginFileHeaders{RequiresPlugins: required}
-	cfg := buildWpmConfig(context.Background(), initOptions{}, "plugin", headers, map[string]any{}, resolveTo("1.0.0"))
-	cfg.Name = "my-plugin"
+	cfg := buildWpmConfig(context.Background(), initOptions{name: "my-plugin"}, "plugin", headers, map[string]any{}, resolveTo("1.0.0"))
 	cfg.Version = "1.0.0"
-	removeSelfDependency(cfg)
 
 	if cfg.Dependencies == nil {
 		t.Fatal("expected dependencies to be populated")
@@ -71,7 +68,7 @@ func TestBuildWpmConfigCapsAndSanitizesDependencies(t *testing.T) {
 		t.Errorf("expected at most 16 dependencies, got %d", n)
 	}
 	if _, ok := (*cfg.Dependencies)["my-plugin"]; ok {
-		t.Error("expected self-dependency to be removed")
+		t.Error("expected the cyclic self-dependency to be removed")
 	}
 
 	if err := cfg.Validate(); err != nil {
@@ -79,13 +76,13 @@ func TestBuildWpmConfigCapsAndSanitizesDependencies(t *testing.T) {
 	}
 }
 
-func TestRemoveSelfDependencyClearsEmptyMap(t *testing.T) {
+func TestRemoveCyclicDependencyClearsEmptyMap(t *testing.T) {
 	cfg := wpmjson.New()
 	cfg.Name = "solo"
 	deps := types.Dependencies{"solo": "1.0.0"}
 	cfg.Dependencies = &deps
 
-	removeSelfDependency(cfg)
+	removeCyclicDependency(cfg)
 
 	if cfg.Dependencies != nil {
 		t.Errorf("expected dependencies to be nil after removing the only entry, got %v", *cfg.Dependencies)
@@ -103,8 +100,7 @@ func TestBuildWpmConfigResolvesDependencyVersions(t *testing.T) {
 		return "", false
 	}
 
-	cfg := buildWpmConfig(context.Background(), initOptions{}, "plugin", headers, map[string]any{}, resolve)
-	cfg.Name = "host-plugin"
+	cfg := buildWpmConfig(context.Background(), initOptions{name: "host-plugin"}, "plugin", headers, map[string]any{}, resolve)
 	cfg.Version = "1.0.0"
 
 	if cfg.Dependencies == nil {
