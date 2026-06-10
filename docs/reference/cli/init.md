@@ -89,19 +89,19 @@ Detection rules:
 
 Fields populated from the project sources:
 
-| wpm.json field | Source                                                   |
-| :------------- | :------------------------------------------------------- |
-| `name`         | current directory name (override with `--name`)          |
-| `type`         | auto-detected (override with `--type`)                   |
-| `version`      | plugin header `Version` or theme header `Version`        |
-| `description`  | header `Description`, falling back to `readme.txt`       |
-| `license`      | header `License`, falling back to `readme.txt` `License` |
-| `homepage`     | header `Plugin URI` or `Theme URI` (must be http/https)  |
-| `author`       | plugin or theme header `Author`                          |
-| `tags`         | `readme.txt` Tags, falling back to header `Tags`         |
-| `requires.wp`  | header `Requires at least` and `readme.txt` Requires     |
-| `requires.php` | header `Requires PHP` and `readme.txt` Requires PHP      |
-| `dependencies` | header `Requires Plugins` (each pinned to `*`)           |
+| wpm.json field | Source                                                                   |
+| :------------- | :----------------------------------------------------------------------- |
+| `name`         | current directory name (override with `--name`)                          |
+| `type`         | auto-detected (override with `--type`)                                   |
+| `version`      | plugin header `Version` or theme header `Version`                        |
+| `description`  | header `Description`, falling back to `readme.txt`                       |
+| `license`      | header `License`, falling back to `readme.txt` `License`                 |
+| `homepage`     | header `Plugin URI` or `Theme URI` (must be http/https)                  |
+| `author`       | plugin or theme header `Author`                                          |
+| `tags`         | `readme.txt` Tags, falling back to header `Tags`                         |
+| `requires.wp`  | header `Requires at least` and `readme.txt` Requires                     |
+| `requires.php` | header `Requires PHP` and `readme.txt` Requires PHP                      |
+| `dependencies` | header `Requires Plugins` (each resolved to its latest registry version) |
 
 If a `readme.txt` exists but no `readme.md`, wpm also converts the
 WordPress.org-flavored `readme.txt` into a Markdown `readme.md` next to it.
@@ -114,8 +114,9 @@ Constraints applied automatically:
 - `description` is trimmed to at most 512 characters, preferring to cut at a
   sentence boundary.
 - `license` is cleared if it falls outside 3 to 100 characters.
-- `dependencies` from `Requires Plugins` are capped at 16, and any
-  self-reference is dropped.
+- `dependencies` from `Requires Plugins` are each resolved against the
+  registry's `latest` version and capped at 16. A self-reference, a package the
+  registry does not have, or an entry with an unusable version is dropped.
 - `requires.wp` becomes `>=X` (and `<=Y` when `Tested up to` is also present and
   different from `Requires`).
 - `requires.php` becomes `>=X`.
