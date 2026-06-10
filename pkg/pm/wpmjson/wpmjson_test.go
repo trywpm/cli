@@ -42,7 +42,7 @@ func TestConfigValidateAuthor(t *testing.T) {
 func TestConfigValidateDependencyIntegrity(t *testing.T) {
 	t.Run("cannot depend on itself", func(t *testing.T) {
 		cfg := baseConfig()
-		deps := types.Dependencies{"my-plugin": "*"}
+		deps := types.Dependencies{"my-plugin": "1.0.0"}
 		cfg.Dependencies = &deps
 
 		err := cfg.Validate()

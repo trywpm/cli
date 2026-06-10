@@ -130,9 +130,6 @@ func IsValidConstraint(v string) error {
 	if v != strings.TrimSpace(v) {
 		return errors.New("constraint cannot contain leading or trailing whitespace")
 	}
-	if v == "*" {
-		return nil
-	}
 	if strings.HasPrefix(v, "v") {
 		return errors.New("constraint cannot start with 'v'")
 	}
@@ -217,11 +214,7 @@ func ValidateDependencies(deps map[string]string, fieldName string) error {
 			errs.Add(fmt.Sprintf("%s[%s]", fieldName, name), err)
 		}
 
-		if version == "*" {
-			continue
-		}
-
-		// Dependencies version should be strict semver
+		// Dependencies version must be strict semver.
 		if err := IsValidVersion(version); err != nil {
 			errs.Add(fmt.Sprintf("%s[%s]", fieldName, name), err)
 		}

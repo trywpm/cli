@@ -74,7 +74,6 @@ func TestIsValidConstraint(t *testing.T) {
 		wantErr bool
 	}{
 		{"empty", "", true},
-		{"wildcard", "*", false},
 		{"v prefix", "v1.0.0", true},
 		{"range", ">=1.0.0 <2.0.0", false},
 		{"leading whitespace", " >=1.0.0", true},
@@ -88,6 +87,18 @@ func TestIsValidConstraint(t *testing.T) {
 				t.Fatalf("IsValidConstraint(%q) error = %v, wantErr %v", tc.input, err, tc.wantErr)
 			}
 		})
+	}
+}
+
+func TestValidateDependencies(t *testing.T) {
+	if err := ValidateDependencies(map[string]string{"akismet": "1.2.3"}, "dependencies"); err != nil {
+		t.Fatalf("expected exact semver dependency to be valid, got %v", err)
+	}
+	if err := ValidateDependencies(map[string]string{"akismet": "*"}, "dependencies"); err == nil {
+		t.Fatal("expected wildcard dependency version to be rejected")
+	}
+	if err := ValidateDependencies(map[string]string{"akismet": ">=1.0.0"}, "dependencies"); err == nil {
+		t.Fatal("expected range dependency version to be rejected")
 	}
 }
 
@@ -149,14 +160,14 @@ func TestIsValidAuthor(t *testing.T) {
 
 func TestValidateDependencyIntegrity(t *testing.T) {
 	t.Run("self dependency in deps", func(t *testing.T) {
-		err := ValidateDependencyIntegrity("my-pkg", map[string]string{"my-pkg": "*"}, nil)
+		err := ValidateDependencyIntegrity("my-pkg", map[string]string{"my-pkg": "1.0.0"}, nil)
 		if err == nil || !strings.Contains(err.Error(), "depend on itself") {
 			t.Fatalf("expected self-dependency error, got %v", err)
 		}
 	})
 
 	t.Run("self dependency in devDeps", func(t *testing.T) {
-		err := ValidateDependencyIntegrity("my-pkg", nil, map[string]string{"my-pkg": "*"})
+		err := ValidateDependencyIntegrity("my-pkg", nil, map[string]string{"my-pkg": "1.0.0"})
 		if err == nil || !strings.Contains(err.Error(), "depend on itself") {
 			t.Fatalf("expected self-dependency error, got %v", err)
 		}
