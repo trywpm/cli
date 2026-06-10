@@ -143,7 +143,7 @@ The `wpm.json` file defines your package and its dependencies:
 		"php": ">=7.4"
 	},
 	"dependencies": {
-		"akismet": "*", // always fetch latest version
+		"akismet": "5.3.7",
 		"hello-dolly": "1.7.2"
 	},
 	"devDependencies": {

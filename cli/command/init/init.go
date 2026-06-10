@@ -59,6 +59,9 @@ type existingProjectFiles struct {
 	wpmJson   string
 }
 
+// latestVersionResolver returns the latest published version of a package.
+type latestVersionResolver func(ctx context.Context, name string) (string, bool)
+
 func NewInitCommand(wpmCli command.Cli) *cobra.Command {
 	var opts initOptions
 
@@ -68,7 +71,7 @@ func NewInitCommand(wpmCli command.Cli) *cobra.Command {
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if opts.existing {
-				return runExistingInit(wpmCli, &opts)
+				return runExistingInit(cmd.Context(), wpmCli, &opts)
 			}
 			return runNewInit(cmd.Context(), wpmCli, &opts)
 		},
@@ -210,7 +213,7 @@ func resolveConfigVersion(wpmCli command.Cli, wpmCfg *wpmjson.Config, opts *init
 	return nil
 }
 
-func runExistingInit(wpmCli command.Cli, opts *initOptions) error {
+func runExistingInit(ctx context.Context, wpmCli command.Cli, opts *initOptions) error {
 	cwd, err := os.Getwd()
 	if err != nil {
 		return fmt.Errorf("failed to get current working directory: %w", err)
@@ -247,15 +250,16 @@ func runExistingInit(wpmCli command.Cli, opts *initOptions) error {
 		return err
 	}
 
-	wpmCfg := buildWpmConfig(*opts, opts.packageType, mainFileHeaders, readmeParser.GetMetadata())
-
-	if opts.name != "" {
-		wpmCfg.Name = opts.name
-	} else {
-		wpmCfg.Name = filepath.Base(cwd)
+	resolveLatest, err := newRegistryResolver(wpmCli)
+	if err != nil {
+		return err
 	}
 
-	removeSelfDependency(wpmCfg)
+	if opts.name == "" {
+		opts.name = filepath.Base(cwd)
+	}
+
+	wpmCfg := buildWpmConfig(ctx, *opts, opts.packageType, mainFileHeaders, readmeParser.GetMetadata(), resolveLatest)
 
 	if err := resolveConfigVersion(wpmCli, wpmCfg, opts, extractedVersion); err != nil {
 		return err
@@ -529,8 +533,9 @@ func trimMeaningfully(s string, limit int) string {
 	return truncated
 }
 
-func buildWpmConfig(opts initOptions, pkgType string, mainFileHeaders any, readmeMeta map[string]any) *wpmjson.Config {
+func buildWpmConfig(ctx context.Context, opts initOptions, pkgType string, mainFileHeaders any, readmeMeta map[string]any, resolve latestVersionResolver) *wpmjson.Config {
 	cfg := wpmjson.New()
+	cfg.Name = opts.name
 	cfg.Type = types.PackageType(pkgType)
 	cfg.License = getMetaString(readmeMeta, "license", opts.license)
 	cfg.Description = getMetaString(readmeMeta, "meta_description", "")
@@ -549,7 +554,7 @@ func buildWpmConfig(opts initOptions, pkgType string, mainFileHeaders any, readm
 	case parser.ThemeFileHeaders:
 		applyThemeHeaders(cfg, h, tags, &wpRequires, &phpRequires)
 	case parser.PluginFileHeaders:
-		applyPluginHeaders(cfg, h, tags, dependencies, &wpRequires, &phpRequires)
+		applyPluginHeaders(ctx, cfg, h, tags, dependencies, &wpRequires, &phpRequires, resolve)
 	}
 
 	cfg.Tags = sanitizeStringList(cfg.Tags, 5, 2, 64)
@@ -566,11 +571,13 @@ func buildWpmConfig(opts initOptions, pkgType string, mainFileHeaders any, readm
 	}
 
 	dropInvalidMetadata(cfg)
+	removeCyclicDependency(cfg)
 	return cfg
 }
 
-// removeSelfDependency drops a dependency whose name matches the package itself.
-func removeSelfDependency(cfg *wpmjson.Config) {
+// removeCyclicDependency drops a dependency that points back to the package
+// itself.
+func removeCyclicDependency(cfg *wpmjson.Config) {
 	if cfg.Dependencies == nil {
 		return
 	}
@@ -640,7 +647,15 @@ func applyThemeHeaders(cfg *wpmjson.Config, h parser.ThemeFileHeaders, tags []st
 
 // applyPluginHeaders fills config fields from a plugin's main file headers
 // and, additionally, populates the dependencies map from "Requires Plugins".
-func applyPluginHeaders(cfg *wpmjson.Config, h parser.PluginFileHeaders, tags []string, dependencies *types.Dependencies, wpRequires, phpRequires *string) {
+func applyPluginHeaders(
+	ctx context.Context,
+	cfg *wpmjson.Config,
+	h parser.PluginFileHeaders,
+	tags []string,
+	dependencies *types.Dependencies,
+	wpRequires, phpRequires *string,
+	resolve latestVersionResolver,
+) {
 	if cfg.License == "" {
 		cfg.License = h.License
 	}
@@ -664,15 +679,44 @@ func applyPluginHeaders(cfg *wpmjson.Config, h parser.PluginFileHeaders, tags []
 	if *phpRequires == "" && h.RequiresPHP != "" {
 		*phpRequires = h.RequiresPHP
 	}
-	for _, reqPlugin := range h.RequiresPlugins {
+	resolveRequiredPlugins(ctx, h.RequiresPlugins, dependencies, resolve)
+}
+
+// newRegistryResolver builds a latestVersionResolver.
+func newRegistryResolver(wpmCli command.Cli) (latestVersionResolver, error) {
+	client, err := wpmCli.RegistryClient()
+	if err != nil {
+		return nil, err
+	}
+	return func(ctx context.Context, name string) (string, bool) {
+		pkg, err := client.GetPackageManifest(ctx, name, "latest", false)
+		if err != nil {
+			return "", false
+		}
+		return pkg.Version, true
+	}, nil
+}
+
+// resolveRequiredPlugins pins each "Requires Plugins" slug to its latest
+// published version from the registry.
+func resolveRequiredPlugins(ctx context.Context, plugins []string, dependencies *types.Dependencies, resolve latestVersionResolver) {
+	for _, reqPlugin := range plugins {
 		if len(*dependencies) >= validator.MaxDependencies {
 			break
 		}
+
+		reqPlugin = strings.ToLower(strings.TrimSpace(reqPlugin))
 		if err := validator.IsValidPackageName(reqPlugin); err != nil {
 			continue
 		}
-		// "Requires Plugins" header carries only slugs, so pin to "*".
-		(*dependencies)[reqPlugin] = "*"
+		latest, ok := resolve(ctx, reqPlugin)
+		if !ok {
+			continue
+		}
+		if err := validator.IsValidVersion(latest); err != nil {
+			continue
+		}
+		(*dependencies)[reqPlugin] = latest
 	}
 }
 

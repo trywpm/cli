@@ -66,9 +66,6 @@ The annotations on the right of each line tell you about the package's state:
 | `UNMET DEPENDENCY`         | Listed in `wpm.json` but missing from the lockfile. Run `wpm install`.                                   |
 | `(cycle)`                  | Cycle detected while expanding sub-dependencies; recursion stops here.                                   |
 
-The `(invalid: ...)` marker is skipped when `wpm.json` pins the package to `*`
-(any version), since any resolved version satisfies it.
-
 ### Limiting depth
 
 By default `wpm ls` expands the tree as deep as the lockfile goes. Pass

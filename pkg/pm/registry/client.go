@@ -97,7 +97,7 @@ func (c *client) PutPackage(ctx context.Context, data *manifest.Package, tarball
 func (c *client) GetPackageManifest(ctx context.Context, packageName, versionOrTag string, force bool) (*manifest.Package, error) {
 	var pkg *manifest.Package
 
-	if versionOrTag == "" || versionOrTag == "*" {
+	if versionOrTag == "" {
 		versionOrTag = "latest"
 	}
 

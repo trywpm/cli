@@ -263,7 +263,7 @@ func (p *treePrinter) formatNode(name, requestedVersion string, isCycle bool) (i
 		info = name + "@" + pkg.Version
 	}
 
-	if pkg.Version != requestedVersion && requestedVersion != "*" {
+	if pkg.Version != requestedVersion {
 		invalid := "(invalid: \"" + requestedVersion + "\")"
 		if p.colorize {
 			invalid = aec.RedF.Apply(invalid)
