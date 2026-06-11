@@ -201,8 +201,7 @@ node_modules/
 
 ## Documentation
 
-_Documentation will be available soon on the docs.wpm.so site. For now, you can
-refer to the command line help for detailed usage instructions._
+Please refer to [https://wpm.so/docs](https://wpm.so/docs) for documentation on how to use `wpm`. Please note that `wpm` is still under active development, so expect breaking changes as we work toward a stable release.
 
 ## Support
 
