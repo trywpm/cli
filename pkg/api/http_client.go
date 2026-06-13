@@ -93,7 +93,6 @@ func NewHTTPClient(opts ClientOptions) (*http.Client, error) {
 			IdleConnTimeout:       90 * time.Second,
 			TLSHandshakeTimeout:   10 * time.Second,
 			ResponseHeaderTimeout: 30 * time.Second,
-			ExpectContinueTimeout: 1 * time.Second,
 			ForceAttemptHTTP2:     true,
 			DisableCompression:    true,
 		},
