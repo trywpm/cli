@@ -11,7 +11,7 @@ require (
 	github.com/henvic/httpretty v0.1.4
 	github.com/klauspost/compress v1.18.6
 	github.com/moby/patternmatcher v0.6.1
-	github.com/moby/sys/sequential v0.6.0
+	github.com/moby/sys/sequential v0.7.0
 	github.com/moby/term v0.5.2
 	github.com/morikuni/aec v1.1.0
 	github.com/rs/zerolog v1.35.1
