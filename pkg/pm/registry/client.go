@@ -32,6 +32,7 @@ type Client interface {
 	DownloadTarball(ctx context.Context, url string) (io.ReadCloser, error)
 	PutPackage(ctx context.Context, data *manifest.Package, tarball io.Reader) error
 	GetPackageManifest(ctx context.Context, packageName, versionOrTag string, force bool) (*manifest.Package, error)
+	AddDistTag(ctx context.Context, packageName, tag, version string) error
 }
 
 var _ Client = &client{}
@@ -88,6 +89,26 @@ func (c *client) PutPackage(ctx context.Context, data *manifest.Package, tarball
 		nil,
 		api.WithHeader(api.HeaderContentType, contentTypeOctetStream),
 		api.WithContentLength(totalContentLength),
+	)
+}
+
+type distTagRequest struct {
+	Version string `json:"version"`
+}
+
+// AddDistTag adds sets a tag for a specific version of a package in the registry
+func (c *client) AddDistTag(ctx context.Context, packageName, tag, version string) error {
+	body, err := json.Marshal(distTagRequest{Version: version})
+	if err != nil {
+		return err
+	}
+
+	return c.restClient.DoWithContext(
+		ctx,
+		http.MethodPut,
+		"/-/dist-tags/"+packageName+"/"+tag,
+		bytes.NewReader(body),
+		nil,
 	)
 }
 
