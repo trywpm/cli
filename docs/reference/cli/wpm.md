@@ -9,6 +9,7 @@ Package Manager for WordPress ecosystem
 | Name                        | Description                                                        |
 |:----------------------------|:-------------------------------------------------------------------|
 | [`auth`](auth.md)           | Authenticate with the wpm registry                                 |
+| [`dist-tag`](dist-tag.md)   | Manage package distribution tags                                   |
 | [`init`](init.md)           | Initialize a new WordPress package or init wpm in existing project |
 | [`install`](install.md)     | Install project dependencies and add new packages                  |
 | [`ls`](ls.md)               | List installed dependencies                                        |
