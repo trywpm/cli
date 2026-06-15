@@ -96,7 +96,7 @@ type distTagRequest struct {
 	Version string `json:"version"`
 }
 
-// AddDistTag adds sets a tag for a specific version of a package in the registry
+// AddDistTag sets a distribution tag to point at a specific package version in the registry.
 func (c *client) AddDistTag(ctx context.Context, packageName, tag, version string) error {
 	body, err := json.Marshal(distTagRequest{Version: version})
 	if err != nil {
