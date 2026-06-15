@@ -80,9 +80,9 @@ func PackageVisibility() cobra.CompletionFunc {
 	)
 }
 
-// PublishTags suggests a non-exhaustive list of common dist-tags for
-// `wpm publish --tag`.
-func PublishTags() cobra.CompletionFunc {
+// DistTags suggests a non-exhaustive list of common distribution tags, used by
+// `wpm publish --tag` and `wpm dist-tag add`.
+func DistTags() cobra.CompletionFunc {
 	return func(_ *cobra.Command, _ []string, _ string) ([]string, cobra.ShellCompDirective) {
 		return []string{"latest", "next", "beta", "alpha"}, cobra.ShellCompDirectiveNoFileComp
 	}
