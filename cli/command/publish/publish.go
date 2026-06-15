@@ -59,7 +59,7 @@ func NewPublishCommand(wpmCli command.Cli) *cobra.Command {
 	flags.StringVarP(&opts.access, "access", "a", "private", "Set the package access level to either public or private")
 	flags.BoolVar(&opts.dryRun, "dry-run", false, "Perform a publish operation without actually publishing the package")
 
-	_ = cmd.RegisterFlagCompletionFunc("tag", completion.PublishTags())
+	_ = cmd.RegisterFlagCompletionFunc("tag", completion.DistTags())
 	_ = cmd.RegisterFlagCompletionFunc("access", completion.PackageVisibility())
 
 	return cmd

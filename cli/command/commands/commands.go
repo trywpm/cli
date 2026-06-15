@@ -5,6 +5,7 @@ import (
 
 	"go.wpm.so/cli/cli/command"
 	"go.wpm.so/cli/cli/command/auth"
+	"go.wpm.so/cli/cli/command/disttag"
 	pmInit "go.wpm.so/cli/cli/command/init"
 	"go.wpm.so/cli/cli/command/install"
 	"go.wpm.so/cli/cli/command/ls"
@@ -22,6 +23,7 @@ func AddCommands(cmd *cobra.Command, wpmCli command.Cli) {
 		auth.NewAuthCommand(wpmCli),
 		pmInit.NewInitCommand(wpmCli),
 		whoami.NewWhoamiCommand(wpmCli),
+		disttag.NewDistTagCommand(wpmCli),
 		publish.NewPublishCommand(wpmCli),
 		install.NewInstallCommand(wpmCli),
 		outdated.NewOutdatedCommand(wpmCli),
