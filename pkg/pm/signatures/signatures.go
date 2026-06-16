@@ -130,7 +130,7 @@ func payload(name, version, digest string, deps map[string]string) ([]byte, erro
 	}
 
 	if len(msg) >= maxPayloadBytes {
-		return nil, fmt.Errorf("signature payload exceeds %d bytes", maxPayloadBytes)
+		return nil, fmt.Errorf("signature payload must be < %d bytes", maxPayloadBytes)
 	}
 
 	return []byte(msg), nil
