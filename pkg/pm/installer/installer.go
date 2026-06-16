@@ -21,7 +21,6 @@ import (
 
 	"go.wpm.so/cli/pkg/archive"
 	"go.wpm.so/cli/pkg/pm/registry"
-	"go.wpm.so/cli/pkg/pm/signatures"
 	"go.wpm.so/cli/pkg/pm/wpmjson/types"
 	"go.wpm.so/cli/pkg/pm/wpmjson/validator"
 )
@@ -40,7 +39,6 @@ type Installer struct {
 
 	client     registry.Client
 	extractSem chan struct{}
-	keysJson   signatures.KeysJson
 	logger     func(format string, args ...any)
 }
 
@@ -106,12 +104,6 @@ func sweepStaleRunDirs(tmpDir string) {
 }
 
 func (i *Installer) InstallAll(ctx context.Context, plan []Action, progressFn func(Action)) error {
-	keys, err := i.client.GetKeysJson(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to fetch public keys for signature verification: %w", err)
-	}
-	i.keysJson = keys
-
 	g, ctx := errgroup.WithContext(ctx)
 	g.SetLimit(i.concurrency)
 
@@ -151,21 +143,6 @@ func (i *Installer) install(ctx context.Context, action Action) error {
 }
 
 func (i *Installer) installOrUpdate(ctx context.Context, action Action, targetDir string) error {
-	sigs := action.Signatures
-	if len(sigs) == 0 {
-		return fmt.Errorf("no signatures found for package %s@%s", action.Name, action.Version)
-	}
-
-	err := signatures.Verify(
-		i.keysJson,
-		sigs[0].KeyID,
-		sigs[0].Sig,
-		fmt.Appendf(nil, "%s:%s:%s", action.Name, action.Version, action.Digest),
-	)
-	if err != nil {
-		return fmt.Errorf("signature verification failed for package %s@%s: %w", action.Name, action.Version, err)
-	}
-
 	path := tarballPath(action.Name, action.Version)
 	resp, err := i.client.DownloadTarball(ctx, path)
 	if err != nil {
