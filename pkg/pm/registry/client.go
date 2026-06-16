@@ -28,7 +28,7 @@ type client struct {
 // registry
 type Client interface {
 	Whoami(ctx context.Context, token string) (string, error)
-	GetKeysJson(ctx context.Context) (signatures.KeysJson, error)
+	GetKeysJson(ctx context.Context) (signatures.Keys, error)
 	DownloadTarball(ctx context.Context, url string) (io.ReadCloser, error)
 	PutPackage(ctx context.Context, data *manifest.Package, tarball io.Reader) error
 	GetPackageManifest(ctx context.Context, packageName, versionOrTag string, force bool) (*manifest.Package, error)
@@ -149,8 +149,8 @@ func (c *client) Whoami(ctx context.Context, token string) (string, error) {
 }
 
 // GetKeysJson retrieves the public keys from the registry
-func (c *client) GetKeysJson(ctx context.Context) (signatures.KeysJson, error) {
-	var keys signatures.KeysJson
+func (c *client) GetKeysJson(ctx context.Context) (signatures.Keys, error) {
+	var keys signatures.Keys
 
 	err := c.restClient.DoWithContext(
 		ctx,
