@@ -11,6 +11,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"go.wpm.so/cli/pkg/pm/registry"
+	"go.wpm.so/cli/pkg/pm/signatures"
 	"go.wpm.so/cli/pkg/pm/wpmjson"
 	"go.wpm.so/cli/pkg/pm/wpmjson/manifest"
 	"go.wpm.so/cli/pkg/pm/wpmjson/types"
@@ -37,6 +38,7 @@ type Resolver struct {
 	rootConfig *wpmjson.Config
 	lockfile   *wpmlock.Lockfile
 	client     registry.Client
+	verifier   *signatures.Verifier
 }
 
 func New(rootConfig *wpmjson.Config, lockfile *wpmlock.Lockfile, client registry.Client) *Resolver {
@@ -59,6 +61,12 @@ type fetchResult struct {
 }
 
 func (r *Resolver) Resolve(ctx context.Context, progress ProgressReporter, w io.Writer) (map[string]Node, error) {
+	keys, err := r.client.GetKeysJson(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch signing keys: %w", err)
+	}
+	r.verifier = signatures.New(keys)
+
 	resolved := make(map[string]Node)
 	queue := r.seedQueue()
 
@@ -94,7 +102,15 @@ func (r *Resolver) Resolve(ctx context.Context, progress ProgressReporter, w io.
 }
 
 func (r *Resolver) seedQueue() []dependencyRequest {
-	var queue []dependencyRequest
+	n := 0
+	if r.rootConfig.Dependencies != nil {
+		n += len(*r.rootConfig.Dependencies)
+	}
+	if r.rootConfig.DevDependencies != nil {
+		n += len(*r.rootConfig.DevDependencies)
+	}
+
+	queue := make([]dependencyRequest, 0, n)
 	if r.rootConfig.Dependencies != nil {
 		for name, version := range *r.rootConfig.Dependencies {
 			queue = append(queue, dependencyRequest{name: name, version: version, requestor: "<root>"})
@@ -108,21 +124,26 @@ func (r *Resolver) seedQueue() []dependencyRequest {
 	return queue
 }
 
+type requestKey struct {
+	name    string
+	version string
+}
+
 // dedupeRequests drops requests already satisfied at the same version
 // and folds identical name@version pairs in this iteration into one entry.
-func dedupeRequests(queue []dependencyRequest, resolved map[string]Node) map[string]dependencyRequest {
-	uniqueRequests := make(map[string]dependencyRequest)
+func dedupeRequests(queue []dependencyRequest, resolved map[string]Node) map[requestKey]dependencyRequest {
+	unique := make(map[requestKey]dependencyRequest, len(queue))
 	for _, req := range queue {
 		if exists, ok := resolved[req.name]; ok && exists.Version == req.version {
 			continue
 		}
-		uniqueRequests[req.name+"@"+req.version] = req
+		unique[requestKey{req.name, req.version}] = req
 	}
-	return uniqueRequests
+	return unique
 }
 
 // fetchAll fetches metadata for every request concurrently and returns the collected results.
-func (r *Resolver) fetchAll(ctx context.Context, requests map[string]dependencyRequest, progress ProgressReporter, w io.Writer) ([]fetchResult, error) {
+func (r *Resolver) fetchAll(ctx context.Context, requests map[requestKey]dependencyRequest, progress ProgressReporter, w io.Writer) ([]fetchResult, error) {
 	results := make(chan fetchResult, len(requests))
 	g, gtx := errgroup.WithContext(ctx)
 	g.SetLimit(16)
@@ -136,6 +157,9 @@ func (r *Resolver) fetchAll(ctx context.Context, requests map[string]dependencyR
 			manifest, err := r.fetchMetadata(gtx, req.name, req.version)
 			if err != nil {
 				return fmt.Errorf("failed to fetch metadata for %s@%s required by %s: %w", req.name, req.version, req.requestor, err)
+			}
+			if err := r.verifier.Verify(manifest); err != nil {
+				return fmt.Errorf("signature verification failed for %s@%s required by %s: %w", req.name, req.version, req.requestor, err)
 			}
 			results <- fetchResult{req: req, manifest: manifest}
 			return nil
