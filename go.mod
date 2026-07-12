@@ -9,7 +9,7 @@ require (
 	github.com/docker/go-units v0.5.0
 	github.com/gofrs/flock v0.13.0
 	github.com/henvic/httpretty v0.1.4
-	github.com/klauspost/compress v1.18.6
+	github.com/klauspost/compress v1.19.0
 	github.com/moby/patternmatcher v0.6.1
 	github.com/moby/sys/sequential v0.7.0
 	github.com/moby/term v0.5.2
