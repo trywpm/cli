@@ -119,9 +119,7 @@ func buildDependentsMap(config *wpmjson.Config, lock *wpmlock.Lockfile, rootNode
 func printPaths(wpmCli command.Cli, lock *wpmlock.Lockfile, paths [][]string) {
 	for _, path := range paths {
 		indent := ""
-		for i := len(path) - 1; i >= 0; i-- {
-			name := path[i]
-
+		for i, name := range slices.Backward(path) {
 			info := ""
 			if !stringsContainsRoot(name) {
 				if pkg, ok := lock.Packages[name]; ok {

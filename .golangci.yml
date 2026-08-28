@@ -1,7 +1,7 @@
 version: '2'
 
 run:
-  go: '1.26.3'
+  go: '1.27.0'
   timeout: 5m
 
 issues:
@@ -25,7 +25,10 @@ formatters:
         - pattern: 'interface{}'
           replacement: 'any'
     gofumpt:
-      extra-rules: true
+      extra:
+        group-params: true
+        balance-calls: true
+        clothe-returns: true
   exclusions:
     generated: strict
 
