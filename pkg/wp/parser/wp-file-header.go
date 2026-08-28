@@ -133,17 +133,18 @@ func GetPluginHeaders(filePath string) (PluginFileHeaders, error) {
 		return PluginFileHeaders{}, nil
 	}
 
-	headers := PluginFileHeaders{}
-	headers.Name = rawHeaders["Name"]
-	headers.Author = rawHeaders["Author"]
-	headers.Description = rawHeaders["Description"]
-	headers.License = rawHeaders["License"]
-	headers.PluginURI = rawHeaders["PluginURI"]
-	headers.Version = rawHeaders["Version"]
-	headers.RequiresWP = rawHeaders["RequiresWP"]
-	headers.RequiresPHP = rawHeaders["RequiresPHP"]
-	headers.Tags = parseCommaSeparatedList(rawHeaders["Tags"])
-	headers.RequiresPlugins = parseCommaSeparatedList(rawHeaders["RequiresPlugins"])
+	headers := PluginFileHeaders{
+		Name:            rawHeaders["Name"],
+		Author:          rawHeaders["Author"],
+		Description:     rawHeaders["Description"],
+		License:         rawHeaders["License"],
+		PluginURI:       rawHeaders["PluginURI"],
+		Version:         rawHeaders["Version"],
+		RequiresWP:      rawHeaders["RequiresWP"],
+		RequiresPHP:     rawHeaders["RequiresPHP"],
+		Tags:            parseCommaSeparatedList(rawHeaders["Tags"]),
+		RequiresPlugins: parseCommaSeparatedList(rawHeaders["RequiresPlugins"]),
+	}
 
 	return headers, nil
 }
@@ -155,16 +156,17 @@ func GetThemeHeaders(filePath string) (ThemeFileHeaders, error) {
 		return ThemeFileHeaders{}, nil
 	}
 
-	headers := ThemeFileHeaders{}
-	headers.Name = rawHeaders["Name"]
-	headers.Author = rawHeaders["Author"]
-	headers.Description = rawHeaders["Description"]
-	headers.License = rawHeaders["License"]
-	headers.ThemeURI = rawHeaders["ThemeURI"]
-	headers.Version = rawHeaders["Version"]
-	headers.RequiresWP = rawHeaders["RequiresWP"]
-	headers.RequiresPHP = rawHeaders["RequiresPHP"]
-	headers.Tags = parseCommaSeparatedList(rawHeaders["Tags"])
+	headers := ThemeFileHeaders{
+		Name:        rawHeaders["Name"],
+		Author:      rawHeaders["Author"],
+		Description: rawHeaders["Description"],
+		License:     rawHeaders["License"],
+		ThemeURI:    rawHeaders["ThemeURI"],
+		Version:     rawHeaders["Version"],
+		RequiresWP:  rawHeaders["RequiresWP"],
+		RequiresPHP: rawHeaders["RequiresPHP"],
+		Tags:        parseCommaSeparatedList(rawHeaders["Tags"]),
+	}
 
 	return headers, nil
 }
