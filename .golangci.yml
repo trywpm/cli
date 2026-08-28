@@ -27,6 +27,8 @@ formatters:
     gofumpt:
       extra:
         group-params: true
+        balance-calls: true
+        clothe-returns: true
   exclusions:
     generated: strict
 
