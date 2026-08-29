@@ -233,6 +233,50 @@ func TestClientErrorStatusNeverRetries(t *testing.T) {
 	}
 }
 
+func TestRedirectRefusalNotRetried(t *testing.T) {
+	var hits atomic.Int32
+	c := newClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits.Add(1)
+		http.Redirect(w, r, "https://attacker.example/x", http.StatusFound)
+	}), Options{})
+
+	if err := c.Do(t.Context(), http.MethodGet, "/x", nil, nil); err == nil {
+		t.Fatal("expected a refused redirect")
+	}
+	if hits.Load() != 1 {
+		t.Fatalf("hits = %d, want a policy refusal to skip retries", hits.Load())
+	}
+}
+
+func TestGetWithBodyNeverRetries(t *testing.T) {
+	var hits atomic.Int32
+	c := newClient(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		hits.Add(1)
+		w.WriteHeader(http.StatusServiceUnavailable)
+	}), Options{})
+
+	if err := c.Do(t.Context(), http.MethodGet, "/x", strings.NewReader("body"), nil); err == nil {
+		t.Fatal("expected an error")
+	}
+	if hits.Load() != 1 {
+		t.Fatalf("hits = %d, want a GET with a body to skip retries", hits.Load())
+	}
+}
+
+func TestNormalizeBaseURLLowercasesHost(t *testing.T) {
+	a, err := normalizeBaseURL("https://Registry.WPM.so")
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := normalizeBaseURL("registry.wpm.so")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if a.String() != b.String() {
+		t.Fatalf("normalized hosts differ, %q vs %q", a, b)
+	}
+}
+
 func TestAbsoluteURLPathRefused(t *testing.T) {
 	c := newClient(t, http.NotFoundHandler(), Options{})
 	if err := c.Do(t.Context(), http.MethodGet, "https://evil.example/x", nil, nil); err == nil {

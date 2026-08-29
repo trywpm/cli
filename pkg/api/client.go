@@ -54,6 +54,10 @@ const (
 
 var jsonTypeRE = regexp.MustCompile(`[/+]json($|;)`)
 
+// errRedirectRefused marks the redirect policy refusal so the retry loop can
+// tell a deliberate refusal from a transient network failure.
+var errRedirectRefused = errors.New("refusing redirect")
+
 // Options configures a Client.
 type Options struct {
 	// Host is the registry this client talks to. A bare host defaults to
@@ -130,7 +134,7 @@ func New(opts Options) (*Client, error) {
 			Transport: rt,
 			CheckRedirect: func(req *http.Request, _ []*http.Request) error {
 				if !isSameDomain(req.URL.Hostname(), host) {
-					return fmt.Errorf("refusing redirect to %q outside registry host %q", req.URL.Host, host)
+					return fmt.Errorf("%w to %q outside registry host %q", errRedirectRefused, req.URL.Host, host)
 				}
 				return nil
 			},
@@ -213,7 +217,7 @@ func (c *Client) send(ctx context.Context, method, path string, body io.Reader, 
 	}
 
 	attempts := 1
-	if method == http.MethodGet {
+	if method == http.MethodGet && body == nil {
 		attempts = retryAttempts
 	}
 
@@ -235,7 +239,7 @@ func (c *Client) send(ctx context.Context, method, path string, body io.Reader, 
 
 		resp, err := c.http.Do(req)
 		if err != nil {
-			if ctx.Err() != nil {
+			if ctx.Err() != nil || errors.Is(err, errRedirectRefused) {
 				return nil, err
 			}
 			lastErr = err
@@ -457,6 +461,7 @@ func normalizeBaseURL(host string) (*url.URL, error) {
 
 	u.Fragment = ""
 	u.RawQuery = ""
+	u.Host = strings.ToLower(u.Host)
 	u.Path = strings.TrimRight(u.Path, "/")
 	return u, nil
 }

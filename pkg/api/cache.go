@@ -40,8 +40,10 @@ func (t *cacheTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 
 	entryPath := t.entryPath(req.URL.String())
 	entry := readEntry(entryPath)
-	if entry != nil && time.Since(time.Unix(entry.FetchedAt, 0)) < freshFor {
-		return entry.response(req), nil
+	if entry != nil {
+		if age := time.Since(time.Unix(entry.FetchedAt, 0)); age >= 0 && age < freshFor {
+			return entry.response(req), nil
+		}
 	}
 
 	if entry != nil {

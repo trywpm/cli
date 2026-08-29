@@ -268,6 +268,34 @@ func TestCacheConcurrentAccess(t *testing.T) {
 	}
 }
 
+func TestCacheFutureEntryTreatedAsStale(t *testing.T) {
+	c, reg, entry := newCachingClient(t, t.TempDir())
+
+	fetchManifest(t, c, "1.0.0")
+
+	data, err := os.ReadFile(entry) //nolint:gosec // the path is under t.TempDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var e cacheEntry
+	if err := json.Unmarshal(data, &e); err != nil {
+		t.Fatal(err)
+	}
+	e.FetchedAt = time.Now().Add(time.Hour).Unix()
+	data, err = json.Marshal(e)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(entry, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	fetchManifest(t, c, "1.0.0")
+	if got := reg.hitCount("/pkg-a/1.0.0"); got != 2 {
+		t.Fatalf("server hits = %d, want a future entry to revalidate", got)
+	}
+}
+
 func TestCacheDisabledWithoutDir(t *testing.T) {
 	c, reg, _ := newCachingClient(t, "")
 
