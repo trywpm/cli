@@ -162,7 +162,7 @@ func (cli *WpmCli) RegistryClient() (registry.Client, error) {
 		cli.Registry(),
 		token,
 		UserAgent(),
-		config.InstallCacheDir(),
+		config.ManifestCacheDir(),
 		cli.out.IsColorEnabled(),
 		cli.err,
 	)

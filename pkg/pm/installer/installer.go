@@ -3,8 +3,6 @@ package installer
 import (
 	"context"
 	"crypto/rand"
-	"crypto/sha256"
-	"encoding/base64"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -20,6 +18,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"go.wpm.so/cli/pkg/archive"
+	"go.wpm.so/cli/pkg/pm/cas"
 	"go.wpm.so/cli/pkg/pm/registry"
 	"go.wpm.so/cli/pkg/pm/wpmjson/types"
 	"go.wpm.so/cli/pkg/pm/wpmjson/validator"
@@ -38,19 +37,24 @@ type Installer struct {
 	runDir      string
 
 	client     registry.Client
+	store      *cas.Store
 	extractSem chan struct{}
 	logger     func(format string, args ...any)
 }
 
 func New(
-	ctx context.Context,
-	contentDir string,
+	contentDir, cacheDir string,
 	concurrency int,
 	client registry.Client,
 	logger func(format string, args ...any),
 ) (*Installer, error) {
 	if concurrency <= 0 {
 		concurrency = 16
+	}
+
+	store, err := cas.New(cacheDir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open content cache: %w", err)
 	}
 
 	//nolint:gosec // Dir perms are intentionally permissive here.
@@ -73,6 +77,7 @@ func New(
 
 	return &Installer{
 		client:      client,
+		store:       store,
 		contentDir:  contentDir,
 		tmpDir:      tmpDir,
 		runDir:      runDir,
@@ -143,17 +148,15 @@ func (i *Installer) install(ctx context.Context, action Action) error {
 }
 
 func (i *Installer) installOrUpdate(ctx context.Context, action Action, targetDir string) error {
-	path := tarballPath(action.Name, action.Version)
-	resp, err := i.client.DownloadTarball(ctx, path)
+	blob, err := i.store.Get(ctx, action.Digest, func(ctx context.Context) (io.ReadCloser, error) {
+		return i.client.DownloadTarball(ctx, tarballPath(action.Name, action.Version))
+	})
 	if err != nil {
-		return fmt.Errorf("failed to download %s: %w", path, err)
+		return fmt.Errorf("failed to fetch %s@%s: %w", action.Name, action.Version, err)
 	}
 	defer func() {
-		_ = resp.Close()
+		_ = blob.Close()
 	}()
-
-	hasher := sha256.New()
-	stream := io.TeeReader(resp, hasher)
 
 	select {
 	case i.extractSem <- struct{}{}:
@@ -162,26 +165,12 @@ func (i *Installer) installOrUpdate(ctx context.Context, action Action, targetDi
 	}
 	defer func() { <-i.extractSem }()
 
-	extractedPath, tempContainer, err := i.unpackToStaging(ctx, stream)
+	extractedPath, tempContainer, err := i.unpackToStaging(ctx, blob)
 	defer func() {
 		_ = i.removeAll(context.Background(), tempContainer)
 	}()
 	if err != nil {
 		return fmt.Errorf("failed to unpack package: %w", err)
-	}
-
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-
-	if _, err := io.Copy(io.Discard, stream); err != nil {
-		return fmt.Errorf("failed to drain download stream: %w", err)
-	}
-
-	cleanDigest := strings.TrimPrefix(action.Digest, "sha256:")
-	calculated := base64.StdEncoding.EncodeToString(hasher.Sum(nil))
-	if calculated != cleanDigest {
-		return fmt.Errorf("digest mismatch: expected %s, got %s", cleanDigest, calculated)
 	}
 
 	return i.replaceDir(ctx, extractedPath, targetDir)
@@ -339,13 +328,7 @@ func isCrossDeviceError(err error) bool {
 }
 
 func tarballPath(name, version string) string {
-	var b strings.Builder
-	b.WriteByte('/')
-	b.WriteString(name)
-	b.WriteByte('/')
-	b.WriteString(version)
-	b.WriteString(".tar.zst")
-	return b.String()
+	return "/" + name + "/" + version + ".tar.zst"
 }
 
 func (i *Installer) getTargetDir(pkgType types.PackageType, name string) (string, error) {

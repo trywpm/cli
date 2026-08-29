@@ -144,7 +144,7 @@ func findOutdatedPackages(ctx context.Context, wpmCli command.Cli, checks []depC
 		progress.Stream(wpmCli.Err(), fmt.Sprintf("  Resolving %s@%s [%d/%d]", check.name, "latest", i+1, len(checks)))
 
 		g.Go(func() error {
-			manifest, err := client.GetPackageManifest(ctx, check.name, "latest", true)
+			manifest, err := client.GetPackageManifest(ctx, check.name, "latest")
 			if err != nil {
 				return fmt.Errorf("failed to fetch package %s@%s: %w", check.name, "latest", err)
 			}
