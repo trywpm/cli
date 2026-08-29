@@ -15,9 +15,8 @@ import (
 )
 
 const (
-	maxManifestSize          = 256 * 1024 // 256KB
-	contentTypeOctetStream   = "application/octet-stream"
-	wpmContentTypeManifestV1 = "application/vnd.wpm.install-v1+json"
+	maxManifestSize        = 256 * 1024 // 256KB
+	contentTypeOctetStream = "application/octet-stream"
 )
 
 type client struct {
@@ -38,13 +37,14 @@ type Client interface {
 var _ Client = &client{}
 
 // New returns a new client for the wpm registry
-func New(host, authToken, userAgent string, colorize bool, out io.Writer) (Client, error) {
+func New(host, authToken, userAgent, cacheDir string, colorize bool, out io.Writer) (Client, error) {
 	apiClient, err := api.New(api.Options{
 		Host:        host,
 		AuthToken:   authToken,
 		UserAgent:   userAgent,
 		Log:         out,
 		LogColorize: colorize,
+		CacheDir:    cacheDir,
 	})
 	if err != nil {
 		return nil, err
@@ -121,7 +121,7 @@ func (c *client) GetPackageManifest(ctx context.Context, packageName, versionOrT
 		"/"+packageName+"/"+versionOrTag,
 		nil,
 		&pkg,
-		api.WithHeader(api.HeaderAccept, wpmContentTypeManifestV1),
+		api.WithHeader(api.HeaderAccept, api.MediaTypeManifestV1),
 	)
 	if err != nil {
 		return nil, err

@@ -73,6 +73,10 @@ type Options struct {
 
 	// LogColorize renders the debug log with colors.
 	LogColorize bool
+
+	// CacheDir enables the manifest cache under the given directory. Empty
+	// disables caching.
+	CacheDir string
 }
 
 // Client is an HTTP client bound to a single registry host.
@@ -111,6 +115,7 @@ func New(opts Options) (*Client, error) {
 	if opts.Log != nil && zerolog.GlobalLevel() == zerolog.DebugLevel {
 		rt = debugLogger(opts).RoundTripper(rt)
 	}
+	rt = &cacheTransport{base: rt, dir: opts.CacheDir}
 	rt = &headerTransport{
 		base:       rt,
 		host:       host,
