@@ -149,7 +149,7 @@ func (c *client) DownloadTarball(ctx context.Context, url string) (io.ReadCloser
 		url,
 		nil,
 		api.WithHeader(api.HeaderAccept, contentTypeOctetStream),
-		api.WithHeader(api.HeaderSaveCache, "true"), // Used by cache round tripper.
+		api.WithHeader(api.HeaderAcceptEncoding, "identity"),
 	)
 }
 

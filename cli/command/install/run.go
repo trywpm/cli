@@ -12,6 +12,7 @@ import (
 	"github.com/morikuni/aec"
 
 	"go.wpm.so/cli/cli/command"
+	"go.wpm.so/cli/pkg/config"
 	"go.wpm.so/cli/pkg/output"
 	"go.wpm.so/cli/pkg/pm/installer"
 	"go.wpm.so/cli/pkg/pm/resolution"
@@ -116,7 +117,7 @@ func Run(ctx context.Context, cwd string, wpmCli command.Cli, opts RunOptions) e
 	}
 
 	// -- Actual Install --
-	inst, err := installer.New(ctx, absContentDir, opts.NetworkConcurrency, client, func(format string, args ...any) {
+	inst, err := installer.New(absContentDir, config.ContentCacheDir(), opts.NetworkConcurrency, client, func(format string, args ...any) {
 		wpmCli.Output().ErrorWrite(fmt.Sprintf(format+"\n", args...))
 	})
 	if err != nil {

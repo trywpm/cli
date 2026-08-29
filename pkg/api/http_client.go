@@ -227,7 +227,9 @@ func newHeaderRoundTripper(host string, allowToken bool, authToken string, heade
 
 func (hrt headerRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	reqCopy := req.Clone(req.Context())
-	reqCopy.Header.Set(HeaderAcceptEncoding, encodingZstd)
+	if reqCopy.Header.Get(HeaderAcceptEncoding) == "" {
+		reqCopy.Header.Set(HeaderAcceptEncoding, encodingZstd)
+	}
 
 	for k, v := range hrt.headers {
 		if k == HeaderAuthorization {

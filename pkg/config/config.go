@@ -156,3 +156,7 @@ func CacheDir() string {
 func InstallCacheDir() string {
 	return filepath.Join(Dir(), "cache", "install")
 }
+
+func ContentCacheDir() string {
+	return filepath.Join(Dir(), "cache", "content")
+}
