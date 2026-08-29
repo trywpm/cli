@@ -689,7 +689,7 @@ func newRegistryResolver(wpmCli command.Cli) (latestVersionResolver, error) {
 		return nil, err
 	}
 	return func(ctx context.Context, name string) (string, bool) {
-		pkg, err := client.GetPackageManifest(ctx, name, "latest", false)
+		pkg, err := client.GetPackageManifest(ctx, name, "latest")
 		if err != nil {
 			return "", false
 		}

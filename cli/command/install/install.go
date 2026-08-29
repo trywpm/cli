@@ -199,7 +199,7 @@ func addPackages(ctx context.Context, config *wpmjson.Config, wpmCli command.Cli
 		progress.Stream(wpmCli.Err(), fmt.Sprintf("  Resolving %s@%s [%d/%d]", name, versionOrTag, i+1, len(packages)))
 
 		g.Go(func() error {
-			manifest, err := client.GetPackageManifest(ctx, name, versionOrTag, true)
+			manifest, err := client.GetPackageManifest(ctx, name, versionOrTag)
 			if err != nil {
 				return fmt.Errorf("failed to fetch package %s@%s: %w", name, versionOrTag, err)
 			}
