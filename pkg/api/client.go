@@ -186,7 +186,10 @@ func (c *Client) Do(ctx context.Context, method, path string, body io.Reader, ou
 		*v = string(b)
 		return nil
 	default:
-		return json.NewDecoder(io.LimitReader(resp.Body, maxResponseBodySize)).Decode(v)
+		if err := json.NewDecoder(io.LimitReader(resp.Body, maxResponseBodySize)).Decode(v); err != nil {
+			return fmt.Errorf("invalid response from %s %s: %w", method, path, err)
+		}
+		return nil
 	}
 }
 

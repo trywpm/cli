@@ -142,6 +142,19 @@ func TestDoDecodesResponses(t *testing.T) {
 	}
 }
 
+func TestDecodeFailureNamesTheRequest(t *testing.T) {
+	c := newClient(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set(HeaderContentType, "text/html")
+		_, _ = io.WriteString(w, "<html>Sign in to WiFi</html>")
+	}), Options{})
+
+	var out struct{ Ok bool }
+	err := c.Do(t.Context(), http.MethodGet, "/keys.json", nil, &out)
+	if err == nil || !strings.Contains(err.Error(), "GET /keys.json") {
+		t.Fatalf("err = %v, want the failing request named", err)
+	}
+}
+
 func TestErrorResponseBecomesHTTPError(t *testing.T) {
 	c := newClient(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set(HeaderContentType, "application/json")
