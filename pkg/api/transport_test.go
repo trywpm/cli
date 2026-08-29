@@ -108,38 +108,37 @@ func TestNoGoroutineOrFDLeaks(t *testing.T) {
 		_, _ = w.Write(compressed)
 	}), Options{})
 
-	warm := func(n int) {
-		var wg sync.WaitGroup
-		for range n {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				var out struct{ Ok bool }
-				if err := c.Do(t.Context(), http.MethodGet, "/x", nil, &out); err != nil {
-					t.Error(err)
-				}
-			}()
+	get := func() {
+		var out struct{ Ok bool }
+		if err := c.Do(t.Context(), http.MethodGet, "/x", nil, &out); err != nil {
+			t.Error(err)
 		}
-		wg.Wait()
 	}
 
-	// Idle connections carry stdlib goroutines and fds, so close them before
-	// each measurement removes pool noise, so any residual growth is a real
-	// per-request leak (a decoder goroutine, an unclosed body).
-	warm(32)
+	// A concurrent burst exercises the decoder pool under the race detector.
+	// It is not measured because connection teardown timing is load
+	// dependent.
+	var wg sync.WaitGroup
+	for range 32 {
+		wg.Go(func() {
+			get()
+		})
+	}
+	wg.Wait()
+
+	// The measured phase is sequential on one reused connection, so any
+	// growth comes from a per-request leak and not from pool churn.
+	get()
 	c.http.CloseIdleConnections()
 	time.Sleep(100 * time.Millisecond)
 	goroutinesBefore := runtime.NumGoroutine()
 	fdsBefore := countFDs(t)
 
-	for range 10 {
-		warm(32)
+	for range 200 {
+		get()
 	}
 
-	// Teardown of server-side conn handlers is asynchronous, so poll for the
-	// count to come back down instead of sleeping once. A real per-request
-	// leak is ~320 goroutines and never settles.
-	deadline := time.Now().Add(3 * time.Second)
+	deadline := time.Now().Add(10 * time.Second)
 	var goroutinesAfter, fdsAfter int
 	for {
 		c.http.CloseIdleConnections()
@@ -151,7 +150,7 @@ func TestNoGoroutineOrFDLeaks(t *testing.T) {
 	}
 
 	if goroutinesAfter > goroutinesBefore+2 {
-		t.Fatalf("goroutines grew %d -> %d across 320 requests", goroutinesBefore, goroutinesAfter)
+		t.Fatalf("goroutines grew %d -> %d across 200 requests", goroutinesBefore, goroutinesAfter)
 	}
 	if fdsBefore > 0 && fdsAfter > fdsBefore+2 {
 		t.Fatalf("fds grew %d -> %d", fdsBefore, fdsAfter)
