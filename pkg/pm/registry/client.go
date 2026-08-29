@@ -21,7 +21,7 @@ const (
 )
 
 type client struct {
-	restClient *api.RESTClient
+	api *api.Client
 }
 
 // Client is a client used to communicate with a wpm distribution
@@ -31,31 +31,26 @@ type Client interface {
 	GetKeysJson(ctx context.Context) (signatures.Keys, error)
 	DownloadTarball(ctx context.Context, url string) (io.ReadCloser, error)
 	PutPackage(ctx context.Context, data *manifest.Package, tarball io.Reader) error
-	GetPackageManifest(ctx context.Context, packageName, versionOrTag string, force bool) (*manifest.Package, error)
+	GetPackageManifest(ctx context.Context, packageName, versionOrTag string) (*manifest.Package, error)
 	AddDistTag(ctx context.Context, packageName, tag, version string) error
 }
 
 var _ Client = &client{}
 
-// New returns a new REST client for the wpm registry
-func New(host, authToken, userAgent, cacheDir string, colorize bool, out io.Writer) (Client, error) {
-	opts := api.ClientOptions{
-		Log:         out,
+// New returns a new client for the wpm registry
+func New(host, authToken, userAgent string, colorize bool, out io.Writer) (Client, error) {
+	apiClient, err := api.New(api.Options{
 		Host:        host,
 		AuthToken:   authToken,
+		UserAgent:   userAgent,
+		Log:         out,
 		LogColorize: colorize,
-		CacheDir:    cacheDir,
-		Headers:     map[string]string{api.HeaderUserAgent: userAgent},
-	}
-
-	_client, err := api.NewRESTClient(opts)
+	})
 	if err != nil {
 		return nil, err
 	}
 
-	return &client{
-		restClient: _client,
-	}, nil
+	return &client{api: apiClient}, nil
 }
 
 // PutPackage uploads a package to the registry
@@ -81,7 +76,7 @@ func (c *client) PutPackage(ctx context.Context, data *manifest.Package, tarball
 
 	totalContentLength := int64(4+manifestLen) + data.Dist.PackedSize
 
-	return c.restClient.DoWithContext(
+	return c.api.Do(
 		ctx,
 		http.MethodPut,
 		"/"+data.Name+"/"+data.Version,
@@ -103,7 +98,7 @@ func (c *client) AddDistTag(ctx context.Context, packageName, tag, version strin
 		return err
 	}
 
-	return c.restClient.DoWithContext(
+	return c.api.Do(
 		ctx,
 		http.MethodPut,
 		"/-/dist-tags/"+packageName+"/"+tag,
@@ -113,25 +108,19 @@ func (c *client) AddDistTag(ctx context.Context, packageName, tag, version strin
 }
 
 // GetPackageManifest retrieves a package manifest from the registry
-func (c *client) GetPackageManifest(ctx context.Context, packageName, versionOrTag string, force bool) (*manifest.Package, error) {
+func (c *client) GetPackageManifest(ctx context.Context, packageName, versionOrTag string) (*manifest.Package, error) {
 	var pkg *manifest.Package
 
 	if versionOrTag == "" {
 		versionOrTag = "latest"
 	}
 
-	header := api.HeaderSaveCache
-	if force {
-		header = api.HeaderCacheRevalidate
-	}
-
-	err := c.restClient.DoWithContext(
+	err := c.api.Do(
 		ctx,
 		http.MethodGet,
 		"/"+packageName+"/"+versionOrTag,
 		nil,
 		&pkg,
-		api.WithHeader(header, "true"), // Used by cache round tripper.
 		api.WithHeader(api.HeaderAccept, wpmContentTypeManifestV1),
 	)
 	if err != nil {
@@ -143,7 +132,7 @@ func (c *client) GetPackageManifest(ctx context.Context, packageName, versionOrT
 
 // DownloadTarball downloads a package tarball from the registry
 func (c *client) DownloadTarball(ctx context.Context, url string) (io.ReadCloser, error) {
-	return c.restClient.RequestStream(
+	return c.api.Stream(
 		ctx,
 		http.MethodGet,
 		url,
@@ -162,7 +151,7 @@ func (c *client) Whoami(ctx context.Context, token string) (string, error) {
 		opts = append(opts, api.WithHeader(api.HeaderAuthorization, "Bearer "+token))
 	}
 
-	if err := c.restClient.DoWithContext(ctx, http.MethodGet, "/-/whoami", nil, &response, opts...); err != nil {
+	if err := c.api.Do(ctx, http.MethodGet, "/-/whoami", nil, &response, opts...); err != nil {
 		return "", err
 	}
 
@@ -173,7 +162,7 @@ func (c *client) Whoami(ctx context.Context, token string) (string, error) {
 func (c *client) GetKeysJson(ctx context.Context) (signatures.Keys, error) {
 	var keys signatures.Keys
 
-	err := c.restClient.DoWithContext(
+	err := c.api.Do(
 		ctx,
 		http.MethodGet,
 		"/keys.json",
