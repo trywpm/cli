@@ -148,7 +148,7 @@ func (i *Installer) install(ctx context.Context, action Action) error {
 }
 
 func (i *Installer) installOrUpdate(ctx context.Context, action Action, targetDir string) error {
-	blob, err := i.store.Get(ctx, action.Digest, func(ctx context.Context) (io.ReadCloser, error) {
+	blob, err := i.store.Get(ctx, action.Digest, action.Name+"@"+action.Version, func(ctx context.Context) (io.ReadCloser, error) {
 		return i.client.DownloadTarball(ctx, tarballPath(action.Name, action.Version))
 	})
 	if err != nil {
