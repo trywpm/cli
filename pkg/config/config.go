@@ -149,10 +149,14 @@ func LoadDefaultConfigFile(stderr io.Writer) *configfile.ConfigFile {
 	return configFile
 }
 
+func CacheDir() string {
+	return filepath.Join(Dir(), "cache")
+}
+
 func ManifestCacheDir() string {
-	return filepath.Join(Dir(), "cache", "manifests")
+	return filepath.Join(CacheDir(), "manifests")
 }
 
 func ContentCacheDir() string {
-	return filepath.Join(Dir(), "cache", "content")
+	return filepath.Join(CacheDir(), "content")
 }

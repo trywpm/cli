@@ -53,7 +53,7 @@ func TestGetFetchesOnceThenHitsCache(t *testing.T) {
 	digest := digestOf(ff.body)
 
 	for i := range 2 {
-		f, err := s.Get(t.Context(), digest, ff.fn)
+		f, err := s.Get(t.Context(), digest, "", ff.fn)
 		if err != nil {
 			t.Fatalf("Get %d: %v", i, err)
 		}
@@ -71,7 +71,7 @@ func TestGetRejectsDigestMismatch(t *testing.T) {
 	ff := &fakeFetch{body: []byte("what the server actually sent")}
 	claimed := digestOf([]byte("what the manifest promised"))
 
-	_, err := s.Get(t.Context(), claimed, ff.fn)
+	_, err := s.Get(t.Context(), claimed, "", ff.fn)
 	if err == nil {
 		t.Fatal("Get accepted a body that did not match the digest")
 	}
@@ -91,7 +91,7 @@ func TestGetRefetchesCorruptEntry(t *testing.T) {
 	ff := &fakeFetch{body: []byte("good content that gets edited on disk later")}
 	digest := digestOf(ff.body)
 
-	f, err := s.Get(t.Context(), digest, ff.fn)
+	f, err := s.Get(t.Context(), digest, "", ff.fn)
 	if err != nil {
 		t.Fatalf("Get: %v", err)
 	}
@@ -111,7 +111,7 @@ func TestGetRefetchesCorruptEntry(t *testing.T) {
 		t.Fatalf("WriteFile: %v", err)
 	}
 
-	f, err = s.Get(t.Context(), digest, ff.fn)
+	f, err = s.Get(t.Context(), digest, "", ff.fn)
 	if err != nil {
 		t.Fatalf("Get after corruption: %v", err)
 	}
@@ -136,7 +136,7 @@ func TestGetRejectsOversizedBody(t *testing.T) {
 	s.limit = 64
 	ff := &fakeFetch{body: bytes.Repeat([]byte("x"), 128)}
 
-	_, err := s.Get(t.Context(), digestOf(ff.body), ff.fn)
+	_, err := s.Get(t.Context(), digestOf(ff.body), "", ff.fn)
 	if err == nil {
 		t.Fatal("Get accepted a body over the size cap")
 	}
@@ -150,7 +150,7 @@ func TestGetPropagatesFetchError(t *testing.T) {
 	s := newStore(t)
 	boom := errors.New("network down")
 
-	_, err := s.Get(t.Context(), digestOf([]byte("x")), func(context.Context) (io.ReadCloser, error) {
+	_, err := s.Get(t.Context(), digestOf([]byte("x")), "", func(context.Context) (io.ReadCloser, error) {
 		return nil, boom
 	})
 	if !errors.Is(err, boom) {
@@ -167,7 +167,7 @@ func TestGetWorksWhenCacheCannotRetain(t *testing.T) {
 
 	ff := &fakeFetch{body: []byte("bytes that cannot be cached")}
 	for i := range 2 {
-		f, err := s.Get(t.Context(), digestOf(ff.body), ff.fn)
+		f, err := s.Get(t.Context(), digestOf(ff.body), "", ff.fn)
 		if err != nil {
 			t.Fatalf("Get %d: %v", i, err)
 		}
@@ -194,6 +194,7 @@ func TestParseDigest(t *testing.T) {
 		{"wrong_algorithm", "sha512:" + strings.TrimPrefix(valid, digestPrefix), false},
 		{"not_base64", digestPrefix + strings.Repeat("!", 44), false},
 		{"too_long", digestPrefix + strings.Repeat("A", 64), false},
+		{"unpadded_44_chars", digestPrefix + strings.Repeat("A", 44), false},
 		{"too_short", digestPrefix + base64.StdEncoding.EncodeToString([]byte("short")), false},
 		{"empty", "", false},
 	}
@@ -257,6 +258,161 @@ func TestNewClearsCrashLeftovers(t *testing.T) {
 	assertNoTempFiles(t, s)
 }
 
+func TestVerifyRemovesCorruptAndSweepsTemps(t *testing.T) {
+	s := newStore(t)
+	good := &fakeFetch{body: []byte("stays intact")}
+	bad := &fakeFetch{body: []byte("gets corrupted on disk")}
+
+	f, err := s.Get(t.Context(), digestOf(good.body), "", good.fn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = f.Close()
+	f, err = s.Get(t.Context(), digestOf(bad.body), "", bad.fn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = f.Close()
+
+	sum, _ := parseDigest(digestOf(bad.body))
+	if err := os.WriteFile(s.blobPath(sum), []byte("flipped"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(s.tmp, "blob-stray"), []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	report := Verify(t.Context(), s.root)
+	if report.Blobs != 1 || report.Removed != 1 {
+		t.Fatalf("report = %+v, want 1 kept 1 removed", report)
+	}
+	assertNoTempFiles(t, s)
+
+	f, err = s.Get(t.Context(), digestOf(good.body), "", good.fn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = f.Close()
+	if good.calls != 1 {
+		t.Fatalf("good blob refetched after verify, calls = %d", good.calls)
+	}
+}
+
+func TestGetAnnotatesRefs(t *testing.T) {
+	s := newStore(t)
+	ff := &fakeFetch{body: []byte("shared bytes")}
+	digest := digestOf(ff.body)
+	sum, _ := parseDigest(digest)
+
+	f, err := s.Get(t.Context(), digest, "akismet@5.7.2", ff.fn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = f.Close()
+
+	f, err = s.Get(t.Context(), digest, "akismet-fork@5.7.2", ff.fn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = f.Close()
+
+	refs := readRefs(s.refsPath(sum))
+	if len(refs) != 2 || refs[0] != "akismet-fork@5.7.2" || refs[1] != "akismet@5.7.2" {
+		t.Fatalf("refs = %v, want both names sorted", refs)
+	}
+	if ff.calls != 1 {
+		t.Fatalf("fetch ran %d times, want the second name to annotate a hit", ff.calls)
+	}
+}
+
+func TestVerifySweepsOrphanRefs(t *testing.T) {
+	s := newStore(t)
+	ff := &fakeFetch{body: []byte("blob that gets removed behind the store")}
+	digest := digestOf(ff.body)
+	sum, _ := parseDigest(digest)
+
+	f, err := s.Get(t.Context(), digest, "pkg-a@1.0.0", ff.fn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = f.Close()
+
+	if err := os.Remove(s.blobPath(sum)); err != nil {
+		t.Fatal(err)
+	}
+	Verify(t.Context(), s.root)
+
+	if _, err := os.Stat(s.refsPath(sum)); err == nil {
+		t.Fatal("orphan ref file survived verify")
+	}
+}
+
+func TestMetaDirDeletedDegradesAndHeals(t *testing.T) {
+	s := newStore(t)
+	ff := &fakeFetch{body: []byte("survives losing its name")}
+	digest := digestOf(ff.body)
+	sum, _ := parseDigest(digest)
+
+	f, err := s.Get(t.Context(), digest, "pkg-a@1.0.0", ff.fn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = f.Close()
+
+	if err := os.RemoveAll(filepath.Join(s.root, "meta")); err != nil {
+		t.Fatal(err)
+	}
+
+	if refs := readRefs(s.refsPath(sum)); refs != nil {
+		t.Fatalf("refs = %v after meta wipe, want none", refs)
+	}
+	f, err = s.Get(t.Context(), digest, "pkg-a@1.0.0", ff.fn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = f.Close()
+	if ff.calls != 1 {
+		t.Fatalf("fetch ran %d times, want the heal to ride a cache hit", ff.calls)
+	}
+	if refs := readRefs(s.refsPath(sum)); len(refs) != 1 || refs[0] != "pkg-a@1.0.0" {
+		t.Fatalf("refs = %v, want the name healed", refs)
+	}
+}
+
+func TestJunkInMetaDirIsHarmless(t *testing.T) {
+	s := newStore(t)
+	ff := &fakeFetch{body: []byte("real blob")}
+	f, err := s.Get(t.Context(), digestOf(ff.body), "pkg-a@1.0.0", ff.fn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = f.Close()
+
+	metaRoot := filepath.Join(s.root, "meta")
+	if err := os.WriteFile(filepath.Join(metaRoot, "x"), []byte("junk"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	Verify(t.Context(), s.root)
+	if _, err := os.Stat(filepath.Join(metaRoot, "x")); err == nil {
+		t.Fatal("junk meta file survived verify")
+	}
+}
+
+func TestReadRefsDropsGarbage(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "refs")
+	content := "pkg-a@1.0.0\n\x1b[31mevil\x1b[0m@1.0.0\n@\nnoversion\n\x00\x01binary\npkg-b@2.0.0\n"
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	refs := readRefs(path)
+	if len(refs) != 2 || refs[0] != "pkg-a@1.0.0" || refs[1] != "pkg-b@2.0.0" {
+		t.Fatalf("refs = %q, want only the two clean refs", refs)
+	}
+}
+
 func assertNoTempFiles(t *testing.T, s *Store) {
 	t.Helper()
 	entries, err := os.ReadDir(s.tmp)
@@ -279,7 +435,7 @@ func BenchmarkGetHit(b *testing.B) {
 		return io.NopCloser(bytes.NewReader(payload)), nil
 	}
 
-	f, err := s.Get(b.Context(), digest, fetch)
+	f, err := s.Get(b.Context(), digest, "pkg-bench@1.0.0", fetch)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -287,7 +443,7 @@ func BenchmarkGetHit(b *testing.B) {
 
 	b.ReportAllocs()
 	for b.Loop() {
-		hit, err := s.Get(b.Context(), digest, fetch)
+		hit, err := s.Get(b.Context(), digest, "pkg-bench@1.0.0", fetch)
 		if err != nil {
 			b.Fatal(err)
 		}
