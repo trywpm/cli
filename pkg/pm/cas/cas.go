@@ -11,11 +11,14 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
 
 	"golang.org/x/sync/errgroup"
+
+	"go.wpm.so/cli/pkg/atomicwriter"
 )
 
 const (
@@ -57,7 +60,7 @@ func sweepTemp(tmp string) {
 	}
 }
 
-func (s *Store) Get(ctx context.Context, digest string, fetch func(context.Context) (io.ReadCloser, error)) (*os.File, error) {
+func (s *Store) Get(ctx context.Context, digest, ref string, fetch func(context.Context) (io.ReadCloser, error)) (*os.File, error) {
 	want, err := parseDigest(digest)
 	if err != nil {
 		return nil, err
@@ -65,6 +68,7 @@ func (s *Store) Get(ctx context.Context, digest string, fetch func(context.Conte
 
 	path := s.blobPath(want)
 	if f, ok := openBlob(path, want); ok {
+		s.annotate(want, ref)
 		return f, nil
 	}
 
@@ -86,6 +90,7 @@ func (s *Store) Get(ctx context.Context, digest string, fetch func(context.Conte
 	}
 
 	moveBlob(f.Name(), path)
+	s.annotate(want, ref)
 
 	if _, err := f.Seek(0, io.SeekStart); err != nil {
 		_ = f.Close()
@@ -141,6 +146,84 @@ func moveBlob(tmpName, final string) {
 		return
 	}
 	_ = os.Remove(tmpName)
+}
+
+// annotate records ref for a digest with append-if-absent semantics, so a
+// blob shared by identical releases collects every name it serves under.
+func (s *Store) annotate(sum [sha256.Size]byte, ref string) {
+	if ref == "" {
+		return
+	}
+
+	path := s.refsPath(sum)
+	refs := readRefs(path)
+	if slices.Contains(refs, ref) {
+		return
+	}
+	writeRefs(path, append(refs, ref))
+}
+
+func (s *Store) refsPath(sum [sha256.Size]byte) string {
+	return filepath.Join(s.root, "meta", hex.EncodeToString(sum[:]))
+}
+
+func readRefs(path string) []string {
+	data, err := os.ReadFile(path) //nolint:gosec // the path is a hex digest under the store root
+	if err != nil {
+		return nil
+	}
+
+	var refs []string
+	for line := range strings.SplitSeq(string(data), "\n") {
+		if line = strings.TrimSpace(line); validRef(line) {
+			refs = append(refs, line)
+		}
+	}
+	return refs
+}
+
+func validRef(ref string) bool {
+	if len(ref) == 0 || len(ref) > 240 {
+		return false
+	}
+	at := strings.IndexByte(ref, '@')
+	if at <= 0 || at == len(ref)-1 {
+		return false
+	}
+	for i := range len(ref) {
+		if ref[i] <= ' ' || ref[i] > '~' {
+			return false
+		}
+	}
+	return true
+}
+
+func validMetaName(name string) bool {
+	if len(name) != hex.EncodedLen(sha256.Size) {
+		return false
+	}
+	for _, c := range name {
+		if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
+			return false
+		}
+	}
+	return true
+}
+
+func writeRefs(path string, refs []string) {
+	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+		return
+	}
+	slices.Sort(refs)
+	_ = atomicwriter.WriteFile(path, []byte(strings.Join(slices.Compact(refs), "\n")+"\n"), 0o600)
+}
+
+// Refs returns every ref recorded for digest, for display.
+func Refs(dir, digest string) []string {
+	if !validMetaName(digest) {
+		return nil
+	}
+	return readRefs(filepath.Join(dir, "meta", digest))
 }
 
 func (s *Store) blobPath(sum [sha256.Size]byte) string {
@@ -219,11 +302,29 @@ func Verify(ctx context.Context, dir string) VerifyReport {
 	})
 	_ = g.Wait()
 	sweepTemp(filepath.Join(dir, "tmp"))
+	sweepOrphanRefs(dir)
 
 	return VerifyReport{
 		Blobs:   int(blobs.Load()),
 		Removed: int(removed.Load()),
 		Bytes:   kept.Load(),
+	}
+}
+
+func sweepOrphanRefs(dir string) {
+	entries, err := os.ReadDir(filepath.Join(dir, "meta"))
+	if err != nil {
+		return
+	}
+	for _, e := range entries {
+		name := e.Name()
+		if !validMetaName(name) {
+			_ = os.Remove(filepath.Join(dir, "meta", name))
+			continue
+		}
+		if _, err := os.Stat(filepath.Join(dir, "sha256", name[:2], name[2:4], name)); err != nil {
+			_ = os.Remove(filepath.Join(dir, "meta", name))
+		}
 	}
 }
 
