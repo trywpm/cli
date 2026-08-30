@@ -23,7 +23,7 @@ type Action struct {
 	Type    ActionType
 	Name    string
 	Version string
-	Digest  string // Sha256 digest
+	Digest  string
 	PkgType types.PackageType
 }
 

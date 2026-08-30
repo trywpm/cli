@@ -2,9 +2,8 @@ package cache
 
 import (
 	"bytes"
+	"cmp"
 	"fmt"
-	"io/fs"
-	"path/filepath"
 	"slices"
 	"strings"
 	"text/tabwriter"
@@ -31,45 +30,27 @@ func newLsCommand(wpmCli command.Cli) *cobra.Command {
 	return cmd
 }
 
-type blobInfo struct {
-	digest  string
-	size    int64
-	modTime time.Time
-}
-
 func runLs(wpmCli command.Cli) error {
-	var blobs []blobInfo
-	blobRoot := filepath.Join(config.ContentCacheDir(), "sha256")
-	_ = filepath.WalkDir(blobRoot, func(_ string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() {
-			return nil
-		}
-		info, err := d.Info()
-		if err != nil {
-			return nil
-		}
-		blobs = append(blobs, blobInfo{digest: d.Name(), size: info.Size(), modTime: info.ModTime()})
-		return nil
-	})
+	blobs := cas.Blobs(config.ContentCacheDir())
 
-	slices.SortFunc(blobs, func(a, b blobInfo) int {
-		if c := b.modTime.Compare(a.modTime); c != 0 {
+	slices.SortFunc(blobs, func(a, b cas.BlobInfo) int {
+		if c := b.ModTime.Compare(a.ModTime); c != 0 {
 			return c
 		}
-		return strings.Compare(a.digest, b.digest)
+		return cmp.Compare(a.Digest, b.Digest)
 	})
 
 	var buf bytes.Buffer
 	w := tabwriter.NewWriter(&buf, 12, 1, 3, ' ', 0)
 	_, _ = fmt.Fprintln(w, "NAME\tDIGEST\tSIZE\tCREATED")
 	for _, b := range blobs {
-		names := cas.Refs(config.ContentCacheDir(), b.digest)
+		names := cas.Refs(config.ContentCacheDir(), b.Digest)
 		if len(names) == 0 {
 			names = []string{"<none>"}
 		}
 		for _, name := range names {
 			_, _ = fmt.Fprintf(w, "%s\t%.12s\t%s\t%s\n",
-				name, b.digest, units.HumanSize(float64(b.size)), units.HumanDuration(time.Since(b.modTime))+" ago")
+				name, b.Digest.Encoded(), units.HumanSize(float64(b.Size)), units.HumanDuration(time.Since(b.ModTime))+" ago")
 		}
 	}
 	if err := w.Flush(); err != nil {

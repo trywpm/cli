@@ -2,11 +2,7 @@ package cas
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/base64"
-	"encoding/hex"
 	"fmt"
-	"hash"
 	"io"
 	"io/fs"
 	"os"
@@ -16,7 +12,9 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
+	"github.com/opencontainers/go-digest"
 	"golang.org/x/sync/errgroup"
 
 	"go.wpm.so/cli/pkg/atomicwriter"
@@ -24,7 +22,8 @@ import (
 )
 
 const (
-	digestPrefix = "sha256:"
+	tmpDirName   = "tmp"
+	metaDirName  = "meta"
 	maxBlobBytes = 128 << 20
 )
 
@@ -35,26 +34,14 @@ var bufPool = sync.Pool{
 	},
 }
 
-var hasherPool = sync.Pool{
-	New: func() any { return sha256.New() },
-}
-
-func newHasher() hash.Hash {
-	h := hasherPool.Get().(hash.Hash)
-	h.Reset()
-	return h
-}
-
 type Store struct {
-	root    string
-	tmp     string
-	blobDir string
-	metaDir string
-	limit   int64
+	root  string
+	tmp   string
+	limit int64
 }
 
 func New(dir string) (*Store, error) {
-	tmp := filepath.Join(dir, "tmp")
+	tmp := filepath.Join(dir, tmpDirName)
 	if err := os.MkdirAll(tmp, 0o750); err != nil {
 		return nil, fmt.Errorf("failed to create cache directory: %w", err)
 	}
@@ -62,11 +49,9 @@ func New(dir string) (*Store, error) {
 	sweepTemp(tmp)
 
 	return &Store{
-		root:    dir,
-		tmp:     tmp,
-		blobDir: filepath.Join(dir, "sha256"),
-		metaDir: filepath.Join(dir, "meta"),
-		limit:   maxBlobBytes,
+		root:  dir,
+		tmp:   tmp,
+		limit: maxBlobBytes,
 	}, nil
 }
 
@@ -80,16 +65,15 @@ func sweepTemp(tmp string) {
 	}
 }
 
-func (s *Store) Get(ctx context.Context, digest, ref string, fetch func(context.Context) (io.ReadCloser, error)) (*os.File, error) {
-	want, err := parseDigest(digest)
+func (s *Store) Get(ctx context.Context, dgst, ref string, fetch func(context.Context) (io.ReadCloser, error)) (*os.File, error) {
+	d, err := digest.Parse(dgst)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("invalid digest %.80q: %w", dgst, err)
 	}
 
-	name := hex.EncodeToString(want[:])
-	path := s.blobPathFor(name)
-	if f, ok := openBlob(path, want); ok {
-		s.annotate(name, ref)
+	path := blobPath(s.root, d)
+	if f, ok := openBlob(path, d); ok {
+		s.annotate(d, ref)
 		return f, nil
 	}
 
@@ -104,14 +88,14 @@ func (s *Store) Get(ctx context.Context, digest, ref string, fetch func(context.
 		return nil, fmt.Errorf("failed to create temp file: %w", err)
 	}
 
-	if err := s.writeBlob(f, body, digest, want); err != nil {
+	if err := s.writeBlob(f, body, d); err != nil {
 		_ = f.Close()
 		_ = os.Remove(f.Name())
 		return nil, err
 	}
 
 	moveBlob(f.Name(), path)
-	s.annotate(name, ref)
+	s.annotate(d, ref)
 
 	if _, err := f.Seek(0, io.SeekStart); err != nil {
 		_ = f.Close()
@@ -120,41 +104,32 @@ func (s *Store) Get(ctx context.Context, digest, ref string, fetch func(context.
 	return f, nil
 }
 
-func (s *Store) writeBlob(f *os.File, body io.Reader, digest string, want [sha256.Size]byte) error {
-	h := newHasher()
-	defer hasherPool.Put(h)
-	n, err := copyBuf(io.MultiWriter(f, h), io.LimitReader(body, s.limit+1))
+func (s *Store) writeBlob(f *os.File, body io.Reader, want digest.Digest) error {
+	digester := want.Algorithm().Digester()
+	n, err := copyBuf(io.MultiWriter(f, digester.Hash()), io.LimitReader(body, s.limit+1))
 	if err != nil {
 		return err
 	}
 	if n > s.limit {
-		return fmt.Errorf("tarball for %s exceeds the %d byte cap", digest, s.limit)
+		return fmt.Errorf("tarball for %s exceeds the %d byte cap", want, s.limit)
 	}
 
-	var got [sha256.Size]byte
-	h.Sum(got[:0])
-	if got != want {
-		return fmt.Errorf("digest mismatch: expected %s, got %s%s",
-			digest, digestPrefix, base64.StdEncoding.EncodeToString(got[:]))
+	if got := digester.Digest(); got != want {
+		return fmt.Errorf("digest mismatch: expected %s, got %s", want, got)
 	}
 	return nil
 }
 
-func openBlob(path string, want [sha256.Size]byte) (*os.File, bool) {
-	f, err := os.Open(path) //nolint:gosec // path is a hex digest under the store root
+func openBlob(path string, want digest.Digest) (*os.File, bool) {
+	f, err := os.Open(path) //nolint:gosec // the path is a validated digest under the store root
 	if err != nil {
 		return nil, false
 	}
 
-	h := newHasher()
-	defer hasherPool.Put(h)
-	if _, err := copyBuf(h, f); err == nil {
-		var got [sha256.Size]byte
-		h.Sum(got[:0])
-		if got == want {
-			if _, err := f.Seek(0, io.SeekStart); err == nil {
-				return f, true
-			}
+	verifier := want.Verifier()
+	if _, err := copyBuf(verifier, f); err == nil && verifier.Verified() {
+		if _, err := f.Seek(0, io.SeekStart); err == nil {
+			return f, true
 		}
 	}
 
@@ -173,12 +148,12 @@ func moveBlob(tmpName, final string) {
 
 // annotate records ref for a digest with append-if-absent semantics, so a
 // blob shared by identical releases collects every name it serves under.
-func (s *Store) annotate(name, ref string) {
+func (s *Store) annotate(d digest.Digest, ref string) {
 	if !validRef(ref) {
 		return
 	}
 
-	path := s.refsPathFor(name)
+	path := refsPath(s.root, d)
 	if refFileContains(path, ref) {
 		return
 	}
@@ -186,7 +161,7 @@ func (s *Store) annotate(name, ref string) {
 }
 
 func refFileContains(path, ref string) bool {
-	f, err := os.Open(path) //nolint:gosec // the path is a hex digest under the store root
+	f, err := os.Open(path) //nolint:gosec // the path is a validated digest under the store root
 	if err != nil {
 		return false
 	}
@@ -204,16 +179,12 @@ func refFileContains(path, ref string) bool {
 	return false
 }
 
-func (s *Store) refsPath(sum [sha256.Size]byte) string {
-	return s.refsPathFor(hex.EncodeToString(sum[:]))
-}
-
-func (s *Store) refsPathFor(name string) string {
-	return s.metaDir + string(filepath.Separator) + name
+func refsPath(root string, d digest.Digest) string {
+	return filepath.Join(root, metaDirName, d.Algorithm().String(), d.Encoded())
 }
 
 func readRefs(path string) []string {
-	data, err := os.ReadFile(path) //nolint:gosec // the path is a hex digest under the store root
+	data, err := os.ReadFile(path) //nolint:gosec // the path is a validated digest under the store root
 	if err != nil {
 		return nil
 	}
@@ -243,18 +214,6 @@ func validRef(ref string) bool {
 	return true
 }
 
-func validMetaName(name string) bool {
-	if len(name) != hex.EncodedLen(sha256.Size) {
-		return false
-	}
-	for _, c := range name {
-		if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
-			return false
-		}
-	}
-	return true
-}
-
 func writeRefs(path string, refs []string) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 		return
@@ -263,45 +222,59 @@ func writeRefs(path string, refs []string) {
 	_ = atomicwriter.WriteFile(path, []byte(strings.Join(slices.Compact(refs), "\n")+"\n"), 0o600)
 }
 
-// Refs returns every ref recorded for digest, for display.
-func Refs(dir, digest string) []string {
-	if !validMetaName(digest) {
+// Refs returns every ref recorded for a digest, for display.
+func Refs(dir string, d digest.Digest) []string {
+	if d.Validate() != nil {
 		return nil
 	}
-	return readRefs(filepath.Join(dir, "meta", digest))
+	return readRefs(refsPath(dir, d))
 }
 
-func (s *Store) blobPath(sum [sha256.Size]byte) string {
-	return s.blobPathFor(hex.EncodeToString(sum[:]))
+func blobPath(root string, d digest.Digest) string {
+	enc := d.Encoded()
+	return filepath.Join(root, d.Algorithm().String(), enc[:2], enc[2:4], enc)
 }
 
-func (s *Store) blobPathFor(name string) string {
-	sep := string(filepath.Separator)
-	return s.blobDir + sep + name[:2] + sep + name[2:4] + sep + name
+type BlobInfo struct {
+	Digest  digest.Digest
+	Path    string
+	Size    int64
+	ModTime time.Time
 }
 
-func parseDigest(digest string) ([sha256.Size]byte, error) {
-	var sum [sha256.Size]byte
-
-	encoded, ok := strings.CutPrefix(digest, digestPrefix)
-	if !ok {
-		return sum, fmt.Errorf("unsupported digest %.60q: want a %q prefix", digest, digestPrefix)
+func Blobs(dir string) []BlobInfo {
+	var blobs []BlobInfo
+	for _, algo := range algoDirs(dir) {
+		_ = filepath.WalkDir(filepath.Join(dir, algo.String()), func(path string, e fs.DirEntry, err error) error {
+			if err != nil || e.IsDir() {
+				return nil
+			}
+			d := digest.NewDigestFromEncoded(algo, e.Name())
+			if d.Validate() != nil {
+				return nil
+			}
+			if info, err := e.Info(); err == nil {
+				blobs = append(blobs, BlobInfo{Digest: d, Path: path, Size: info.Size(), ModTime: info.ModTime()})
+			}
+			return nil
+		})
 	}
-	if len(encoded) != 44 {
-		return sum, fmt.Errorf("invalid digest: %d base64 characters, want 44", len(encoded))
-	}
+	return blobs
+}
 
-	var raw [33]byte
-	n, err := base64.StdEncoding.Decode(raw[:], unsafeconv.UnsafeStringToBytes(encoded))
+func algoDirs(dir string) []digest.Algorithm {
+	entries, err := os.ReadDir(dir)
 	if err != nil {
-		return sum, fmt.Errorf("invalid digest %q: %w", digest, err)
-	}
-	if n != sha256.Size {
-		return sum, fmt.Errorf("invalid digest %q: %d bytes, want %d", digest, n, sha256.Size)
+		return nil
 	}
 
-	copy(sum[:], raw[:sha256.Size])
-	return sum, nil
+	var algos []digest.Algorithm
+	for _, e := range entries {
+		if algo := digest.Algorithm(e.Name()); e.IsDir() && algo.Available() {
+			algos = append(algos, algo)
+		}
+	}
+	return algos
 }
 
 type VerifyReport struct {
@@ -310,51 +283,40 @@ type VerifyReport struct {
 	Bytes   int64
 }
 
-// Verify re-hashes every blob against its own name, removes entries that no
-// longer match, and sweeps temp files left by crashed runs.
+// Verify re-hashes every blob against its own digest, removes entries that no
+// longer match, and sweeps leftovers from crashed runs.
 func Verify(ctx context.Context, dir string) VerifyReport {
 	var blobs, removed, kept atomic.Int64
 
 	g, ctx := errgroup.WithContext(ctx)
 	g.SetLimit(max(runtime.NumCPU(), 1))
 
-	blobRoot := filepath.Join(dir, "sha256")
-	_ = filepath.WalkDir(blobRoot, func(path string, d fs.DirEntry, err error) error {
+	for _, blob := range Blobs(dir) {
 		if ctx.Err() != nil {
-			return fs.SkipAll
+			break
 		}
-		if err != nil || d.IsDir() {
-			return nil
-		}
-		info, err := d.Info()
-		if err != nil {
-			return nil
-		}
-
 		g.Go(func() error {
-			f, err := os.Open(path) //nolint:gosec // the path comes from walking our own store
+			f, err := os.Open(blob.Path)
 			if err != nil {
 				return nil
 			}
-			h := newHasher()
-			defer hasherPool.Put(h)
-			_, copyErr := copyBuf(h, f)
+			verifier := blob.Digest.Verifier()
+			_, copyErr := copyBuf(verifier, f)
 			_ = f.Close()
 
-			if copyErr == nil && hex.EncodeToString(h.Sum(nil)) == filepath.Base(path) {
+			if copyErr == nil && verifier.Verified() {
 				blobs.Add(1)
-				kept.Add(info.Size())
+				kept.Add(blob.Size)
 				return nil
 			}
-			if os.Remove(path) == nil {
+			if os.Remove(blob.Path) == nil {
 				removed.Add(1)
 			}
 			return nil
 		})
-		return nil
-	})
+	}
 	_ = g.Wait()
-	sweepTemp(filepath.Join(dir, "tmp"))
+	sweepTemp(filepath.Join(dir, tmpDirName))
 	sweepOrphanRefs(dir)
 
 	return VerifyReport{
@@ -365,18 +327,33 @@ func Verify(ctx context.Context, dir string) VerifyReport {
 }
 
 func sweepOrphanRefs(dir string) {
-	entries, err := os.ReadDir(filepath.Join(dir, "meta"))
+	metaRoot := filepath.Join(dir, metaDirName)
+	entries, err := os.ReadDir(metaRoot)
 	if err != nil {
 		return
 	}
+
 	for _, e := range entries {
-		name := e.Name()
-		if !validMetaName(name) {
-			_ = os.Remove(filepath.Join(dir, "meta", name))
+		algo := digest.Algorithm(e.Name())
+		if !e.IsDir() || !algo.Available() {
+			_ = os.RemoveAll(filepath.Join(metaRoot, e.Name()))
 			continue
 		}
-		if _, err := os.Stat(filepath.Join(dir, "sha256", name[:2], name[2:4], name)); err != nil {
-			_ = os.Remove(filepath.Join(dir, "meta", name))
+
+		files, err := os.ReadDir(filepath.Join(metaRoot, e.Name()))
+		if err != nil {
+			continue
+		}
+		for _, f := range files {
+			metaPath := filepath.Join(metaRoot, e.Name(), f.Name())
+			d := digest.NewDigestFromEncoded(algo, f.Name())
+			if d.Validate() != nil {
+				_ = os.Remove(metaPath)
+				continue
+			}
+			if _, err := os.Stat(blobPath(dir, d)); err != nil {
+				_ = os.Remove(metaPath)
+			}
 		}
 	}
 }

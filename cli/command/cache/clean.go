@@ -2,9 +2,7 @@ package cache
 
 import (
 	"fmt"
-	"io/fs"
 	"os"
-	"path/filepath"
 
 	"github.com/docker/go-units"
 	"github.com/spf13/cobra"
@@ -12,6 +10,7 @@ import (
 	"go.wpm.so/cli/cli"
 	"go.wpm.so/cli/cli/command"
 	"go.wpm.so/cli/pkg/config"
+	"go.wpm.so/cli/pkg/pm/cas"
 )
 
 func newCleanCommand(wpmCli command.Cli) *cobra.Command {
@@ -49,21 +48,12 @@ func runClean(cmd *cobra.Command, wpmCli command.Cli, force bool) error {
 	}
 
 	var reclaimed int64
-	blobRoot := filepath.Join(config.ContentCacheDir(), "sha256")
-	_ = filepath.WalkDir(blobRoot, func(path string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() {
-			return nil
+	for _, blob := range cas.Blobs(config.ContentCacheDir()) {
+		if os.Remove(blob.Path) == nil {
+			reclaimed += blob.Size
+			_, _ = fmt.Fprintln(out, "deleted: "+blob.Digest.String())
 		}
-		info, err := d.Info()
-		if err != nil {
-			return nil
-		}
-		if os.Remove(path) == nil { //nolint:gosec // the path comes from walking our own store
-			reclaimed += info.Size()
-			_, _ = fmt.Fprintln(out, "deleted: sha256:"+d.Name())
-		}
-		return nil
-	})
+	}
 
 	for _, dir := range []string{config.ContentCacheDir(), config.ManifestCacheDir()} {
 		_, bytes := dirStats(dir)

@@ -2,11 +2,8 @@ package publish
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/base64"
 	"errors"
 	"fmt"
-	"hash"
 	"io"
 	"os"
 	"path/filepath"
@@ -15,6 +12,7 @@ import (
 
 	"github.com/docker/go-units"
 	"github.com/morikuni/aec"
+	"github.com/opencontainers/go-digest"
 	"github.com/spf13/cobra"
 
 	"go.wpm.so/cli/cli"
@@ -180,10 +178,10 @@ func runPublish(ctx context.Context, wpmCli command.Cli, opts publishOptions) er
 	}
 	defer func() { _ = tarballer.Close() }()
 
-	hasher := sha256.New()
+	digester := digest.Canonical.Digester()
 	counter := &tarballSizeCounter{limit: maxPackedSize}
 
-	if err = packIntoTarball(wpmCli, opts, tarballer, tempFile, hasher, counter); err != nil {
+	if err = packIntoTarball(wpmCli, opts, tarballer, tempFile, digester.Hash(), counter); err != nil {
 		return err
 	}
 
@@ -191,8 +189,8 @@ func runPublish(ctx context.Context, wpmCli command.Cli, opts publishOptions) er
 		return errors.New("tarball size is zero, cannot publish empty package")
 	}
 
-	digest := base64.StdEncoding.EncodeToString(hasher.Sum(nil))
-	printPublishSummary(wpmCli, opts, counter.total, tarballer, digest)
+	dgst := digester.Digest()
+	printPublishSummary(wpmCli, opts, counter.total, tarballer, dgst)
 
 	if opts.dryRun {
 		_, _ = fmt.Fprintf(wpmCli.Err(), "dry run complete, %s@%s is ready to be published\n", wpmJson.Name, wpmJson.Version)
@@ -213,7 +211,7 @@ func runPublish(ctx context.Context, wpmCli command.Cli, opts publishOptions) er
 		return fmt.Errorf("failed to read readme file: %w", err)
 	}
 
-	pkgManifest := buildManifest(wpmJson, opts, visibility, digest, counter.total, tarballer, readme)
+	pkgManifest := buildManifest(wpmJson, opts, visibility, dgst, counter.total, tarballer, readme)
 	if err = uploadPackage(ctx, wpmCli, registryClient, pkgManifest, tempFile); err != nil {
 		return err
 	}
@@ -236,7 +234,7 @@ func validateWpmJson(wpmJson *wpmjson.Config) error {
 	return nil
 }
 
-func packIntoTarball(wpmCli command.Cli, opts publishOptions, tarballer *archive.Tarballer, tempFile io.Writer, hasher hash.Hash, counter *tarballSizeCounter) error {
+func packIntoTarball(wpmCli command.Cli, opts publishOptions, tarballer *archive.Tarballer, tempFile, hasher io.Writer, counter *tarballSizeCounter) error {
 	multiWriter := io.MultiWriter(tempFile, hasher, counter)
 
 	packFn := func() error {
@@ -257,7 +255,7 @@ func packIntoTarball(wpmCli command.Cli, opts publishOptions, tarballer *archive
 	return wpmCli.Progress().RunWithProgress("packing tarball", packFn, wpmCli.Err())
 }
 
-func printPublishSummary(wpmCli command.Cli, opts publishOptions, packedBytes int64, tarballer *archive.Tarballer, digest string) {
+func printPublishSummary(wpmCli command.Cli, opts publishOptions, packedBytes int64, tarballer *archive.Tarballer, dgst digest.Digest) {
 	c := func(a aec.ANSI, s string) string {
 		if !wpmCli.Err().IsColorEnabled() {
 			return s
@@ -273,7 +271,7 @@ func printPublishSummary(wpmCli command.Cli, opts publishOptions, packedBytes in
 	_, _ = fmt.Fprintf(w, "├─ %s:\t%s\n", c(aec.LightBlueF, "Access"), opts.access)
 	_, _ = fmt.Fprintf(w, "├─ %s:\t%d\n", c(aec.LightBlueF, "Files"), tarballer.FileCount())
 	_, _ = fmt.Fprintf(w, "├─ %s:\t%s %s\n", c(aec.LightBlueF, "Size"), packedSize, c(aec.Faint, fmt.Sprintf("(%s unpacked)", unpackedSize)))
-	_, _ = fmt.Fprintf(w, "└─ %s:\t%s\n", c(aec.LightBlueF, "Digest"), digest)
+	_, _ = fmt.Fprintf(w, "└─ %s:\t%s\n", c(aec.LightBlueF, "Digest"), dgst)
 
 	_ = w.Flush()
 	_, _ = fmt.Fprint(wpmCli.Err(), "\n")
@@ -287,7 +285,15 @@ func validateAuth(wpmCli command.Cli) error {
 	return nil
 }
 
-func buildManifest(wpmJson *wpmjson.Config, opts publishOptions, visibility types.PackageVisibility, digest string, packedBytes int64, tarballer *archive.Tarballer, readme string) *manifest.Package {
+func buildManifest(
+	wpmJson *wpmjson.Config,
+	opts publishOptions,
+	visibility types.PackageVisibility,
+	dgst digest.Digest,
+	packedBytes int64,
+	tarballer *archive.Tarballer,
+	readme string,
+) *manifest.Package {
 	return &manifest.Package{
 		Name:            wpmJson.Name,
 		Description:     wpmJson.Description,
@@ -302,7 +308,7 @@ func buildManifest(wpmJson *wpmjson.Config, opts publishOptions, visibility type
 		DevDependencies: wpmJson.DevDependencies,
 		Tag:             opts.tag,
 		Dist: manifest.Dist{
-			Digest:       "sha256:" + digest,
+			Digest:       dgst.String(),
 			PackedSize:   packedBytes,
 			TotalFiles:   tarballer.FileCount(),
 			UnpackedSize: tarballer.UnpackedSize(),

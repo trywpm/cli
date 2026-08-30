@@ -2,8 +2,6 @@ package api
 
 import (
 	"bytes"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -11,8 +9,9 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/opencontainers/go-digest"
+
 	"go.wpm.so/cli/pkg/atomicwriter"
-	"go.wpm.so/cli/pkg/unsafeconv"
 )
 
 const (
@@ -129,8 +128,7 @@ func (e *cacheEntry) response(req *http.Request) *http.Response {
 }
 
 func (t *cacheTransport) entryPath(url string) string {
-	sum := sha256.Sum256(unsafeconv.UnsafeStringToBytes(url))
-	name := hex.EncodeToString(sum[:])
+	name := digest.FromString(url).Encoded()
 	return filepath.Join(t.dir, name[:2], name[2:4], name+".json")
 }
 
