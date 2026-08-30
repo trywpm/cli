@@ -194,6 +194,7 @@ func TestParseDigest(t *testing.T) {
 		{"wrong_algorithm", "sha512:" + strings.TrimPrefix(valid, digestPrefix), false},
 		{"not_base64", digestPrefix + strings.Repeat("!", 44), false},
 		{"too_long", digestPrefix + strings.Repeat("A", 64), false},
+		{"unpadded_44_chars", digestPrefix + strings.Repeat("A", 44), false},
 		{"too_short", digestPrefix + base64.StdEncoding.EncodeToString([]byte("short")), false},
 		{"empty", "", false},
 	}

@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
+	"hash"
 	"io"
 	"io/fs"
 	"os"
@@ -19,6 +20,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"go.wpm.so/cli/pkg/atomicwriter"
+	"go.wpm.so/cli/pkg/unsafeconv"
 )
 
 const (
@@ -33,10 +35,22 @@ var bufPool = sync.Pool{
 	},
 }
 
+var hasherPool = sync.Pool{
+	New: func() any { return sha256.New() },
+}
+
+func newHasher() hash.Hash {
+	h := hasherPool.Get().(hash.Hash)
+	h.Reset()
+	return h
+}
+
 type Store struct {
-	root  string
-	tmp   string
-	limit int64
+	root    string
+	tmp     string
+	blobDir string
+	metaDir string
+	limit   int64
 }
 
 func New(dir string) (*Store, error) {
@@ -47,7 +61,13 @@ func New(dir string) (*Store, error) {
 
 	sweepTemp(tmp)
 
-	return &Store{root: dir, tmp: tmp, limit: maxBlobBytes}, nil
+	return &Store{
+		root:    dir,
+		tmp:     tmp,
+		blobDir: filepath.Join(dir, "sha256"),
+		metaDir: filepath.Join(dir, "meta"),
+		limit:   maxBlobBytes,
+	}, nil
 }
 
 func sweepTemp(tmp string) {
@@ -66,9 +86,10 @@ func (s *Store) Get(ctx context.Context, digest, ref string, fetch func(context.
 		return nil, err
 	}
 
-	path := s.blobPath(want)
+	name := hex.EncodeToString(want[:])
+	path := s.blobPathFor(name)
 	if f, ok := openBlob(path, want); ok {
-		s.annotate(want, ref)
+		s.annotate(name, ref)
 		return f, nil
 	}
 
@@ -90,7 +111,7 @@ func (s *Store) Get(ctx context.Context, digest, ref string, fetch func(context.
 	}
 
 	moveBlob(f.Name(), path)
-	s.annotate(want, ref)
+	s.annotate(name, ref)
 
 	if _, err := f.Seek(0, io.SeekStart); err != nil {
 		_ = f.Close()
@@ -100,7 +121,8 @@ func (s *Store) Get(ctx context.Context, digest, ref string, fetch func(context.
 }
 
 func (s *Store) writeBlob(f *os.File, body io.Reader, digest string, want [sha256.Size]byte) error {
-	h := sha256.New()
+	h := newHasher()
+	defer hasherPool.Put(h)
 	n, err := copyBuf(io.MultiWriter(f, h), io.LimitReader(body, s.limit+1))
 	if err != nil {
 		return err
@@ -124,7 +146,8 @@ func openBlob(path string, want [sha256.Size]byte) (*os.File, bool) {
 		return nil, false
 	}
 
-	h := sha256.New()
+	h := newHasher()
+	defer hasherPool.Put(h)
 	if _, err := copyBuf(h, f); err == nil {
 		var got [sha256.Size]byte
 		h.Sum(got[:0])
@@ -150,21 +173,43 @@ func moveBlob(tmpName, final string) {
 
 // annotate records ref for a digest with append-if-absent semantics, so a
 // blob shared by identical releases collects every name it serves under.
-func (s *Store) annotate(sum [sha256.Size]byte, ref string) {
+func (s *Store) annotate(name, ref string) {
 	if !validRef(ref) {
 		return
 	}
 
-	path := s.refsPath(sum)
-	refs := readRefs(path)
-	if slices.Contains(refs, ref) {
+	path := s.refsPathFor(name)
+	if refFileContains(path, ref) {
 		return
 	}
-	writeRefs(path, append(refs, ref))
+	writeRefs(path, append(readRefs(path), ref))
+}
+
+func refFileContains(path, ref string) bool {
+	f, err := os.Open(path) //nolint:gosec // the path is a hex digest under the store root
+	if err != nil {
+		return false
+	}
+
+	buf := bufPool.Get().(*[]byte)
+	defer bufPool.Put(buf)
+	n, _ := io.ReadFull(f, *buf)
+	_ = f.Close()
+
+	for line := range strings.SplitSeq(unsafeconv.UnsafeBytesToString((*buf)[:n]), "\n") {
+		if strings.TrimSpace(line) == ref {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Store) refsPath(sum [sha256.Size]byte) string {
-	return filepath.Join(s.root, "meta", hex.EncodeToString(sum[:]))
+	return s.refsPathFor(hex.EncodeToString(sum[:]))
+}
+
+func (s *Store) refsPathFor(name string) string {
+	return s.metaDir + string(filepath.Separator) + name
 }
 
 func readRefs(path string) []string {
@@ -227,8 +272,12 @@ func Refs(dir, digest string) []string {
 }
 
 func (s *Store) blobPath(sum [sha256.Size]byte) string {
-	name := hex.EncodeToString(sum[:])
-	return filepath.Join(s.root, "sha256", name[:2], name[2:4], name)
+	return s.blobPathFor(hex.EncodeToString(sum[:]))
+}
+
+func (s *Store) blobPathFor(name string) string {
+	sep := string(filepath.Separator)
+	return s.blobDir + sep + name[:2] + sep + name[2:4] + sep + name
 }
 
 func parseDigest(digest string) ([sha256.Size]byte, error) {
@@ -241,15 +290,18 @@ func parseDigest(digest string) ([sha256.Size]byte, error) {
 	if len(encoded) != 44 {
 		return sum, fmt.Errorf("invalid digest: %d base64 characters, want 44", len(encoded))
 	}
-	raw, err := base64.StdEncoding.DecodeString(encoded)
+
+	var raw [33]byte
+	n, err := base64.StdEncoding.Decode(raw[:], unsafeconv.UnsafeStringToBytes(encoded))
 	if err != nil {
 		return sum, fmt.Errorf("invalid digest %q: %w", digest, err)
 	}
-	if len(raw) != sha256.Size {
-		return sum, fmt.Errorf("invalid digest %q: %d bytes, want %d", digest, len(raw), sha256.Size)
+	if n != sha256.Size {
+		return sum, fmt.Errorf("invalid digest %q: %d bytes, want %d", digest, n, sha256.Size)
 	}
 
-	return [sha256.Size]byte(raw), nil
+	copy(sum[:], raw[:sha256.Size])
+	return sum, nil
 }
 
 type VerifyReport struct {
@@ -284,7 +336,8 @@ func Verify(ctx context.Context, dir string) VerifyReport {
 			if err != nil {
 				return nil
 			}
-			h := sha256.New()
+			h := newHasher()
+			defer hasherPool.Put(h)
 			_, copyErr := copyBuf(h, f)
 			_ = f.Close()
 
