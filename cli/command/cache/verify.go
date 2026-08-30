@@ -26,7 +26,7 @@ func newVerifyCommand(wpmCli command.Cli) *cobra.Command {
 func runVerify(cmd *cobra.Command, wpmCli command.Cli) error {
 	blobs := cas.Verify(cmd.Context(), config.ContentCacheDir())
 
-	_, _ = fmt.Fprintf(wpmCli.Out(), "%d tarballs verified (%s), %d corrupt removed\n",
+	_, _ = fmt.Fprintf(wpmCli.Out(), "%d verified (%s), %d corrupt removed\n",
 		blobs.Blobs, units.HumanSize(float64(blobs.Bytes)), blobs.Removed)
 
 	return nil

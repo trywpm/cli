@@ -23,7 +23,7 @@ type Node struct {
 	Version      string
 	Type         types.PackageType
 	Signatures   []manifest.Signature
-	Digest       string              // Sha256 digest of the tarball
+	Digest       string
 	Bin          *types.Bin          `json:"bin,omitempty"`
 	Dependencies *types.Dependencies `json:"dependencies,omitempty"`
 }
