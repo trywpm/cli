@@ -7,10 +7,15 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
+
+	"golang.org/x/sync/errgroup"
 )
 
 const (
@@ -162,6 +167,64 @@ func parseDigest(digest string) ([sha256.Size]byte, error) {
 	}
 
 	return [sha256.Size]byte(raw), nil
+}
+
+type VerifyReport struct {
+	Blobs   int
+	Removed int
+	Bytes   int64
+}
+
+// Verify re-hashes every blob against its own name, removes entries that no
+// longer match, and sweeps temp files left by crashed runs.
+func Verify(ctx context.Context, dir string) VerifyReport {
+	var blobs, removed, kept atomic.Int64
+
+	g, ctx := errgroup.WithContext(ctx)
+	g.SetLimit(max(runtime.NumCPU(), 1))
+
+	blobRoot := filepath.Join(dir, "sha256")
+	_ = filepath.WalkDir(blobRoot, func(path string, d fs.DirEntry, err error) error {
+		if ctx.Err() != nil {
+			return fs.SkipAll
+		}
+		if err != nil || d.IsDir() {
+			return nil
+		}
+		info, err := d.Info()
+		if err != nil {
+			return nil
+		}
+
+		g.Go(func() error {
+			f, err := os.Open(path) //nolint:gosec // the path comes from walking our own store
+			if err != nil {
+				return nil
+			}
+			h := sha256.New()
+			_, copyErr := copyBuf(h, f)
+			_ = f.Close()
+
+			if copyErr == nil && hex.EncodeToString(h.Sum(nil)) == filepath.Base(path) {
+				blobs.Add(1)
+				kept.Add(info.Size())
+				return nil
+			}
+			if os.Remove(path) == nil {
+				removed.Add(1)
+			}
+			return nil
+		})
+		return nil
+	})
+	_ = g.Wait()
+	sweepTemp(filepath.Join(dir, "tmp"))
+
+	return VerifyReport{
+		Blobs:   int(blobs.Load()),
+		Removed: int(removed.Load()),
+		Bytes:   kept.Load(),
+	}
 }
 
 func copyBuf(dst io.Writer, src io.Reader) (int64, error) {

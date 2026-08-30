@@ -257,6 +257,46 @@ func TestNewClearsCrashLeftovers(t *testing.T) {
 	assertNoTempFiles(t, s)
 }
 
+func TestVerifyRemovesCorruptAndSweepsTemps(t *testing.T) {
+	s := newStore(t)
+	good := &fakeFetch{body: []byte("stays intact")}
+	bad := &fakeFetch{body: []byte("gets corrupted on disk")}
+
+	f, err := s.Get(t.Context(), digestOf(good.body), good.fn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = f.Close()
+	f, err = s.Get(t.Context(), digestOf(bad.body), bad.fn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = f.Close()
+
+	sum, _ := parseDigest(digestOf(bad.body))
+	if err := os.WriteFile(s.blobPath(sum), []byte("flipped"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(s.tmp, "blob-stray"), []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	report := Verify(t.Context(), s.root)
+	if report.Blobs != 1 || report.Removed != 1 {
+		t.Fatalf("report = %+v, want 1 kept 1 removed", report)
+	}
+	assertNoTempFiles(t, s)
+
+	f, err = s.Get(t.Context(), digestOf(good.body), good.fn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = f.Close()
+	if good.calls != 1 {
+		t.Fatalf("good blob refetched after verify, calls = %d", good.calls)
+	}
+}
+
 func assertNoTempFiles(t *testing.T, s *Store) {
 	t.Helper()
 	entries, err := os.ReadDir(s.tmp)
