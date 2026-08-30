@@ -19,7 +19,7 @@ func newCleanCommand(wpmCli command.Cli) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:     "clean",
-		Short:   "Remove all cached data",
+		Short:   "Remove all cached content",
 		Args:    cli.NoArgs,
 		Aliases: []string{"clear"},
 		RunE: func(cmd *cobra.Command, args []string) error {

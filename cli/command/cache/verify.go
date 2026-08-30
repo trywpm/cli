@@ -15,7 +15,7 @@ import (
 func newVerifyCommand(wpmCli command.Cli) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "verify",
-		Short: "Verify the contents of cache store",
+		Short: "Verify the cached content",
 		Args:  cli.NoArgs,
 		RunE:  func(cmd *cobra.Command, args []string) error { return runVerify(cmd, wpmCli) },
 	}
