@@ -3,14 +3,14 @@ package cas
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/base64"
 	"errors"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/opencontainers/go-digest"
 )
 
 type fakeFetch struct {
@@ -24,8 +24,11 @@ func (ff *fakeFetch) fn(context.Context) (io.ReadCloser, error) {
 }
 
 func digestOf(b []byte) string {
-	sum := sha256.Sum256(b)
-	return digestPrefix + base64.StdEncoding.EncodeToString(sum[:])
+	return digest.FromBytes(b).String()
+}
+
+func dOf(b []byte) digest.Digest {
+	return digest.FromBytes(b)
 }
 
 func newStore(t *testing.T) *Store {
@@ -47,13 +50,37 @@ func read(t *testing.T, f *os.File) []byte {
 	return b
 }
 
+func TestHexDigestLayout(t *testing.T) {
+	s := newStore(t)
+	body := []byte("a real tarball body")
+	d := dOf(body)
+
+	if d.Algorithm() != digest.SHA256 || len(d.Encoded()) != 64 {
+		t.Fatalf("digest is not hex sha256: %s", d)
+	}
+
+	f, err := s.Get(t.Context(), d.String(), "pkg@1.0.0", func(context.Context) (io.ReadCloser, error) {
+		return io.NopCloser(bytes.NewReader(body)), nil
+	})
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	_ = f.Close()
+
+	enc := d.Encoded()
+	want := filepath.Join(s.root, "sha256", enc[:2], enc[2:4], enc)
+	if _, err := os.Stat(want); err != nil {
+		t.Fatalf("blob absent from algorithm-derived path %s: %v", want, err)
+	}
+}
+
 func TestGetFetchesOnceThenHitsCache(t *testing.T) {
 	s := newStore(t)
 	ff := &fakeFetch{body: []byte("a tarball, more or less")}
-	digest := digestOf(ff.body)
+	dgst := digestOf(ff.body)
 
 	for i := range 2 {
-		f, err := s.Get(t.Context(), digest, "", ff.fn)
+		f, err := s.Get(t.Context(), dgst, "", ff.fn)
 		if err != nil {
 			t.Fatalf("Get %d: %v", i, err)
 		}
@@ -80,8 +107,7 @@ func TestGetRejectsDigestMismatch(t *testing.T) {
 	}
 	assertNoTempFiles(t, s)
 
-	sum, _ := parseDigest(claimed)
-	if _, err := os.Stat(s.blobPath(sum)); err == nil {
+	if _, err := os.Stat(blobPath(s.root, digest.Digest(claimed))); err == nil {
 		t.Fatal("mismatched bytes were stored under the claimed digest")
 	}
 }
@@ -89,19 +115,15 @@ func TestGetRejectsDigestMismatch(t *testing.T) {
 func TestGetRefetchesCorruptEntry(t *testing.T) {
 	s := newStore(t)
 	ff := &fakeFetch{body: []byte("good content that gets edited on disk later")}
-	digest := digestOf(ff.body)
+	dgst := digestOf(ff.body)
 
-	f, err := s.Get(t.Context(), digest, "", ff.fn)
+	f, err := s.Get(t.Context(), dgst, "", ff.fn)
 	if err != nil {
 		t.Fatalf("Get: %v", err)
 	}
 	_ = f.Close()
 
-	sum, err := parseDigest(digest)
-	if err != nil {
-		t.Fatalf("parseDigest: %v", err)
-	}
-	path := s.blobPath(sum)
+	path := blobPath(s.root, digest.Digest(dgst))
 	stored, err := os.ReadFile(path) //nolint:gosec // path comes from the store under t.TempDir()
 	if err != nil {
 		t.Fatalf("ReadFile: %v", err)
@@ -111,7 +133,7 @@ func TestGetRefetchesCorruptEntry(t *testing.T) {
 		t.Fatalf("WriteFile: %v", err)
 	}
 
-	f, err = s.Get(t.Context(), digest, "", ff.fn)
+	f, err = s.Get(t.Context(), dgst, "", ff.fn)
 	if err != nil {
 		t.Fatalf("Get after corruption: %v", err)
 	}
@@ -181,32 +203,28 @@ func TestGetWorksWhenCacheCannotRetain(t *testing.T) {
 	assertNoTempFiles(t, s)
 }
 
-func TestParseDigest(t *testing.T) {
-	valid := digestOf([]byte("anything"))
+func TestGetRejectsInvalidDigests(t *testing.T) {
+	s := newStore(t)
+	fetch := func(context.Context) (io.ReadCloser, error) {
+		return io.NopCloser(bytes.NewReader(nil)), nil
+	}
 
 	cases := []struct {
-		name   string
-		digest string
-		ok     bool
+		name string
+		dgst string
 	}{
-		{"valid", valid, true},
-		{"no_prefix", strings.TrimPrefix(valid, digestPrefix), false},
-		{"wrong_algorithm", "sha512:" + strings.TrimPrefix(valid, digestPrefix), false},
-		{"not_base64", digestPrefix + strings.Repeat("!", 44), false},
-		{"too_long", digestPrefix + strings.Repeat("A", 64), false},
-		{"unpadded_44_chars", digestPrefix + strings.Repeat("A", 44), false},
-		{"too_short", digestPrefix + base64.StdEncoding.EncodeToString([]byte("short")), false},
-		{"empty", "", false},
+		{"empty", ""},
+		{"no_algorithm", strings.Repeat("a", 64)},
+		{"unknown_algorithm", "md5:" + strings.Repeat("a", 32)},
+		{"old_base64_form", "sha256:NHUrqGHcaDSCCUPpr31j15TVsIZTtA53W7oCZXrnMNw="},
+		{"short_hex", "sha256:" + strings.Repeat("a", 32)},
+		{"uppercase_hex", "sha256:" + strings.Repeat("A", 64)},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := parseDigest(tc.digest)
-			if tc.ok && err != nil {
-				t.Fatalf("parseDigest(%q) = %v, want no error", tc.digest, err)
-			}
-			if !tc.ok && err == nil {
-				t.Fatalf("parseDigest(%q) accepted an invalid digest", tc.digest)
+			if _, err := s.Get(t.Context(), tc.dgst, "", fetch); err == nil {
+				t.Fatalf("Get accepted invalid digest %q", tc.dgst)
 			}
 		})
 	}
@@ -215,12 +233,9 @@ func TestParseDigest(t *testing.T) {
 func TestBlobPathStaysUnderRoot(t *testing.T) {
 	s := newStore(t)
 
-	var sum [sha256.Size]byte
-	for i := range sum {
-		sum[i] = byte(i)
-	}
+	enc := "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
+	path := blobPath(s.root, digest.NewDigestFromEncoded(digest.SHA256, enc))
 
-	path := s.blobPath(sum)
 	rel, err := filepath.Rel(s.root, path)
 	if err != nil {
 		t.Fatalf("Rel: %v", err)
@@ -228,8 +243,11 @@ func TestBlobPathStaysUnderRoot(t *testing.T) {
 	if !filepath.IsLocal(rel) {
 		t.Fatalf("blob path %q escapes the store root", path)
 	}
-	if filepath.Base(path) != "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f" {
-		t.Fatalf("blob name = %q, want the hex digest", filepath.Base(path))
+	if filepath.Base(path) != enc {
+		t.Fatalf("blob name = %q, want the encoded digest", filepath.Base(path))
+	}
+	if !strings.Contains(path, string(filepath.Separator)+"sha256"+string(filepath.Separator)) {
+		t.Fatalf("blob path %q lacks the algorithm segment", path)
 	}
 }
 
@@ -274,8 +292,7 @@ func TestVerifyRemovesCorruptAndSweepsTemps(t *testing.T) {
 	}
 	_ = f.Close()
 
-	sum, _ := parseDigest(digestOf(bad.body))
-	if err := os.WriteFile(s.blobPath(sum), []byte("flipped"), 0o600); err != nil {
+	if err := os.WriteFile(blobPath(s.root, dOf(bad.body)), []byte("flipped"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(s.tmp, "blob-stray"), []byte("x"), 0o600); err != nil {
@@ -301,22 +318,21 @@ func TestVerifyRemovesCorruptAndSweepsTemps(t *testing.T) {
 func TestGetAnnotatesRefs(t *testing.T) {
 	s := newStore(t)
 	ff := &fakeFetch{body: []byte("shared bytes")}
-	digest := digestOf(ff.body)
-	sum, _ := parseDigest(digest)
+	dgst := digestOf(ff.body)
 
-	f, err := s.Get(t.Context(), digest, "akismet@5.7.2", ff.fn)
+	f, err := s.Get(t.Context(), dgst, "akismet@5.7.2", ff.fn)
 	if err != nil {
 		t.Fatal(err)
 	}
 	_ = f.Close()
 
-	f, err = s.Get(t.Context(), digest, "akismet-fork@5.7.2", ff.fn)
+	f, err = s.Get(t.Context(), dgst, "akismet-fork@5.7.2", ff.fn)
 	if err != nil {
 		t.Fatal(err)
 	}
 	_ = f.Close()
 
-	refs := readRefs(s.refsPath(sum))
+	refs := readRefs(refsPath(s.root, digest.Digest(dgst)))
 	if len(refs) != 2 || refs[0] != "akismet-fork@5.7.2" || refs[1] != "akismet@5.7.2" {
 		t.Fatalf("refs = %v, want both names sorted", refs)
 	}
@@ -328,21 +344,20 @@ func TestGetAnnotatesRefs(t *testing.T) {
 func TestVerifySweepsOrphanRefs(t *testing.T) {
 	s := newStore(t)
 	ff := &fakeFetch{body: []byte("blob that gets removed behind the store")}
-	digest := digestOf(ff.body)
-	sum, _ := parseDigest(digest)
+	dgst := digestOf(ff.body)
 
-	f, err := s.Get(t.Context(), digest, "pkg-a@1.0.0", ff.fn)
+	f, err := s.Get(t.Context(), dgst, "pkg-a@1.0.0", ff.fn)
 	if err != nil {
 		t.Fatal(err)
 	}
 	_ = f.Close()
 
-	if err := os.Remove(s.blobPath(sum)); err != nil {
+	if err := os.Remove(blobPath(s.root, digest.Digest(dgst))); err != nil {
 		t.Fatal(err)
 	}
 	Verify(t.Context(), s.root)
 
-	if _, err := os.Stat(s.refsPath(sum)); err == nil {
+	if _, err := os.Stat(refsPath(s.root, digest.Digest(dgst))); err == nil {
 		t.Fatal("orphan ref file survived verify")
 	}
 }
@@ -350,10 +365,9 @@ func TestVerifySweepsOrphanRefs(t *testing.T) {
 func TestMetaDirDeletedDegradesAndHeals(t *testing.T) {
 	s := newStore(t)
 	ff := &fakeFetch{body: []byte("survives losing its name")}
-	digest := digestOf(ff.body)
-	sum, _ := parseDigest(digest)
+	dgst := digestOf(ff.body)
 
-	f, err := s.Get(t.Context(), digest, "pkg-a@1.0.0", ff.fn)
+	f, err := s.Get(t.Context(), dgst, "pkg-a@1.0.0", ff.fn)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -363,10 +377,10 @@ func TestMetaDirDeletedDegradesAndHeals(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if refs := readRefs(s.refsPath(sum)); refs != nil {
+	if refs := readRefs(refsPath(s.root, digest.Digest(dgst))); refs != nil {
 		t.Fatalf("refs = %v after meta wipe, want none", refs)
 	}
-	f, err = s.Get(t.Context(), digest, "pkg-a@1.0.0", ff.fn)
+	f, err = s.Get(t.Context(), dgst, "pkg-a@1.0.0", ff.fn)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -374,7 +388,7 @@ func TestMetaDirDeletedDegradesAndHeals(t *testing.T) {
 	if ff.calls != 1 {
 		t.Fatalf("fetch ran %d times, want the heal to ride a cache hit", ff.calls)
 	}
-	if refs := readRefs(s.refsPath(sum)); len(refs) != 1 || refs[0] != "pkg-a@1.0.0" {
+	if refs := readRefs(refsPath(s.root, digest.Digest(dgst))); len(refs) != 1 || refs[0] != "pkg-a@1.0.0" {
 		t.Fatalf("refs = %v, want the name healed", refs)
 	}
 }
