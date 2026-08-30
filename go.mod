@@ -14,6 +14,7 @@ require (
 	github.com/moby/sys/sequential v0.7.0
 	github.com/moby/term v0.5.2
 	github.com/morikuni/aec v1.1.0
+	github.com/opencontainers/go-digest v1.0.0
 	github.com/rs/zerolog v1.35.1
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.10
