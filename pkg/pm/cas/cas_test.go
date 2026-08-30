@@ -434,7 +434,7 @@ func BenchmarkGetHit(b *testing.B) {
 		return io.NopCloser(bytes.NewReader(payload)), nil
 	}
 
-	f, err := s.Get(b.Context(), digest, "", fetch)
+	f, err := s.Get(b.Context(), digest, "pkg-bench@1.0.0", fetch)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -442,7 +442,7 @@ func BenchmarkGetHit(b *testing.B) {
 
 	b.ReportAllocs()
 	for b.Loop() {
-		hit, err := s.Get(b.Context(), digest, "", fetch)
+		hit, err := s.Get(b.Context(), digest, "pkg-bench@1.0.0", fetch)
 		if err != nil {
 			b.Fatal(err)
 		}

@@ -151,7 +151,7 @@ func moveBlob(tmpName, final string) {
 // annotate records ref for a digest with append-if-absent semantics, so a
 // blob shared by identical releases collects every name it serves under.
 func (s *Store) annotate(sum [sha256.Size]byte, ref string) {
-	if ref == "" {
+	if !validRef(ref) {
 		return
 	}
 

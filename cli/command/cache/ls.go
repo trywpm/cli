@@ -53,7 +53,10 @@ func runLs(wpmCli command.Cli) error {
 	})
 
 	slices.SortFunc(blobs, func(a, b blobInfo) int {
-		return b.modTime.Compare(a.modTime)
+		if c := b.modTime.Compare(a.modTime); c != 0 {
+			return c
+		}
+		return strings.Compare(a.digest, b.digest)
 	})
 
 	var buf bytes.Buffer
