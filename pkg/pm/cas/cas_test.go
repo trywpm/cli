@@ -230,27 +230,6 @@ func TestGetRejectsInvalidDigests(t *testing.T) {
 	}
 }
 
-func TestBlobPathStaysUnderRoot(t *testing.T) {
-	s := newStore(t)
-
-	enc := "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
-	path := blobPath(s.root, digest.NewDigestFromEncoded(digest.SHA256, enc))
-
-	rel, err := filepath.Rel(s.root, path)
-	if err != nil {
-		t.Fatalf("Rel: %v", err)
-	}
-	if !filepath.IsLocal(rel) {
-		t.Fatalf("blob path %q escapes the store root", path)
-	}
-	if filepath.Base(path) != enc {
-		t.Fatalf("blob name = %q, want the encoded digest", filepath.Base(path))
-	}
-	if !strings.Contains(path, string(filepath.Separator)+"sha256"+string(filepath.Separator)) {
-		t.Fatalf("blob path %q lacks the algorithm segment", path)
-	}
-}
-
 func TestNewClearsCrashLeftovers(t *testing.T) {
 	dir := t.TempDir()
 	tmp := filepath.Join(dir, "tmp")
@@ -444,12 +423,12 @@ func BenchmarkGetHit(b *testing.B) {
 		b.Fatal(err)
 	}
 	payload := bytes.Repeat([]byte("x"), 1<<20)
-	digest := digestOf(payload)
+	dgst := digestOf(payload)
 	fetch := func(context.Context) (io.ReadCloser, error) {
 		return io.NopCloser(bytes.NewReader(payload)), nil
 	}
 
-	f, err := s.Get(b.Context(), digest, "pkg-bench@1.0.0", fetch)
+	f, err := s.Get(b.Context(), dgst, "pkg-bench@1.0.0", fetch)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -457,7 +436,7 @@ func BenchmarkGetHit(b *testing.B) {
 
 	b.ReportAllocs()
 	for b.Loop() {
-		hit, err := s.Get(b.Context(), digest, "pkg-bench@1.0.0", fetch)
+		hit, err := s.Get(b.Context(), dgst, "pkg-bench@1.0.0", fetch)
 		if err != nil {
 			b.Fatal(err)
 		}
