@@ -16,6 +16,7 @@ permissions: {}
 
 env:
   VERSION: ${{ github.ref }}
+  GO_STRIP: ${{ startsWith(github.ref, 'refs/tags/v') && '1' || '' }}
 
 jobs:
   prepare:
