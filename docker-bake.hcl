@@ -7,6 +7,9 @@ variable "VERSION" {
 variable "PACKAGER_NAME" {
 	default = "wpm team"
 }
+variable "GO_STRIP" {
+	default = ""
+}
 
 target "_common" {
 	args = {
@@ -44,6 +47,7 @@ target "binary" {
 	platforms = ["local"]
 	args = {
 		VERSION = VERSION
+		GO_STRIP = GO_STRIP
 		PACKAGER_NAME = PACKAGER_NAME
 	}
 }
