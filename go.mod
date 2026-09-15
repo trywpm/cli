@@ -7,7 +7,7 @@ require (
 	github.com/briandowns/spinner v1.23.2
 	github.com/docker/cli-docs-tool v0.11.0
 	github.com/docker/go-units v0.5.0
-	github.com/gofrs/flock v0.13.0
+	github.com/gofrs/flock v0.13.1
 	github.com/henvic/httpretty v0.2.0
 	github.com/klauspost/compress v1.20.0
 	github.com/moby/patternmatcher v0.6.1
@@ -28,11 +28,9 @@ require (
 	github.com/cpuguy83/go-md2man/v2 v2.0.7 // indirect
 	github.com/fatih/color v1.7.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
-	github.com/kr/text v0.2.0 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
-	github.com/rogpeppe/go-internal v1.14.1 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
-	go.yaml.in/yaml/v3 v3.0.4 // indirect
+	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	golang.org/x/term v0.38.0 // indirect
 )
