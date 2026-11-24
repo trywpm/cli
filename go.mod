@@ -7,7 +7,7 @@ require (
 	github.com/briandowns/spinner v1.23.2
 	github.com/docker/cli-docs-tool v0.11.0
 	github.com/docker/go-units v0.5.0
-	github.com/gofrs/flock v0.13.1
+	github.com/gofrs/flock v0.13.2
 	github.com/henvic/httpretty v0.2.0
 	github.com/klauspost/compress v1.20.3
 	github.com/moby/patternmatcher v0.6.1
